@@ -1,0 +1,144 @@
+{
+  "name": "example-content",
+  "author": "Nine Lives offline project",
+  "description": "A small example for ContentLoader: cheaper alchemy herbs, and Gnolls (and the other monsters using loot table 1000) drop chests twice as often, sometimes with herbs. Delete this file to remove it.",
+  "items": {
+    "600000001": {
+      "name": "Heartberry",
+      "price": 1,
+      "note": "was 3: 10 now cost 200 gold instead of 600"
+    },
+    "600000002": {
+      "name": "Mahn-Mann Mushroom",
+      "price": 1,
+      "note": "was 2: 10 now cost 200 gold instead of 400"
+    }
+  },
+  "loot": {
+    "drops": {
+      "1000": {
+        "note": "Gnolls, Gnoll Archers/Warriors, Gnolldons, Dun Beemoggs, Water Carriers, Leo. Was dropRate 0.33. The original groups are kept; the last group (herbs) is new.",
+        "dropRate": 0.66,
+        "min": 1,
+        "max": 3,
+        "random": [
+          {
+            "rate": 1000,
+            "group": 11
+          },
+          {
+            "rate": 400,
+            "group": 12
+          },
+          {
+            "rate": 60,
+            "group": 13
+          },
+          {
+            "rate": 20,
+            "group": 14
+          },
+          {
+            "rate": 4,
+            "group": 901
+          },
+          {
+            "rate": 70,
+            "items": [
+              {
+                "id": 610000017,
+                "count": 1,
+                "name": "Stockfish"
+              },
+              {
+                "id": 610000017,
+                "count": 1,
+                "name": "Stockfish"
+              },
+              {
+                "id": 630000010,
+                "count": 1,
+                "name": "Minor Healing Salve"
+              },
+              {
+                "id": 630000010,
+                "count": 1,
+                "name": "Minor Healing Salve"
+              },
+              {
+                "id": 630000020,
+                "count": 1,
+                "name": "Minor Healing Potion"
+              },
+              {
+                "id": 630000020,
+                "count": 1,
+                "name": "Minor Healing Potion"
+              },
+              {
+                "id": 630000040,
+                "count": 1,
+                "name": "Unknown Booze"
+              },
+              {
+                "id": 630000040,
+                "count": 1,
+                "name": "Unknown Booze"
+              },
+              {
+                "id": 630000051,
+                "count": 1,
+                "name": "Windwalk"
+              },
+              {
+                "id": 390201000,
+                "count": 1,
+                "name": "Country Clothes"
+              },
+              {
+                "id": 390202000,
+                "count": 1,
+                "name": "Peasant Clothes"
+              },
+              {
+                "id": 390203000,
+                "count": 1,
+                "name": "Linen Robe"
+              },
+              {
+                "id": 390204000,
+                "count": 1,
+                "name": "Worker's Apron"
+              },
+              {
+                "id": 390601000,
+                "count": 1,
+                "name": "Peasant Shoes"
+              }
+            ]
+          },
+          {
+            "rate": 150,
+            "items": [
+              {
+                "id": 600000001,
+                "count": 3,
+                "name": "Heartberry"
+              },
+              {
+                "id": 600000002,
+                "count": 3,
+                "name": "Mahn-Mann Mushroom"
+              },
+              {
+                "id": 600000003,
+                "count": 2,
+                "name": "Ghostly Fungus"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}
