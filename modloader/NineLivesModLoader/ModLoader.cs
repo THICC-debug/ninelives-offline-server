@@ -45,7 +45,7 @@ namespace NineLivesModLoader
     /// </summary>
     public static class ModLoader
     {
-        public const string Version = "2.0.0";
+        public const string Version = "2.1.0";
         static bool started;
         static string logPath;
 

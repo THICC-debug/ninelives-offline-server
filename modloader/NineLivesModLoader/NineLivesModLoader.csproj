@@ -7,7 +7,7 @@
     <TargetFramework>net35</TargetFramework>
     <AssemblyName>NineLivesModLoader</AssemblyName>
     <LangVersion>latest</LangVersion>
-    <Version>2.0.0</Version>
+    <Version>2.1.0</Version>
     <GameDir Condition="'$(GameDir)' == ''">$(MSBuildThisFileDirectory)..\..\..\Ninelives</GameDir>
     <Managed>$(GameDir)\Ninelives_Data\Managed</Managed>
     <!-- Compile against the untouched game code (the patcher's backup). -->

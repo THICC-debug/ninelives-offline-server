@@ -135,6 +135,44 @@ namespace NineLivesModLoader
         public static void SetFlag(int index, bool on) { FlagController.setByIndex(index, on); }
     }
 
+    /// <summary>
+    /// Text commands any mod can add. A command box (the DevTools mod, F7) runs them, so mods
+    /// don't need to depend on each other.
+    /// </summary>
+    public static class Commands
+    {
+        public sealed class Command
+        {
+            public string Name, Usage, Help, Mod;
+            public Func<string[], string> Run;
+        }
+
+        static readonly Dictionary<string, Command> all = new Dictionary<string, Command>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Add a command. The handler gets the words after the command name and returns text to show
+        /// (or null). Throw ArgumentException to show a usage message.
+        /// </summary>
+        public static void Register(string name, string usage, string help, Func<string[], string> handler)
+        {
+            all[name] = new Command { Name = name, Usage = usage, Help = help, Run = handler };
+        }
+
+        public static IEnumerable<Command> All { get { return all.Values; } }
+
+        /// <summary>Run a registered command. False if there's no such command.</summary>
+        public static bool TryRun(string name, string[] args, out string result)
+        {
+            result = null;
+            Command c;
+            if (!all.TryGetValue(name, out c)) return false;
+            try { result = c.Run(args); }
+            catch (ArgumentException e) { result = e.Message.Length > 0 ? e.Message : "Usage: " + c.Usage; }
+            catch (Exception e) { result = "Error: " + e.Message; ModLoader.Log("command " + name + " failed: " + e); }
+            return true;
+        }
+    }
+
     /// <summary>On-screen messages drawn by the mod loader.</summary>
     public static class Messages
     {

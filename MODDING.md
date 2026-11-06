@@ -82,6 +82,7 @@ static class DoubleGold
 | `Events` | The same hooks as C# events, if you'd rather subscribe than override |
 | `Game` | `Player`, `Stats`, `InWorld`, `Zone`, `PlayerPosition`, `Teleport()`, `GiveItem()`, `GiveGold()`, `GiveExp()`, `ItemName()`, `GetFlag()` / `SetFlag()` |
 | `Messages.Show(text)` | A message at the top of the screen |
+| `Commands.Register(name, usage, help, handler)` | Add a text command. The DevTools command box (F7) runs it, so your mod doesn't depend on DevTools. |
 | `Config.Get(key, default, comment)` | Settings in `Mods\config\<id>.cfg`: string, int, float, bool or `KeyCode`. Missing keys are written with their defaults so players can find them. |
 | `ModLoader.Log()` | Writes to `Mods\ModLoader.log` |
 
