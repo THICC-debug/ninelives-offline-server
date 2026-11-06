@@ -146,7 +146,10 @@ Settings at the top of `ninelives_server.py`:
 | Setting | Default | What it does |
 |---|---|---|
 | `START_GEMS` | `100000` | Scarab Gems for new accounts (the old real-money shop currency) |
-| `CHARACTER_LIMIT` | `8` | Character slots per account |
+| `CHARACTER_LIMIT` | `6` | Character slots for new accounts (6 is the game's maximum) |
+
+Scarab Gem purchases (bag slots, bank pages, shared bank, character slots, skill reset, gem
+shop) use the same prices and limits as the original game, read from its code.
 | `PORT` | `8080` | Must stay 8080 unless you also change the patcher |
 
 Run `python ninelives_server.py -v` for a detailed log of every request. Passwords are never logged.

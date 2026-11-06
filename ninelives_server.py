@@ -26,7 +26,14 @@ HOST = "127.0.0.1"
 PORT = 8080
 GAME_VERSION = "0.24.3"           # must match the client exactly
 START_GEMS = 100000               # premium "Scarab Gem" balance for new accounts
-CHARACTER_LIMIT = 8
+CHARACTER_LIMIT = 6               # character slots for new accounts (the game's maximum is 6)
+
+# Scarab Gem prices and limits, copied from the game's own code (0.24.3).
+BAG_SLOT_COST, BAG_SLOT_STEP, BAG_SLOT_MAX = 60, 6, 42     # UI_AddBagSlots
+BANK_PAGE_COST, BANK_PAGE_MAX = 50, 10                      # GUI_Bank
+SHARED_BANK_COST = 150                                      # GUI_BankShare
+CHAR_SLOT_COST, CHAR_SLOT_MAX = 50, 6                       # UI_Menu_CharacterSelecter
+SKILL_RESET_COST = 50                                       # UI_ResetSkillTree (resetBaseCost * 10)
 KEY = b"RQ82EOnVuZZs1nc2_NZAgr18RfrrNVd7"   # the game's built-in key
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -191,6 +198,8 @@ def h_version(p):
 
 def h_login(p):
     email, acc = get_account(p, create=True)
+    # Older saves gave 8 slots; the character screen only has room for 6.
+    acc["characterLimit"] = max(min(acc["characterLimit"], CHAR_SLOT_MAX), min(len(acc["characters"]), CHAR_SLOT_MAX))
     return {"idHash": stable_key("id", email),
             "sessionKey": stable_key("session", email),
             "characterLimit": acc["characterLimit"],
@@ -333,11 +342,20 @@ def h_loadCharacterSkill(p):
             ["bitCount", "skilltreePayExp", "bits1", "bits2", "bits3", "bits4"]}
 
 
+def spend_gems(acc, cost):
+    """Take Scarab Gems; False if there aren't enough (the game checks first, so this is rare)."""
+    if acc["scarabGem"] < cost:
+        return False
+    acc["scarabGem"] -= cost
+    return True
+
+
 def h_rmResetSkilltree(p):
     acc, ch = get_character(p)
-    if ch is not None:
-        for k in ["bitCount", "skilltreePayExp", "bits1", "bits2", "bits3", "bits4"]:
-            ch[k] = 0
+    if ch is None or not spend_gems(acc, SKILL_RESET_COST):
+        return "5"
+    for k in ["bitCount", "skilltreePayExp", "bits1", "bits2", "bits3", "bits4"]:
+        ch[k] = 0
     return {"pcSG": acc["scarabGem"]}
 
 
@@ -456,22 +474,26 @@ def free_bag_slot(ch):
 
 def h_sgShopBuy(p):
     acc, ch = get_character(p)
-    cost = int(to_int(p.get("price")) * max(to_float(p.get("priceAmp"), 1.0), 0))
+    qty = max(to_int(p.get("quantity"), 1), 1)
+    # Same formula as the game's GUI_ActionButton.mathItemPrice: price * priceAmp * quantity.
+    cost = int(to_int(p.get("price")) * max(to_float(p.get("priceAmp"), 1.0), 0) * qty)
     if ch is None or acc["scarabGem"] < cost:
         return "5"
     slot = free_bag_slot(ch)
     if slot is None:
         return "6"
-    acc["scarabGem"] -= cost
+    spend_gems(acc, cost)
     s = {"slotNumber": slot, "itemID": to_int(p.get("itemID")),
          "randomCode": to_int(p.get("randomCode")),
-         "itemCount": max(to_int(p.get("quantity"), 1), 1)}
+         "itemCount": qty}
     dock_store(acc, ch, 2)[str(slot)] = s
     return {"resultSet": {"scarabGem": acc["scarabGem"], "bagSlots": [s]}}
 
 
 def h_addCharacterLimit(p):
     email, acc = get_account(p, create=True)
+    if acc["characterLimit"] >= CHAR_SLOT_MAX or not spend_gems(acc, CHAR_SLOT_COST):
+        return "5"
     acc["characterLimit"] += 1
     return {"resultSet": {"characterCountLimit": acc["characterLimit"],
                           "scarabGem": acc["scarabGem"]}}
@@ -479,31 +501,38 @@ def h_addCharacterLimit(p):
 
 def h_addSharedBank(p):
     email, acc = get_account(p, create=True)
+    if not spend_gems(acc, SHARED_BANK_COST):
+        return "5"
     acc["sharedBankCount"] += 1
     return {"sharedBank": acc["sharedBankCount"], "scarabGem": acc["scarabGem"]}
 
 
 def h_bagUnlockBySG(p):
     acc, ch = get_character(p)
-    if ch is not None:
-        ch["bagSlotCount"] = ch.get("bagSlotCount", 24) + 6
-    return {"scarabGem": acc["scarabGem"],
-            "bagSlotCount": (ch or {}).get("bagSlotCount", 24)}
+    if ch is None or ch.get("bagSlotCount", 24) >= BAG_SLOT_MAX or not spend_gems(acc, BAG_SLOT_COST):
+        return "5"
+    ch["bagSlotCount"] = min(ch.get("bagSlotCount", 24) + BAG_SLOT_STEP, BAG_SLOT_MAX)
+    return {"scarabGem": acc["scarabGem"], "bagSlotCount": ch["bagSlotCount"]}
 
 
 def h_bankUnlockBySG(p):
     acc, ch = get_character(p)
-    if ch is not None:
-        ch["bankPageCount"] = min(ch.get("bankPageCount", 1) + 1, 10)
-    return {"scarabGem": acc["scarabGem"],
-            "bankPageCount": (ch or {}).get("bankPageCount", 1)}
+    if ch is None or ch.get("bankPageCount", 1) >= BANK_PAGE_MAX or not spend_gems(acc, BANK_PAGE_COST):
+        return "5"
+    ch["bankPageCount"] = ch.get("bankPageCount", 1) + 1
+    return {"scarabGem": acc["scarabGem"], "bankPageCount": ch["bankPageCount"]}
 
 
 def h_bankUnlockByItem(p):
+    # Uses a Bank Key from the inbox. Nothing is mailed offline, so this rarely happens.
     acc, ch = get_character(p)
     if ch is not None:
-        ch["bankPageCount"] = min(ch.get("bankPageCount", 1) + 1, 10)
+        ch["bankPageCount"] = min(ch.get("bankPageCount", 1) + 1, BANK_PAGE_MAX)
     return {"bankPageCount": (ch or {}).get("bankPageCount", 1), "inboxSlots": []}
+
+
+def h_collect(p):
+    return "0"      # Google Analytics pings, redirected here by the patch: ignore
 
 
 HANDLERS = {name[2:]: fn for name, fn in globals().items()
