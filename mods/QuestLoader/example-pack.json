@@ -1,0 +1,28 @@
+{
+  "name": "example-quests",
+  "author": "Nine Lives offline project",
+  "description": "A small example quest pack for QuestLoader. Delete this file to remove it.",
+  "quests": [
+    {
+      "id": 900000001,
+      "title": "Fever Dreams",
+      "objective": "Bring 2 Fever to the Towner outside the Crimson Crest alchemy shop.",
+      "types": ["Normal", "Collect"],
+      "enabled": true,
+      "priority": 1,
+      "giver": 250,
+      "ender": 250,
+      "description": "You've got the hang of the alchemist's table, I see.\nI've caught the island chill and nothing warms me like a good dose of Fever. Mahn-Mann Mushrooms and Heartberries, two of each per bottle.\nBring me two bottles and I'll make it worth your while.",
+      "descriptionForEnder": "Ahh, that's the stuff! Here, take this for your trouble, and a bottle of my own Heartberry Liquor.",
+      "targets": [
+        { "kind": "item", "item": 630000050, "count": 2, "includeBank": true }
+      ],
+      "rewards": [
+        { "kind": "exp", "amount": 150 },
+        { "kind": "gold", "amount": 200 },
+        { "kind": "item", "item": 630000042, "amount": 1 }
+      ],
+      "clearFlag": 9000
+    }
+  ]
+}

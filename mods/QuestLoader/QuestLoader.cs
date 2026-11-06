@@ -1,0 +1,365 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using HarmonyLib;
+using Newtonsoft.Json;
+using NineLivesModLoader;
+using UnityEngine;
+
+namespace QuestLoader
+{
+    [ModInfo("questloader", "QuestLoader", "1.0.0", Author = "Nine Lives offline project",
+        Description = "Loads custom quests from Mods\\Quests and exports the game's quests, items and NPCs for the quest editor.")]
+    public class QuestLoader : Mod
+    {
+        internal static QuestLoader Instance;
+        internal static string ExportDir, PacksDir;
+        static readonly JsonSerializerSettings Json = new JsonSerializerSettings
+        {
+            NullValueHandling = NullValueHandling.Ignore,
+        };
+        // The game's Newtonsoft is old: formatting is its own argument.
+        static string ToJson(object o) { return JsonConvert.SerializeObject(o, Formatting.Indented, Json); }
+
+        bool exported;
+        float scanNpcsAt = -1;
+        /// <summary>Quests added by packs (not replacements of originals).</summary>
+        internal static readonly HashSet<int> NewQuestIds = new HashSet<int>();
+
+        public override void Load()
+        {
+            Instance = this;
+            ExportDir = Path.Combine(Path.Combine(ModLoader.ModsDir, "QuestLoader"), "export");
+            PacksDir = Path.Combine(ModLoader.ModsDir, "Quests");
+            Directory.CreateDirectory(ExportDir);
+            Directory.CreateDirectory(PacksDir);
+            new Harmony("ninelives.questloader").PatchAll(typeof(QuestLoader).Assembly);
+            Log("ready - quest packs go in Mods\\Quests");
+        }
+
+        // ------------------------------------------------------------ quests built by the game
+        internal void OnQuestsBuilt(QuestControllerBase ctrl)
+        {
+            if (!exported)
+            {
+                exported = true;   // the game rebuilds quests per zone; export the originals once
+                try { ExportQuests(ctrl); } catch (Exception e) { Log("quest export failed: " + e); }
+                try { ExportItems(); } catch (Exception e) { Log("item export failed: " + e); }
+            }
+            try { ApplyPacks(ctrl); } catch (Exception e) { Log("loading quest packs failed: " + e); }
+        }
+
+        void ExportQuests(QuestControllerBase ctrl)
+        {
+            var list = ctrl.quests.Values.OrderBy(q => q.id).Select(Convert.ToDef).ToList();
+            File.WriteAllText(Path.Combine(ExportDir, "quests.json"), ToJson(list));
+            Log("exported " + list.Count + " original quests");
+        }
+
+        void ExportItems()
+        {
+            var path = Path.Combine(ExportDir, "items.json");
+            if (File.Exists(path)) return;   // item data never changes
+            var items = new List<ItemInfo>();
+            foreach (var id in Item.getItemXMLIDList())
+            {
+                var name = Game.ItemName(id);
+                if (!string.IsNullOrEmpty(name)) items.Add(new ItemInfo { id = id, name = name });
+            }
+            items.Sort((a, b) => a.id.CompareTo(b.id));
+            File.WriteAllText(path, ToJson(items));
+            Log("exported " + items.Count + " item names");
+        }
+
+        void ApplyPacks(QuestControllerBase ctrl)
+        {
+            int added = 0, replaced = 0;
+            foreach (var file in Directory.GetFiles(PacksDir, "*.json").OrderBy(f => f))
+            {
+                QuestPack pack;
+                try { pack = JsonConvert.DeserializeObject<QuestPack>(File.ReadAllText(file)); }
+                catch (Exception e) { Log("couldn't read " + Path.GetFileName(file) + ": " + e.Message); continue; }
+                if (pack == null || pack.quests == null) continue;
+                foreach (var def in pack.quests)
+                {
+                    try
+                    {
+                        bool existed = ctrl.quests.ContainsKey(def.id);
+                        Convert.Apply(ctrl, def);
+                        if (existed) replaced++; else { added++; NewQuestIds.Add(def.id); }
+                    }
+                    catch (Exception e) { Log(Path.GetFileName(file) + ": quest " + def.id + " failed: " + e.Message); }
+                }
+            }
+            if (added + replaced > 0) Log("quest packs: " + added + " added, " + replaced + " replaced");
+        }
+
+        // ------------------------------------------------------------ NPC list for the editor
+        public override void OnZoneLoaded(string zone) { scanNpcsAt = Time.realtimeSinceStartup + 8f; }   // let NPCs spawn
+
+        public override void OnUpdate()
+        {
+            if (scanNpcsAt < 0 || Time.realtimeSinceStartup < scanNpcsAt) return;
+            scanNpcsAt = -1;
+            try { ScanNpcs(); } catch (Exception e) { Log("NPC scan failed: " + e.Message); }
+        }
+
+        void ScanNpcs()
+        {
+            var path = Path.Combine(ExportDir, "npcs.json");
+            var known = new Dictionary<string, NpcInfo>();
+            if (File.Exists(path))
+                foreach (var n in JsonConvert.DeserializeObject<List<NpcInfo>>(File.ReadAllText(path)) ?? new List<NpcInfo>())
+                    known[n.zone + "|" + n.cid] = n;
+            int found = 0;
+            foreach (var o in UnityEngine.Object.FindObjectsOfType(typeof(CommonStats)))
+            {
+                var s = (CommonStats)o;
+                int cid;
+                if (s == null || string.IsNullOrEmpty(s.cid) || !int.TryParse(s.cid, out cid) || cid <= 0) continue;
+                var p = s.transform.position;
+                known[Game.Zone + "|" + cid] = new NpcInfo { cid = cid, name = s.dispName, zone = Game.Zone, x = p.x, y = p.y, z = p.z };
+                found++;
+            }
+            var list = known.Values.OrderBy(n => n.cid).ToList();
+            File.WriteAllText(path, ToJson(list));
+            Log("NPC list: " + found + " seen in " + Game.Zone + ", " + list.Count + " known in total");
+        }
+    }
+
+    [HarmonyPatch(typeof(Quest_Startup), nameof(Quest_Startup.setQuests))]
+    static class AfterQuestsBuilt
+    {
+        static void Postfix(QuestControllerBase questCtrl_)
+        {
+            if (QuestLoader.Instance != null) QuestLoader.Instance.OnQuestsBuilt(questCtrl_);
+        }
+    }
+
+    // An NPC offers the FIRST unfinished quest in its list, even if that one is still locked
+    // (e.g. "Crafting?" waits for a recipe item), which hides anything after it, including
+    // quests added by packs. When the game's pick has nothing to offer (locked or just a chat
+    // line), offer the first available pack quest instead. Original quests behave as before.
+    [HarmonyPatch(typeof(QuestController), nameof(QuestController.getTopActiveQuest), new[] { typeof(int), typeof(CommonStats) })]
+    static class OfferPackQuests
+    {
+        static void Postfix(int cid_, ref ActiveQuestResultSet __result)
+        {
+            if (QuestLoader.NewQuestIds.Count == 0) return;
+            if (__result.quest != null && !__result.isBlocked && !__result.isMessage) return;
+            var list = QuestController.getQuestsByCID(cid_);
+            if (list == null) return;
+            Quest best = null;
+            QuestStatus bestStatus = 0;
+            foreach (var q in list)
+            {
+                if (!QuestLoader.NewQuestIds.Contains(q.id)) continue;
+                var st = QuestController.getQuestStatus(q);
+                bool usable = QuestController.checkStatus(st, QuestStatus.Enable)
+                              && !QuestController.checkStatus(st, QuestStatus.Cleared)
+                              && !QuestController.checkStatus(st, QuestStatus.Blocked)
+                              && !QuestController.checkStatus(st, QuestStatus.Message);
+                if (usable && (best == null || q.priority > best.priority)) { best = q; bestStatus = st; }
+            }
+            if (best == null) return;
+            __result = new ActiveQuestResultSet
+            {
+                quest = best, status = bestStatus,
+                isReceived = QuestController.checkStatus(bestStatus, QuestStatus.Received),
+                isErrand = QuestController.checkStatus(bestStatus, QuestStatus.Errand),
+            };
+        }
+    }
+
+    /// <summary>Game Quest &lt;-&gt; QuestDef.</summary>
+    static class Convert
+    {
+        static readonly string[] Langs = { "jp", "es", "fr", "pt", "ru", "zh" };
+
+        public static QuestDef ToDef(Quest q)
+        {
+            var d = new QuestDef
+            {
+                id = q.id, title = q.title, objective = NullIfEmpty(q.objective),
+                types = TypeNames(q.questType),
+                enabled = q.isEnable, autoAccept = q.isAutoAccept, autoReopen = q.isAutoReopen,
+                repeatable = q.isRepeatable, priority = q.priority,
+                giver = q.giverCID, ender = q.enderCID,
+                description = q.description, descriptionForEnder = q.descriptionForEnder,
+                messages = Empty(q.message) ? null : q.message,
+                clearFlag = q.clearFlagIndex, clearWorkFlag = q.clearWorkFlagIndex,
+            };
+            var tr = new Dictionary<string, Translation>();
+            foreach (var l in Langs)
+            {
+                var t = new Translation
+                {
+                    description = NullIfEmpty((string)Field(q, "description_" + l)),
+                    descriptionForEnder = NullIfEmpty((string)Field(q, "descriptionForEnder_" + l)),
+                    messages = Empty((string[])Field(q, "message_" + l)) ? null : (string[])Field(q, "message_" + l),
+                };
+                if (t.description != null || t.descriptionForEnder != null || t.messages != null) tr[l] = t;
+            }
+            if (tr.Count > 0) d.translations = tr;
+
+            if (q.receives != null && q.receives.Length > 0)
+                d.receives = q.receives.Select(r => new ItemCount { item = r.itemID, count = r.count }).ToList();
+            if (q.targets != null && q.targets.Length > 0)
+                d.targets = q.targets.Select(ToTarget).Where(t => t != null).ToList();
+            if (q.rewards != null && q.rewards.Length > 0)
+                d.rewards = q.rewards.Select(ToReward).Where(r => r != null).ToList();
+
+            var req = new Requirements
+            {
+                flagsAll = Flags(q.flagPattern != null ? q.flagPattern.AND_FlagsPattern : null),
+                flagsAny = Flags(q.flagPattern != null ? q.flagPattern.OR_FlagsPattern : null),
+                workFlagsAll = Flags(q.flagPattern != null ? q.flagPattern.AND_WorkFlagsPattern : null),
+                workFlagsAny = Flags(q.flagPattern != null ? q.flagPattern.OR_WorkFlagsPattern : null),
+                itemsAll = Items(q.itemPattern != null ? q.itemPattern.AND_ItemPattern : null),
+                itemsAny = Items(q.itemPattern != null ? q.itemPattern.OR_ItemPattern : null),
+            };
+            if (req.flagsAll != null || req.flagsAny != null || req.workFlagsAll != null || req.workFlagsAny != null || req.itemsAll != null || req.itemsAny != null)
+                d.requires = req;
+            d.setFlagsOnClear = Flags(q.setFlagsByClear);
+            return d;
+        }
+
+        public static void Apply(QuestControllerBase ctrl, QuestDef d)
+        {
+            Quest q;
+            QuestType type = ParseTypes(d.types);
+            // The game only counts item goals for Collect quests (GUI_ActionDock), so a quest with
+            // an item goal but no Collect type could never be handed in. Add it.
+            if (d.targets != null && d.targets.Exists(t => t.kind != "kill")) type |= QuestType.Collect;
+            if (ctrl.quests.TryGetValue(d.id, out q))
+            {
+                Unlink(ctrl, q);
+                q.questType = type;
+                q.clearFlagIndex = d.clearFlag;
+                q.isEnable = d.enabled;
+            }
+            else q = ctrl.addQuest(d.id, d.clearFlag, d.enabled, type);
+
+            q.title = d.title ?? "";
+            q.objective = d.objective ?? "";
+            q.isAutoAccept = d.autoAccept;
+            q.isAutoReopen = d.autoReopen;
+            q.isRepeatable = d.repeatable;
+            q.priority = d.priority;
+            q.description = d.description;
+            q.descriptionForEnder = d.descriptionForEnder;
+            q.message = d.messages;
+            q.clearWorkFlagIndex = d.clearWorkFlag;
+            if (d.translations != null)
+                foreach (var kv in d.translations)
+                {
+                    if (Array.IndexOf(Langs, kv.Key) < 0 || kv.Value == null) continue;
+                    SetField(q, "description_" + kv.Key, kv.Value.description);
+                    SetField(q, "descriptionForEnder_" + kv.Key, kv.Value.descriptionForEnder);
+                    SetField(q, "message_" + kv.Key, kv.Value.messages);
+                }
+
+            q.receives = d.receives == null ? null : d.receives.Select(r => new QuestReceiveItemData(r.item, r.count)).ToArray();
+            q.targets = d.targets == null ? null : d.targets.Select(FromTarget).ToArray();
+            q.rewards = d.rewards == null ? null : d.rewards.Select(FromReward).ToArray();
+
+            var req = d.requires ?? new Requirements();
+            q.flagPattern = new FlagController_FlagPatternSet
+            {
+                AND_FlagsPattern = GameFlags(req.flagsAll), OR_FlagsPattern = GameFlags(req.flagsAny),
+                AND_WorkFlagsPattern = GameFlags(req.workFlagsAll), OR_WorkFlagsPattern = GameFlags(req.workFlagsAny),
+            };
+            q.itemPattern = new PlayerItemChecker { AND_ItemPattern = GameItems(req.itemsAll), OR_ItemPattern = GameItems(req.itemsAny) };
+            q.setFlagsByClear = d.setFlagsOnClear == null ? null : GameFlags(d.setFlagsOnClear);
+
+            if (d.giver > 0) ctrl.setLinkGiverCID(d.giver, q);
+            if (d.ender > 0) ctrl.setLinkEnderCID(d.ender, q);
+        }
+
+        static void Unlink(QuestControllerBase ctrl, Quest q)
+        {
+            foreach (var table in new[] { ctrl.cidToQuestsList, ctrl.cidToQuestsGiverList, ctrl.cidToQuestsEnderList })
+                foreach (var l in table.Values) l.Remove(q);
+        }
+
+        static Target ToTarget(QuestTargetData t)
+        {
+            var i = t as QuestTargetData_item;
+            if (i != null) return new Target { kind = "item", item = i.itemID, count = i.count, includeBank = i.isIncludeBankCheck };
+            var k = t as QuestTargetData_kill;
+            if (k != null) return new Target { kind = "kill", monster = NullIfEmpty(k.name), monsterId = k.id, count = k.count };
+            return null;
+        }
+
+        static QuestTargetData FromTarget(Target t)
+        {
+            if (t.kind == "kill")
+                return string.IsNullOrEmpty(t.monster) ? new QuestTargetData_kill(t.monsterId, t.count) : new QuestTargetData_kill(t.monster, t.count);
+            return new QuestTargetData_item(t.item, t.count, t.includeBank);
+        }
+
+        static Reward ToReward(QuestRewardData r)
+        {
+            var it = r as QuestReward_item;
+            if (it != null) return new Reward { kind = "item", item = it.itemID, amount = it.count };
+            if (r.rewardType == 2) return new Reward { kind = "gold", amount = r.count };
+            if (r.rewardType == 3) return new Reward { kind = "exp", amount = r.count };
+            return null;
+        }
+
+        static QuestRewardData FromReward(Reward r)
+        {
+            switch (r.kind)
+            {
+                case "gold": return new QuestReward_gold(r.amount);
+                case "exp": return new QuestReward_experience(r.amount);
+                default: return new QuestReward_item(r.item, Math.Max(1, r.amount));
+            }
+        }
+
+        static List<string> TypeNames(QuestType t)
+        {
+            var l = new List<string>();
+            foreach (QuestType v in Enum.GetValues(typeof(QuestType)))
+                if ((t & v) != 0) l.Add(v.ToString());
+            return l;
+        }
+
+        static QuestType ParseTypes(List<string> names)
+        {
+            QuestType t = 0;
+            if (names != null)
+                foreach (var n in names) t |= (QuestType)Enum.Parse(typeof(QuestType), n, true);
+            return t == 0 ? QuestType.Normal : t;
+        }
+
+        static List<FlagValue> Flags(FlagController_FlagDataSet[] a)
+        {
+            if (a == null || a.Length == 0) return null;
+            return a.Select(f => new FlagValue { flag = f.index, on = f.flag }).ToList();
+        }
+
+        static FlagController_FlagDataSet[] GameFlags(List<FlagValue> l)
+        {
+            return l == null ? new FlagController_FlagDataSet[0] : l.Select(f => new FlagController_FlagDataSet(f.flag, f.on)).ToArray();
+        }
+
+        static List<ItemReq> Items(PlayerItemChecker_ItemIDSet[] a)
+        {
+            if (a == null || a.Length == 0) return null;
+            return a.Select(i => new ItemReq { item = i.id, count = i.count, atLeast = i.isGreaterEqual, includeBank = i.isIncludeBankCheck }).ToList();
+        }
+
+        static PlayerItemChecker_ItemIDSet[] GameItems(List<ItemReq> l)
+        {
+            if (l == null) return null;
+            return l.Select(i => new PlayerItemChecker_ItemIDSet { id = i.item, count = i.count, isGreaterEqual = i.atLeast, isIncludeBankCheck = i.includeBank }).ToArray();
+        }
+
+        static object Field(Quest q, string name) { var f = typeof(Quest).GetField(name); return f != null ? f.GetValue(q) : null; }
+        static void SetField(Quest q, string name, object v) { var f = typeof(Quest).GetField(name); if (f != null) f.SetValue(q, v); }
+        static string NullIfEmpty(string s) { return string.IsNullOrEmpty(s) ? null : s; }
+        static bool Empty(string[] a) { return a == null || a.Length == 0; }
+    }
+}
