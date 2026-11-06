@@ -1,22 +1,29 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- Tiny mod loader for Ninelives 0.24.3 (Unity 5.3.6, old Mono = .NET 3.5).
-       The patcher copies this DLL into Ninelives_Data\Managed and calls ModLoader.Init()
-       when the game's code starts. -->
+  <!-- Nine Lives mod loader + mod API (Unity 5.3.6, old Mono = .NET 3.5).
+       The patcher copies this DLL into Ninelives_Data\Managed, puts 0Harmony.dll in Mods\lib,
+       and calls ModLoader.Init() when the game's code starts. -->
   <PropertyGroup>
     <TargetFramework>net35</TargetFramework>
     <AssemblyName>NineLivesModLoader</AssemblyName>
     <LangVersion>latest</LangVersion>
-    <Version>1.0.0</Version>
+    <Version>2.0.0</Version>
     <GameDir Condition="'$(GameDir)' == ''">$(MSBuildThisFileDirectory)..\..\..\Ninelives</GameDir>
+    <Managed>$(GameDir)\Ninelives_Data\Managed</Managed>
+    <!-- Compile against the untouched game code (the patcher's backup). -->
+    <GameCode Condition="Exists('$(GameDir)\Ninelives_Data\OfflineBackup\Assembly-UnityScript.dll')">$(GameDir)\Ninelives_Data\OfflineBackup</GameCode>
+    <GameCode Condition="'$(GameCode)' == ''">$(Managed)</GameCode>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies.net35" Version="1.0.3" PrivateAssets="all" />
+    <PackageReference Include="Lib.Harmony" Version="2.2.2" />
   </ItemGroup>
 
   <ItemGroup>
-    <Reference Include="UnityEngine"><HintPath>$(GameDir)\Ninelives_Data\Managed\UnityEngine.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine"><HintPath>$(Managed)\UnityEngine.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Assembly-UnityScript"><HintPath>$(GameCode)\Assembly-UnityScript.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Assembly-CSharp-firstpass"><HintPath>$(GameCode)\Assembly-CSharp-firstpass.dll</HintPath><Private>false</Private></Reference>
   </ItemGroup>
 
 </Project>

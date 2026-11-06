@@ -135,6 +135,10 @@ var rp = new ReaderParameters { AssemblyResolver = resolver };
             init_cctor.Body.GetILProcessor().InsertBefore(init_cctor.Body.Instructions[0], Instruction.Create(OpCodes.Call, init));
         }
         Directory.CreateDirectory(Path.Combine(game, "Mods", "lib"));
+        // The loader uses Harmony itself (events, mod list); it ships next to the loader DLL.
+        var harmonyDll = Path.Combine(Path.GetDirectoryName(loaderPath)!, "0Harmony.dll");
+        if (File.Exists(harmonyDll)) File.Copy(harmonyDll, Path.Combine(game, "Mods", "lib", "0Harmony.dll"), true);
+        else Console.WriteLine("Warning: 0Harmony.dll not found next to the loader; events and the F11 mod list won't work.");
         Console.WriteLine("Mod loader installed (mods go in " + Path.Combine(game, "Mods") + ")");
     }
 

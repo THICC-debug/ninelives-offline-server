@@ -9,9 +9,14 @@ Ninelives\
 ├── Mods\
 │   ├── lib\0Harmony.dll      ← shared libraries for mods
 │   ├── YourMod.dll           ← mods go here
+│   ├── config\yourmod.cfg    ← each mod's settings
+│   ├── mods.cfg              ← which mods are on
 │   └── ModLoader.log         ← what loaded, and any errors
 └── Ninelives_Data\Managed\NineLivesModLoader.dll
 ```
+
+In game, **F11** opens the mod list: what's installed, what's running, and why anything didn't load.
+Tick or untick a mod to switch it on or off. That's saved to `mods.cfg` and applies on the next start.
 
 > [!NOTE]
 > **Why not BepInEx?** BepInEx was tried first. On this game's Unity version (5.3.6)
@@ -37,17 +42,30 @@ You need the [.NET 8 SDK](https://dotnet.microsoft.com/download) and a game patc
 ```csharp
 using HarmonyLib;
 using NineLivesModLoader;
+using UnityEngine;
 
-public class MyMod : IMod
+[ModInfo("mymod", "My Mod", "1.0.0", Author = "you", Description = "Shown in the F11 mod list")]
+public class MyMod : Mod
 {
-    public void Load()          // called once when the game starts
+    KeyCode key;
+
+    public override void Load()            // once, very early: settings and Harmony patches
     {
-        ModLoader.Log("My mod loaded");
+        key = Config.Get("Key", KeyCode.F8, "Key that gives gold");   // Mods\config\mymod.cfg
         new Harmony("me.mymod").PatchAll(typeof(MyMod).Assembly);
+    }
+
+    public override void OnUpdate()        // every frame
+    {
+        if (Input.GetKeyDown(key) && Game.InWorld)
+        {
+            Game.GiveGold(100);
+            Messages.Show("+100 gold");
+        }
     }
 }
 
-// Example: double all gold the player gains.
+// Harmony patch: change how the game itself works.
 [HarmonyPatch(typeof(SomeGameClass), "SomeMethod")]
 static class DoubleGold
 {
@@ -55,10 +73,31 @@ static class DoubleGold
 }
 ```
 
+### The mod API (`NineLivesModLoader`)
+
+| Part | What it gives you |
+|---|---|
+| `[ModInfo(id, name, version)]` | Name, version, `Author`, `Description`, `Dependencies` (ids of mods to load first) |
+| `Mod` base class | `Info`, `Config`, `Log()`, and hooks: `OnGameStarted`, `OnZoneLoaded(zone)`, `OnPlayerSpawned`, `OnUpdate`, `OnGUI` |
+| `Events` | The same hooks as C# events, if you'd rather subscribe than override |
+| `Game` | `Player`, `Stats`, `InWorld`, `Zone`, `PlayerPosition`, `Teleport()`, `GiveItem()`, `GiveGold()`, `GiveExp()`, `ItemName()`, `GetFlag()` / `SetFlag()` |
+| `Messages.Show(text)` | A message at the top of the screen |
+| `Config.Get(key, default, comment)` | Settings in `Mods\config\<id>.cfg`: string, int, float, bool or `KeyCode`. Missing keys are written with their defaults so players can find them. |
+| `ModLoader.Log()` | Writes to `Mods\ModLoader.log` |
+
+Plain `IMod` (just a `Load()` method) still works, for tiny mods.
+
+### Harmony
+
 - **Prefix** runs before the game's method. It can change the arguments, or return `false`
   to skip the original.
 - **Postfix** runs after it and can read or change the result (`ref T __result`).
 - See the [Harmony docs](https://harmony.pardeike.net/articles/patching.html) for more.
+
+### Quests
+
+Quests don't need code: the [QuestLoader](mods/QuestLoader) mod loads quest packs (JSON) and comes
+with a browser-based quest editor.
 
 ## Finding what to patch
 
@@ -86,12 +125,13 @@ backup in `Ninelives_Data\OfflineBackup\` automatically.
 
 - Mods target **.NET Framework 3.5**. This Unity version runs a very old Mono, so newer APIs
   aren't there. Keep the example's `TargetFramework`.
-- `Load()` runs very early, before the first scene. Don't touch scene objects there.
-  Patch a method that runs later, like the example does with `Universe.initResolution`.
-- Wrap risky code in `try/catch` and log errors with `ModLoader.Log`, so one broken mod
-  doesn't take the others down.
+- `Load()` runs very early, before the first scene. Don't touch scene objects there:
+  use `OnGameStarted`, `OnZoneLoaded` or `OnPlayerSpawned`.
+- The hooks catch and log errors for you. In Harmony patches, wrap risky code in `try/catch`,
+  so one broken mod doesn't take the others down.
 - Shared libraries go in `Mods\lib\`. The loader finds them there automatically.
-- To turn a mod off, move its DLL out of `Mods\`.
+- Mod progress flags: use **9000–9999**. The original game uses 6110–8306.
+- To turn a mod off, untick it in the F11 list or set it to `false` in `Mods\mods.cfg`.
 
 ## Releasing a mod
 
