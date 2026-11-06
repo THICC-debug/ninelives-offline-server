@@ -135,18 +135,24 @@ namespace NineLivesModLoader
             {
                 if (hasItemFile == null) hasItemFile = new HashSet<int>(Item.getItemXMLIDList());
                 int fileId = itemId;
+                string prefix = null;
                 if (!hasItemFile.Contains(fileId))
                 {
-                    // Variants ("Fine Knife" etc.) have no item file of their own: they use their base item's.
+                    // Variants ("Fine Knife" etc.) have no item file of their own: they use their base
+                    // item's, and their affix ("Fine") comes from the item library's random code table.
                     var lib = ItemLibraryBase.GetItemLibraryCtrl();
                     ActionAndButton e;
                     if (lib == null || lib.itemIDList == null || !lib.itemIDList.TryGetValue(itemId, out e) || e == null
                         || e.baseItemID <= 0 || !hasItemFile.Contains(e.baseItemID))
                         return null;                 // no data: don't ask the game (it would log an error)
                     fileId = e.baseItemID;
+                    int i = lib.itemRandomCodeIDs != null ? lib.itemRandomCodeIDs.IndexOf(e.randomCodeID) : -1;
+                    if (e.randomCodeID != 0 && i >= 0 && lib.itemRandomCodes[i].affixType != ItemAffix.none)
+                        prefix = lib.itemRandomCodes[i].affixType.ToString();
                 }
                 var st = Item.LoadFromResource(fileId);
-                return st != null ? st.dispName : null;
+                if (st == null) return null;
+                return prefix != null ? prefix + " " + st.dispName : st.dispName;
             }
             catch { return null; }
         }
