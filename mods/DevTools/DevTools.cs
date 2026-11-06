@@ -8,7 +8,7 @@ using UnityEngine;
 namespace DevTools
 {
     // An in-game command box for testing (F7). Type "help" for the list.
-    [ModInfo("devtools", "DevTools", "1.0.0", Author = "Nine Lives offline project",
+    [ModInfo("devtools", "DevTools", "1.1.0", Author = "Nine Lives offline project",
         Description = "In-game command box (F7) for testing: give items, gold, exp, teleport, flags.")]
     public class DevTools : Mod
     {
@@ -93,7 +93,12 @@ namespace DevTools
                     case "tp": NeedWorld(); Game.Teleport(new Vector3(Float(args, 0), Float(args, 1), Float(args, 2))); Print("Teleported"); break;
                     case "flag": FlagCmd(args); break;
                     case "clear": output.Clear(); break;
-                    default: Print("Unknown command. Type help."); break;
+                    default:
+                        // Commands added by other mods (Commands.Register in the mod API).
+                        string result;
+                        if (Commands.TryRun(cmd, args, out result)) { if (!string.IsNullOrEmpty(result)) foreach (var l in result.Split('\n')) Print(l); }
+                        else Print("Unknown command. Type help.");
+                        break;
                 }
             }
             catch (Exception ex) { Print(ex is ArgumentException ? ex.Message : "Error: " + ex.Message); }
@@ -107,6 +112,7 @@ namespace DevTools
             Print("pos                show your position      tp <x> <y> <z>  teleport");
             Print("flag <n> [on|off]  show or set a progress flag (mods: 9000-9999)");
             Print("clear              clear this box.  Up/Down: history.  Esc: close");
+            foreach (var c in Commands.All) Print(c.Usage.PadRight(19) + c.Help);
         }
 
         void Give(string[] args)
