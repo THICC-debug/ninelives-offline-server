@@ -90,11 +90,30 @@ def get_python(stage):
     return dest
 
 
+def readme(with_mods):
+    """README.txt with the #if mods / #else / #endif blocks resolved."""
+    out, keep = [], [True]
+    for line in open(os.path.join(HERE, "README.txt"), encoding="utf-8").read().splitlines():
+        t = line.strip()
+        if t == "#if mods":
+            keep.append(with_mods)
+        elif t == "#else":
+            keep[-1] = not keep[-1]
+        elif t == "#endif":
+            keep.pop()
+        elif all(keep):
+            out.append(line)
+    return "\n".join(out) + "\n"
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--game", default=os.path.join(os.path.dirname(REPO), "Ninelives"),
                     help="a Nine Lives install to compile against (default: ..\\Ninelives)")
+    ap.add_argument("--no-mods", action="store_true",
+                    help="leave the mods out (the mod loader is still installed)")
     args = ap.parse_args()
+    mods = [] if args.no_mods else MODS
     game = os.path.abspath(args.game)
     if not os.path.exists(os.path.join(game, "Ninelives.exe")):
         sys.exit("Can't find the game at %s. Pass --game." % game)
@@ -119,7 +138,7 @@ def main():
     # Mods: each one's own release zip (the same zip that's released on its own).
     os.makedirs(os.path.join(files, "mods"))
     lines = ["# id | version | zip | default | description | editor name | editor script"]
-    for mid, default, desc, ed_name, ed_script in MODS:
+    for mid, default, desc, ed_name, ed_script in mods:
         proj = os.path.join(REPO, "mods", mid, mid + ".csproj")
         ver = csproj_version(proj)
         run(["dotnet", "build", "-c", "Release", "-v", "q", "-nologo", "-t:Package", proj, gd, "-p:NoInstall=true"])
@@ -139,7 +158,8 @@ def main():
     # Setup.exe
     run(["dotnet", "build", "-c", "Release", "-v", "q", "-nologo", setup_proj])
     shutil.copy2(os.path.join(HERE, "Setup", "bin", "Release", "net48", "Setup.exe"), os.path.join(stage, "Setup.exe"))
-    shutil.copy2(os.path.join(HERE, "README.txt"), os.path.join(stage, "README.txt"))
+    with open(os.path.join(stage, "README.txt"), "w", encoding="utf-8", newline="\r\n") as f:
+        f.write(readme(bool(mods)))
 
     # Nothing from the game may end up in the release.
     for root, _, names in os.walk(stage):

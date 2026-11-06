@@ -1,39 +1,56 @@
 NINE LIVES OFFLINE
 ==================
 
-Play Nine Lives 0.24.3 without the official servers (they're gone), with mod support.
+Play Nine Lives 0.24.3 without the official servers (they're gone).
 Made with AI (Anthropic's Claude) and tested by a human player. A fan project, not
 affiliated with SmokymonkeyS. You need your own copy of the game.
 
 INSTALL
   1. Unzip this whole folder anywhere (don't run Setup.exe from inside the zip).
   2. Run Setup.exe. It finds the game, or click Browse and pick the folder with Ninelives.exe.
+#if mods
   3. Tick the mods you want and click Install.
+#else
+  3. Click Install.
+#endif
   4. Play with "Play Nine Lives Offline.bat" in the game folder, or the desktop shortcut.
+     Log in with any email and password: your account is made on the spot.
 
 Nothing else to install: Setup brings its own copy of Python for the server. It works on
-Windows 10 and 11.
+Windows 10 and 11. The server starts minimized next to the game and stops by itself
+when you close the game.
 
 WHAT SETUP CHANGES
   - Two game files (Ninelives_Data\Managed\Assembly-UnityScript.dll and
     Assembly-CSharp-firstpass.dll) are patched to talk to the server on your own PC.
     The originals are kept in Ninelives_Data\OfflineBackup.
   - The offline server goes in <game>\OfflineServer. Your save is OfflineServer\save.json.
+#if mods
   - The mod loader and your mods go in <game>\Mods.
+#else
+  - The mod loader goes in <game>\Mods (mods come in a later release).
+#endif
 
+#if mods
 UPDATE OR CHANGE MODS
   Run Setup.exe again, tick or untick mods, click Update. Your save and packs are kept.
+#else
+UPDATE
+  Run a newer Setup.exe and click Update. Your save is kept.
+#endif
 
 UNINSTALL
   Run Setup.exe and click Uninstall. The original game files go back. You choose whether
-  to keep your save and mod packs.
+  to keep your save.
 
+#if mods
 EDITORS
   QuestLoader and ContentLoader come with editors that open in your browser:
   <game>\Mods\Open Quest Editor.bat and <game>\Mods\Open Content Editor.bat
   Play the game once with the mod installed first (it exports the game's data for the editor).
 
-HELP, SOURCE, MAKING MODS
+#endif
+HELP AND SOURCE
   https://github.com/THICC-debug/ninelives-offline-server
 
 The code is MIT licensed. Python is from python.org (PSF license, see files\python\LICENSE.txt).

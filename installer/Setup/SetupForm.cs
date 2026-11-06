@@ -40,8 +40,8 @@ namespace NineLivesSetup
             var title = new Label { Text = "Nine Lives Offline", Font = new Font("Segoe UI Semibold", 15f), AutoSize = true, Margin = new Padding(0, 0, 0, 2) };
             var sub = new Label
             {
-                Text = "Play Nine Lives 0.24.3 without the official servers, with mod support. " +
-                       "Setup patches the game (keeping a backup), installs the offline server and the mods you pick. You can undo it all with Uninstall.",
+                Text = "Play Nine Lives 0.24.3 without the official servers. " +
+                       "Setup patches the game (keeping a backup), installs the offline server and the mod loader (and any mods you pick). You can undo it all with Uninstall.",
                 AutoSize = true, MaximumSize = new Size(720, 0), Margin = new Padding(0, 0, 0, 10),
             };
             layout.Controls.Add(title);
@@ -64,7 +64,8 @@ namespace NineLivesSetup
             status.Margin = new Padding(0, 4, 0, 10);
             layout.Controls.Add(status);
 
-            layout.Controls.Add(new Label { Text = "Mods (each one can be turned on or off later by running Setup again):", AutoSize = true });
+            var modsLabel = new Label { Text = "Mods (each one can be turned on or off later by running Setup again):", AutoSize = true };
+            layout.Controls.Add(modsLabel);
             modList.View = View.Details;
             modList.CheckBoxes = true;
             modList.FullRowSelect = true;
@@ -77,6 +78,12 @@ namespace NineLivesSetup
             foreach (var m in mods)
                 modList.Items.Add(new ListViewItem(new[] { m.Id, m.Version, m.Description }) { Tag = m, ToolTipText = m.Description });
             layout.Controls.Add(modList);
+            if (mods.Count == 0)
+            {
+                // A release without mods (the loader is still installed, mods come later).
+                layout.Controls.Remove(modsLabel);
+                layout.Controls.Remove(modList);
+            }
             // The description column takes the rest of the width.
             EventHandler fit = (s, e) => modList.Columns[2].Width = Math.Max(150, modList.ClientSize.Width - modList.Columns[0].Width - modList.Columns[1].Width - 4);
             modList.Resize += fit;
@@ -117,7 +124,8 @@ namespace NineLivesSetup
 
             layout.RowStyles.Clear();
             for (int i = 0; i < layout.Controls.Count; i++) layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            layout.RowStyles[layout.Controls.GetChildIndex(modList)] = new RowStyle(SizeType.Percent, 55);
+            if (mods.Count > 0) layout.RowStyles[layout.Controls.GetChildIndex(modList)] = new RowStyle(SizeType.Percent, 55);
+            else ClientSize = new Size(760, 470);
             layout.RowStyles[layout.Controls.GetChildIndex(logBox)] = new RowStyle(SizeType.Percent, 45);
 
             var problem = Installer.PayloadProblem();

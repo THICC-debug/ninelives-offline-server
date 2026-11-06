@@ -53,7 +53,7 @@ This project brings it back for single-player, offline play:
    anywhere.
 2. **Run `Setup.exe`.** It finds the game (or click **Browse** and pick the folder with
    `Ninelives.exe`), checks it's the original 0.24.3, and backs up the two files it patches.
-3. **Pick your mods** and click **Install**.
+3. Click **Install**. (v1.0.0 installs the mod loader without mods; the mods come in a later release.)
 4. **Play** with the **Nine Lives (Offline)** desktop shortcut, or
    `Play Nine Lives Offline.bat` in the game folder. Log in with **any email and password**.
    Your account is created on the spot.
@@ -61,7 +61,7 @@ This project brings it back for single-player, offline play:
 The server starts minimized next to the game and stops by itself when you close the game.
 Your save is `Ninelives\OfflineServer\save.json`.
 
-**Update or change mods:** run `Setup.exe` again, tick or untick mods, click **Update**.
+**Update:** run a newer `Setup.exe` and click **Update**.
 Your save and packs are kept.
 
 **Uninstall:** run `Setup.exe` and click **Uninstall**. The original game files go back, and
@@ -88,7 +88,8 @@ Game somewhere else? Open the two `.bat` files in Notepad and change `GAME_DIR`.
 To build the player release (Setup.exe and everything it installs):
 
 ```
-python installer/build_release.py
+python installer/build_release.py             # with the mods
+python installer/build_release.py --no-mods   # just the server and mod loader (v1.0.0)
 ```
 
 That writes `installer/release/NineLivesOffline-<version>.zip`. See
