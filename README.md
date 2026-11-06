@@ -116,8 +116,9 @@ who wants to write their own server (in Rust, Go, anything) has a complete spec.
 
 ## 🧩 Modding
 
-The patch also installs a small mod loader. Mods are .NET DLLs in `Ninelives\Mods\`
-that change the game's code at runtime with Harmony, so game files never get edited by hand.
+The patch also installs a mod loader with a small mod API (settings, events, game helpers,
+and an in-game mod list on **F11**). Mods are .NET DLLs in `Ninelives\Mods\` that change the
+game's code at runtime with Harmony, so game files never get edited by hand.
 Copy [`mods/ExampleMod`](mods/ExampleMod) to get started. The full guide is in
 **[MODDING.md](MODDING.md)**.
 
@@ -126,6 +127,8 @@ Each mod is self-contained and released on its own:
 | Mod | What it does |
 |---|---|
 | [TravelMod](mods/TravelMod) | Remembers your position across logins, and teleports between spawn points (F9/F10) |
+| [QuestLoader](mods/QuestLoader) | Custom quests from JSON quest packs, plus a browser-based quest editor |
+| [DevTools](mods/DevTools) | In-game command box (F7): give items, gold, exp, teleport, flags |
 
 ## ⚗️ Alchemy recipes
 
