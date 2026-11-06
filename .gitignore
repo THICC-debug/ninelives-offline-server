@@ -1,0 +1,19 @@
+# Personal data - never commit
+save.json
+save.json.tmp
+server.log
+
+# Game files belong to SmokymonkeyS - never commit
+original-files/
+*.dll
+*.exe
+*.assets
+*.resS
+*.resource
+*.unity3d
+
+# Build output
+patcher/bin/
+patcher/obj/
+__pycache__/
+*.pyc
