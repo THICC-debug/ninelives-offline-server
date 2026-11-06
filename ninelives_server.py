@@ -79,10 +79,17 @@ def decode_request(req):
     return json.loads(plain.decode("utf-8"))
 
 
+class EncryptedText(str):
+    """A handler result sent encrypted as-is (not as JSON)."""
+
+
 def encode_reply(obj):
     prefix = secrets.token_hex(20)          # 40 chars, fresh every reply
     iv = prefix[12:28].encode()
-    data = json.dumps(obj, separators=(",", ":")).encode("utf-8")
+    if isinstance(obj, EncryptedText):
+        data = str(obj).encode("utf-8")
+    else:
+        data = json.dumps(obj, separators=(",", ":")).encode("utf-8")
     return prefix + base64.b64encode(aes.encrypt_cbc(KEY, iv, data)).decode()
 
 
@@ -349,6 +356,56 @@ def h_saveAlchemyMixedItem(p):
     return "0"
 
 
+# Alchemy recipes come from recipes.json (edit it to add or change recipes).
+RECIPES_PATH = os.path.join(HERE, "recipes.json")
+
+
+def load_recipes():
+    try:
+        with open(RECIPES_PATH, "r", encoding="utf-8") as f:
+            return json.load(f).get("recipes", [])
+    except FileNotFoundError:
+        return []
+    except Exception as e:
+        log("!! recipes.json could not be read: %s" % e)
+        return []
+
+
+def recipe_for_client(r, vendor):
+    return {"isEnabled": True, "isHidden": bool(r.get("hidden", False)),
+            "venderID": vendor, "recipeID": r["id"],
+            "keyItemID": r["key"]["item"], "keyItemCount": r["key"].get("count", 1),
+            "resultItemID": r["result"]["item"], "resultItemCount": r["result"].get("count", 1),
+            "mats": [{"id": m["item"], "count": m.get("count", 1)} for m in r.get("materials", [])],
+            "orderWeight": r.get("order", r["id"])}
+
+
+def recipe_vendor_ok(r, vendor):
+    vendors = r.get("vendors")          # leave out = every alchemist knows it
+    return not vendors or vendor in vendors
+
+
+def h_loadAlchemyRecipeList(p):
+    vendor, key = to_int(p.get("vendorID")), to_int(p.get("keyItemId"))
+    found = [recipe_for_client(r, vendor) for r in load_recipes()
+             if r["key"]["item"] == key and recipe_vendor_ok(r, vendor)]
+    found.sort(key=lambda r: r["orderWeight"])
+    return found
+
+
+def h_loadAlchemyRecipeCode(p):
+    """The game checks this code before mixing: md5 of the recipe's fields, see GUI_Alchemy.makeCode."""
+    vendor, rid = to_int(p.get("vendorID")), to_int(p.get("recipeID"))
+    for r in load_recipes():
+        if r["id"] == rid:
+            c = recipe_for_client(r, vendor)
+            s = "recipe_correct_%d%d%d%d%d%d" % (vendor, c["recipeID"], c["keyItemID"], c["keyItemCount"],
+                                               c["resultItemID"], c["resultItemCount"])
+            s += "".join("%d%d" % (m["id"], m["count"]) for m in c["mats"])
+            return EncryptedText(hashlib.md5(s.encode("utf-8")).hexdigest())
+    return EncryptedText("unknown recipe")
+
+
 def h_loadCharacterQuests(p):
     acc, ch = get_character(p)
     return [{"questID": q} for q in (ch or {}).get("quests", [])]
@@ -499,7 +556,8 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:
             log("!! error in %s\n%s" % (action, traceback.format_exc()))
             return self._reply("9")
-        self._reply(result if isinstance(result, str) else encode_reply(result))
+        plain = isinstance(result, str) and not isinstance(result, EncryptedText)
+        self._reply(result if plain else encode_reply(result))
 
     def do_GET(self):
         self._handle(b"")

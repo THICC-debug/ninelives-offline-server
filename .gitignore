@@ -1,6 +1,7 @@
 # Personal data - never commit
 save.json
 save.json.tmp
+save.backup-*.json
 server.log
 
 # Game files belong to SmokymonkeyS - never commit
@@ -17,3 +18,6 @@ original-files/
 **/obj/
 __pycache__/
 *.pyc
+
+# Mod release zips (upload as GitHub releases instead)
+**/release/

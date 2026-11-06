@@ -1,0 +1,2173 @@
+{
+ "_about": [
+  "Alchemy recipes for the Nine Lives offline server. The originals only lived on the official server.",
+  "Rebuilt from the player-written 'Ninelives Wiki' on atwiki (https://w.atwiki.jp/nine_lives/pages/35.html,",
+  "mostly written June-July 2016, client ~0.23), cross-checked against the 5 in-game 'Recipe:' item pictures,",
+  "which match it exactly. Item names were mapped to the game's own item IDs (see ITEMS.md).",
+  "Each recipe: a key item (top slot), materials (lower slots, any order), and a result. Counts default to 1.",
+  "'vendors': [ids] limits a recipe to certain alchemists; leave it out and every alchemist knows it.",
+  "'hidden': true hides a recipe until the player has the ingredients or has mixed it before.",
+  "Known guesses: the wiki lists Tasty Fried Egg once though the game has two (630000061 is used);",
+  "Dyadian II gives the Dyadian II box, like other crafted gear. Which recipes were secret is unknown."
+ ],
+ "recipes": [
+  {
+   "id": 1,
+   "name": "Minor Healing Salve",
+   "category": "Recovery",
+   "key": {
+    "item": 600000001,
+    "count": 5,
+    "name": "Heartberry"
+   },
+   "materials": [],
+   "result": {
+    "item": 630000010,
+    "count": 1,
+    "name": "Minor Healing Salve"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 2,
+   "name": "Lesser Healing Salve",
+   "category": "Recovery",
+   "key": {
+    "item": 600000001,
+    "count": 15,
+    "name": "Heartberry"
+   },
+   "materials": [],
+   "result": {
+    "item": 630000011,
+    "count": 1,
+    "name": "Lesser Healing Salve"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 3,
+   "name": "Minor Healing Potion",
+   "category": "Recovery",
+   "key": {
+    "item": 600000001,
+    "count": 5,
+    "name": "Heartberry"
+   },
+   "materials": [
+    {
+     "item": 600000012,
+     "count": 1,
+     "name": "Mountain Floret"
+    }
+   ],
+   "result": {
+    "item": 630000020,
+    "count": 1,
+    "name": "Minor Healing Potion"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 4,
+   "name": "Heartberry Liquor",
+   "category": "Recovery",
+   "key": {
+    "item": 600000001,
+    "count": 2,
+    "name": "Heartberry"
+   },
+   "materials": [
+    {
+     "item": 600000002,
+     "count": 2,
+     "name": "Mahn-Mann Mushroom"
+    },
+    {
+     "item": 600000010,
+     "count": 1,
+     "name": "Wild Puff"
+    }
+   ],
+   "result": {
+    "item": 630000042,
+    "count": 1,
+    "name": "Heartberry Liquor"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 5,
+   "name": "Lesser Healing Salve",
+   "category": "Recovery",
+   "key": {
+    "item": 600000011,
+    "count": 5,
+    "name": "Pinecone"
+   },
+   "materials": [],
+   "result": {
+    "item": 630000011,
+    "count": 1,
+    "name": "Lesser Healing Salve"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 6,
+   "name": "Medium Healing Salve",
+   "category": "Recovery",
+   "key": {
+    "item": 600000011,
+    "count": 15,
+    "name": "Pinecone"
+   },
+   "materials": [],
+   "result": {
+    "item": 630000012,
+    "count": 1,
+    "name": "Medium Healing Salve"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 7,
+   "name": "Lesser Healing Potion",
+   "category": "Recovery",
+   "key": {
+    "item": 600000011,
+    "count": 5,
+    "name": "Pinecone"
+   },
+   "materials": [
+    {
+     "item": 600000012,
+     "count": 2,
+     "name": "Mountain Floret"
+    }
+   ],
+   "result": {
+    "item": 630000021,
+    "count": 1,
+    "name": "Lesser Healing Potion"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 8,
+   "name": "Lesser Healing Salve",
+   "category": "Recovery",
+   "key": {
+    "item": 630000010,
+    "count": 3,
+    "name": "Minor Healing Salve"
+   },
+   "materials": [],
+   "result": {
+    "item": 630000011,
+    "count": 1,
+    "name": "Lesser Healing Salve"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 9,
+   "name": "Minor Healing Potion",
+   "category": "Recovery",
+   "key": {
+    "item": 630000010,
+    "count": 1,
+    "name": "Minor Healing Salve"
+   },
+   "materials": [
+    {
+     "item": 600000012,
+     "count": 1,
+     "name": "Mountain Floret"
+    }
+   ],
+   "result": {
+    "item": 630000020,
+    "count": 1,
+    "name": "Minor Healing Potion"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 10,
+   "name": "Medium Healing Salve",
+   "category": "Recovery",
+   "key": {
+    "item": 630000011,
+    "count": 3,
+    "name": "Lesser Healing Salve"
+   },
+   "materials": [],
+   "result": {
+    "item": 630000012,
+    "count": 1,
+    "name": "Medium Healing Salve"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 11,
+   "name": "Lesser Healing Potion",
+   "category": "Recovery",
+   "key": {
+    "item": 630000011,
+    "count": 1,
+    "name": "Lesser Healing Salve"
+   },
+   "materials": [
+    {
+     "item": 600000012,
+     "count": 2,
+     "name": "Mountain Floret"
+    }
+   ],
+   "result": {
+    "item": 630000021,
+    "count": 1,
+    "name": "Lesser Healing Potion"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 12,
+   "name": "Greater Healing Salve",
+   "category": "Recovery",
+   "key": {
+    "item": 630000012,
+    "count": 3,
+    "name": "Medium Healing Salve"
+   },
+   "materials": [],
+   "result": {
+    "item": 630000013,
+    "count": 1,
+    "name": "Greater Healing Salve"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 13,
+   "name": "Major Healing Salve",
+   "category": "Recovery",
+   "key": {
+    "item": 630000013,
+    "count": 3,
+    "name": "Greater Healing Salve"
+   },
+   "materials": [],
+   "result": {
+    "item": 630000014,
+    "count": 1,
+    "name": "Major Healing Salve"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 14,
+   "name": "Lesser Healing Potion",
+   "category": "Recovery",
+   "key": {
+    "item": 630000020,
+    "count": 3,
+    "name": "Minor Healing Potion"
+   },
+   "materials": [],
+   "result": {
+    "item": 630000021,
+    "count": 1,
+    "name": "Lesser Healing Potion"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 15,
+   "name": "Medium Healing Potion",
+   "category": "Recovery",
+   "key": {
+    "item": 630000021,
+    "count": 3,
+    "name": "Lesser Healing Potion"
+   },
+   "materials": [],
+   "result": {
+    "item": 630000022,
+    "count": 1,
+    "name": "Medium Healing Potion"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 16,
+   "name": "Greater Healing Potion",
+   "category": "Recovery",
+   "key": {
+    "item": 630000022,
+    "count": 3,
+    "name": "Medium Healing Potion"
+   },
+   "materials": [],
+   "result": {
+    "item": 630000023,
+    "count": 1,
+    "name": "Greater Healing Potion"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 17,
+   "name": "Major Healing Potion",
+   "category": "Recovery",
+   "key": {
+    "item": 630000023,
+    "count": 3,
+    "name": "Greater Healing Potion"
+   },
+   "materials": [],
+   "result": {
+    "item": 630000024,
+    "count": 1,
+    "name": "Major Healing Potion"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 18,
+   "name": "Mana Potion",
+   "category": "Recovery",
+   "key": {
+    "item": 600000003,
+    "count": 6,
+    "name": "Ghostly Fungus"
+   },
+   "materials": [
+    {
+     "item": 600000012,
+     "count": 4,
+     "name": "Mountain Floret"
+    },
+    {
+     "item": 600000016,
+     "count": 3,
+     "name": "Aqua Shard"
+    }
+   ],
+   "result": {
+    "item": 630000030,
+    "count": 1,
+    "name": "Mana Potion"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 19,
+   "name": "Grog Blossom",
+   "category": "Recovery",
+   "key": {
+    "item": 600000003,
+    "count": 5,
+    "name": "Ghostly Fungus"
+   },
+   "materials": [
+    {
+     "item": 610000004,
+     "count": 5,
+     "name": "Sticky Goo"
+    }
+   ],
+   "result": {
+    "item": 630000045,
+    "count": 1,
+    "name": "Grog Blossom"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page; matches in-game Recipe item 650000100"
+  },
+  {
+   "id": 20,
+   "name": "Nayda's Tear",
+   "category": "Recovery",
+   "key": {
+    "item": 650000067,
+    "count": 1,
+    "name": "Memento of Nayda"
+   },
+   "materials": [],
+   "result": {
+    "item": 650000084,
+    "count": 1,
+    "name": "Nayda's Tear"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 21,
+   "name": "Elixir",
+   "category": "Recovery",
+   "key": {
+    "item": 600000015,
+    "count": 1,
+    "name": "Sandman Flower"
+   },
+   "materials": [],
+   "result": {
+    "item": 630000025,
+    "count": 1,
+    "name": "Elixir"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 22,
+   "name": "Windwalk",
+   "category": "Buff",
+   "key": {
+    "item": 600000002,
+    "count": 6,
+    "name": "Mahn-Mann Mushroom"
+   },
+   "materials": [],
+   "result": {
+    "item": 630000051,
+    "count": 1,
+    "name": "Windwalk"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 23,
+   "name": "Fever",
+   "category": "Buff",
+   "key": {
+    "item": 600000002,
+    "count": 2,
+    "name": "Mahn-Mann Mushroom"
+   },
+   "materials": [
+    {
+     "item": 600000001,
+     "count": 2,
+     "name": "Heartberry"
+    }
+   ],
+   "result": {
+    "item": 630000050,
+    "count": 1,
+    "name": "Fever"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page; matches in-game Recipe item 650000003"
+  },
+  {
+   "id": 24,
+   "name": "Tasty Fried Egg",
+   "category": "Buff",
+   "key": {
+    "item": 610000001,
+    "count": 3,
+    "name": "Tiny Egg"
+   },
+   "materials": [],
+   "result": {
+    "item": 630000061,
+    "count": 1,
+    "name": "Tasty Fried Egg"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 25,
+   "name": "Tasty Fried Egg",
+   "category": "Buff",
+   "key": {
+    "item": 610000013,
+    "count": 6,
+    "name": "Raptor Egg"
+   },
+   "materials": [],
+   "result": {
+    "item": 630000061,
+    "count": 1,
+    "name": "Tasty Fried Egg"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 26,
+   "name": "Tasty Fried Egg",
+   "category": "Buff",
+   "key": {
+    "item": 610000032,
+    "count": 1,
+    "name": "Onyx Raptor Egg"
+   },
+   "materials": [],
+   "result": {
+    "item": 630000061,
+    "count": 1,
+    "name": "Tasty Fried Egg"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 27,
+   "name": "Pufftea",
+   "category": "Buff",
+   "key": {
+    "item": 600000010,
+    "count": 5,
+    "name": "Wild Puff"
+   },
+   "materials": [],
+   "result": {
+    "item": 630000100,
+    "count": 1,
+    "name": "Pufftea"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 28,
+   "name": "Shell Powder",
+   "category": "Buff",
+   "key": {
+    "item": 610000002,
+    "count": 4,
+    "name": "Insect Shell"
+   },
+   "materials": [],
+   "result": {
+    "item": 630000090,
+    "count": 1,
+    "name": "Shell Powder"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 29,
+   "name": "Peporon",
+   "category": "Buff",
+   "key": {
+    "item": 600000008,
+    "count": 5,
+    "name": "Pepo"
+   },
+   "materials": [],
+   "result": {
+    "item": 630000070,
+    "count": 1,
+    "name": "Peporon"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 30,
+   "name": "Pepo Omelet",
+   "category": "Buff",
+   "key": {
+    "item": 600000008,
+    "count": 4,
+    "name": "Pepo"
+   },
+   "materials": [
+    {
+     "item": 610000001,
+     "count": 2,
+     "name": "Tiny Egg"
+    },
+    {
+     "item": 600000006,
+     "count": 2,
+     "name": "Coal"
+    },
+    {
+     "item": 650000018,
+     "count": 1,
+     "name": "Water Barrel"
+    }
+   ],
+   "result": {
+    "item": 630000060,
+    "count": 1,
+    "name": "Pepo Omelet"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 31,
+   "name": "Grilled Fish",
+   "category": "Buff",
+   "key": {
+    "item": 610000017,
+    "count": 1,
+    "name": "Stockfish"
+   },
+   "materials": [
+    {
+     "item": 600000006,
+     "count": 2,
+     "name": "Coal"
+    }
+   ],
+   "result": {
+    "item": 630000131,
+    "count": 1,
+    "name": "Grilled Fish"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 32,
+   "name": "Deflect Oil",
+   "category": "Buff",
+   "key": {
+    "item": 610000018,
+    "count": 5,
+    "name": "Fish Oil"
+   },
+   "materials": [],
+   "result": {
+    "item": 630000110,
+    "count": 1,
+    "name": "Deflect Oil"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 33,
+   "name": "Fresh Snail",
+   "category": "Buff",
+   "key": {
+    "item": 600000014,
+    "count": 2,
+    "name": "Water Snail"
+   },
+   "materials": [],
+   "result": {
+    "item": 630000130,
+    "count": 1,
+    "name": "Fresh Snail"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 34,
+   "name": "Phasewalk",
+   "category": "Buff",
+   "key": {
+    "item": 600000014,
+    "count": 4,
+    "name": "Water Snail"
+   },
+   "materials": [
+    {
+     "item": 600000003,
+     "count": 8,
+     "name": "Ghostly Fungus"
+    },
+    {
+     "item": 610000021,
+     "count": 2,
+     "name": "Glossy Eye"
+    }
+   ],
+   "result": {
+    "item": 630000141,
+    "count": 1,
+    "name": "Phasewalk"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 35,
+   "name": "Snail and Fish Chowder",
+   "category": "Buff",
+   "key": {
+    "item": 600000014,
+    "count": 2,
+    "name": "Water Snail"
+   },
+   "materials": [
+    {
+     "item": 610000017,
+     "count": 1,
+     "name": "Stockfish"
+    }
+   ],
+   "result": {
+    "item": 630000135,
+    "count": 1,
+    "name": "Snail and Fish Chowder"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 36,
+   "name": "Bloodberry Pie",
+   "category": "Buff",
+   "key": {
+    "item": 600000013,
+    "count": 4,
+    "name": "Bloodberry"
+   },
+   "materials": [
+    {
+     "item": 610000013,
+     "count": 2,
+     "name": "Raptor Egg"
+    },
+    {
+     "item": 630000070,
+     "count": 1,
+     "name": "Peporon"
+    }
+   ],
+   "result": {
+    "item": 630000071,
+    "count": 1,
+    "name": "Bloodberry Pie"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 37,
+   "name": "Baked Berry",
+   "category": "Buff",
+   "key": {
+    "item": 600000013,
+    "count": 4,
+    "name": "Bloodberry"
+   },
+   "materials": [
+    {
+     "item": 600000006,
+     "count": 2,
+     "name": "Coal"
+    },
+    {
+     "item": 630000090,
+     "count": 1,
+     "name": "Shell Powder"
+    }
+   ],
+   "result": {
+    "item": 630000091,
+    "count": 1,
+    "name": "Baked Berry"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 38,
+   "name": "Stuffed Mushroom",
+   "category": "Buff",
+   "key": {
+    "item": 600000013,
+    "count": 4,
+    "name": "Bloodberry"
+   },
+   "materials": [
+    {
+     "item": 600000002,
+     "count": 2,
+     "name": "Mahn-Mann Mushroom"
+    },
+    {
+     "item": 630000080,
+     "count": 1,
+     "name": "Dried Fungus"
+    }
+   ],
+   "result": {
+    "item": 630000081,
+    "count": 1,
+    "name": "Stuffed Mushroom"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 39,
+   "name": "Mixed Berry Tea",
+   "category": "Buff",
+   "key": {
+    "item": 600000013,
+    "count": 4,
+    "name": "Bloodberry"
+   },
+   "materials": [
+    {
+     "item": 600000001,
+     "count": 2,
+     "name": "Heartberry"
+    },
+    {
+     "item": 630000100,
+     "count": 1,
+     "name": "Pufftea"
+    }
+   ],
+   "result": {
+    "item": 630000101,
+    "count": 1,
+    "name": "Mixed Berry Tea"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 40,
+   "name": "Oiled Berry",
+   "category": "Buff",
+   "key": {
+    "item": 600000013,
+    "count": 4,
+    "name": "Bloodberry"
+   },
+   "materials": [
+    {
+     "item": 610000018,
+     "count": 2,
+     "name": "Fish Oil"
+    },
+    {
+     "item": 630000110,
+     "count": 1,
+     "name": "Deflect Oil"
+    }
+   ],
+   "result": {
+    "item": 630000111,
+    "count": 1,
+    "name": "Oiled Berry"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 41,
+   "name": "Dried Fungus",
+   "category": "Buff",
+   "key": {
+    "item": 600000003,
+    "count": 6,
+    "name": "Ghostly Fungus"
+   },
+   "materials": [],
+   "result": {
+    "item": 630000080,
+    "count": 1,
+    "name": "Dried Fungus"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 42,
+   "name": "Bone Powder",
+   "category": "Buff",
+   "key": {
+    "item": 610000012,
+    "count": 5,
+    "name": "Bone Shard"
+   },
+   "materials": [],
+   "result": {
+    "item": 630000158,
+    "count": 1,
+    "name": "Bone Powder"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 43,
+   "name": "Scorched Bone",
+   "category": "Buff",
+   "key": {
+    "item": 610000012,
+    "count": 2,
+    "name": "Bone Shard"
+   },
+   "materials": [
+    {
+     "item": 600000006,
+     "count": 1,
+     "name": "Coal"
+    },
+    {
+     "item": 600000013,
+     "count": 2,
+     "name": "Bloodberry"
+    }
+   ],
+   "result": {
+    "item": 630000150,
+    "count": 1,
+    "name": "Scorched Bone"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 44,
+   "name": "Mystic Bone",
+   "category": "Buff",
+   "key": {
+    "item": 610000012,
+    "count": 2,
+    "name": "Bone Shard"
+   },
+   "materials": [
+    {
+     "item": 600000003,
+     "count": 2,
+     "name": "Ghostly Fungus"
+    },
+    {
+     "item": 600000016,
+     "count": 1,
+     "name": "Aqua Shard"
+    }
+   ],
+   "result": {
+    "item": 630000155,
+    "count": 1,
+    "name": "Mystic Bone"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 45,
+   "name": "Water Breathing Potion",
+   "category": "Buff",
+   "key": {
+    "item": 600000004,
+    "count": 2,
+    "name": "Seaberry"
+   },
+   "materials": [],
+   "result": {
+    "item": 630000180,
+    "count": 1,
+    "name": "Water Breathing Potion"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 46,
+   "name": "Hydraliquid",
+   "category": "Buff",
+   "key": {
+    "item": 600000004,
+    "count": 3,
+    "name": "Seaberry"
+   },
+   "materials": [
+    {
+     "item": 610000004,
+     "count": 2,
+     "name": "Sticky Goo"
+    }
+   ],
+   "result": {
+    "item": 630000181,
+    "count": 1,
+    "name": "Hydraliquid"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 47,
+   "name": "Burnt Fang",
+   "category": "Buff",
+   "key": {
+    "item": 610000006,
+    "count": 4,
+    "name": "Jaggy Fang"
+   },
+   "materials": [],
+   "result": {
+    "item": 630000125,
+    "count": 1,
+    "name": "Burnt Fang"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 48,
+   "name": "Sharp Fang",
+   "category": "Buff",
+   "key": {
+    "item": 610000006,
+    "count": 2,
+    "name": "Jaggy Fang"
+   },
+   "materials": [
+    {
+     "item": 600000005,
+     "count": 2,
+     "name": "Borokul Tear"
+    }
+   ],
+   "result": {
+    "item": 630000120,
+    "count": 1,
+    "name": "Sharp Fang"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 49,
+   "name": "Jelly Beans",
+   "category": "Buff",
+   "key": {
+    "item": 610000021,
+    "count": 5,
+    "name": "Glossy Eye"
+   },
+   "materials": [],
+   "result": {
+    "item": 630000140,
+    "count": 1,
+    "name": "Jelly Beans"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 50,
+   "name": "Grenade",
+   "category": "Support",
+   "key": {
+    "item": 610000003,
+    "count": 2,
+    "name": "Stony Salt"
+   },
+   "materials": [
+    {
+     "item": 600000006,
+     "count": 3,
+     "name": "Coal"
+    }
+   ],
+   "result": {
+    "item": 630000160,
+    "count": 1,
+    "name": "Grenade"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 51,
+   "name": "Sticky Grenade",
+   "category": "Support",
+   "key": {
+    "item": 610000003,
+    "count": 2,
+    "name": "Stony Salt"
+   },
+   "materials": [
+    {
+     "item": 610000004,
+     "count": 3,
+     "name": "Sticky Goo"
+    }
+   ],
+   "result": {
+    "item": 630000165,
+    "count": 1,
+    "name": "Sticky Grenade"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 52,
+   "name": "Sticky Net",
+   "category": "Support",
+   "key": {
+    "item": 610000004,
+    "count": 2,
+    "name": "Sticky Goo"
+   },
+   "materials": [],
+   "result": {
+    "item": 630000170,
+    "count": 1,
+    "name": "Sticky Net"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 53,
+   "name": "Floating Wing",
+   "category": "Support",
+   "key": {
+    "item": 650000093,
+    "count": 1,
+    "name": "Floating Shards"
+   },
+   "materials": [
+    {
+     "item": 610000030,
+     "count": 2,
+     "name": "Butterfly Wing"
+    }
+   ],
+   "result": {
+    "item": 630000213,
+    "count": 1,
+    "name": "Floating Wing"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 54,
+   "name": "Glowing Crumb",
+   "category": "Support",
+   "key": {
+    "item": 600000003,
+    "count": 4,
+    "name": "Ghostly Fungus"
+   },
+   "materials": [
+    {
+     "item": 600000002,
+     "count": 2,
+     "name": "Mahn-Mann Mushroom"
+    }
+   ],
+   "result": {
+    "item": 630000210,
+    "count": 10,
+    "name": "Glowing Crumb"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page; matches in-game Recipe item 650000039"
+  },
+  {
+   "id": 55,
+   "name": "Stinky Dung",
+   "category": "Support",
+   "key": {
+    "item": 650000054,
+    "count": 1,
+    "name": "Dung Ball"
+   },
+   "materials": [
+    {
+     "item": 600000010,
+     "count": 1,
+     "name": "Wild Puff"
+    }
+   ],
+   "result": {
+    "item": 630000211,
+    "count": 1,
+    "name": "Stinky Dung"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page; matches in-game Recipe item 650000068"
+  },
+  {
+   "id": 56,
+   "name": "Fish Oil",
+   "category": "Material",
+   "key": {
+    "item": 610000017,
+    "count": 1,
+    "name": "Stockfish"
+   },
+   "materials": [],
+   "result": {
+    "item": 610000018,
+    "count": 3,
+    "name": "Fish Oil"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 57,
+   "name": "Lesser Qi",
+   "category": "Material",
+   "key": {
+    "item": 610000024,
+    "count": 5,
+    "name": "Minor Qi"
+   },
+   "materials": [],
+   "result": {
+    "item": 610000025,
+    "count": 1,
+    "name": "Lesser Qi"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 58,
+   "name": "Medium Qi",
+   "category": "Material",
+   "key": {
+    "item": 610000025,
+    "count": 5,
+    "name": "Lesser Qi"
+   },
+   "materials": [],
+   "result": {
+    "item": 610000026,
+    "count": 1,
+    "name": "Medium Qi"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 59,
+   "name": "Butterfly Wing",
+   "category": "Material",
+   "key": {
+    "item": 610000011,
+    "count": 1,
+    "name": "Aragoto"
+   },
+   "materials": [],
+   "result": {
+    "item": 610000030,
+    "count": 2,
+    "name": "Butterfly Wing"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 60,
+   "name": "Butterfly Wing",
+   "category": "Material",
+   "key": {
+    "item": 610000007,
+    "count": 1,
+    "name": "Mountain Emperor"
+   },
+   "materials": [],
+   "result": {
+    "item": 610000030,
+    "count": 2,
+    "name": "Butterfly Wing"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 61,
+   "name": "Metallic Dust",
+   "category": "Material",
+   "key": {
+    "item": 610000020,
+    "count": 5,
+    "name": "Scrap Metal"
+   },
+   "materials": [],
+   "result": {
+    "item": 610000015,
+    "count": 1,
+    "name": "Metallic Dust"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 62,
+   "name": "Minimum Weapon Mold",
+   "category": "Material",
+   "key": {
+    "item": 610000015,
+    "count": 4,
+    "name": "Metallic Dust"
+   },
+   "materials": [],
+   "result": {
+    "item": 700101000,
+    "count": 1,
+    "name": "Minimum Weapon Mold"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 63,
+   "name": "Minimum Armor Mold",
+   "category": "Material",
+   "key": {
+    "item": 610000015,
+    "count": 4,
+    "name": "Metallic Dust"
+   },
+   "materials": [],
+   "result": {
+    "item": 710101000,
+    "count": 1,
+    "name": "Minimum Armor Mold"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 64,
+   "name": "Minimum Jewel Mold",
+   "category": "Material",
+   "key": {
+    "item": 610000015,
+    "count": 5,
+    "name": "Metallic Dust"
+   },
+   "materials": [],
+   "result": {
+    "item": 720101000,
+    "count": 1,
+    "name": "Minimum Jewel Mold"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 65,
+   "name": "Scarab Infusion",
+   "category": "Other",
+   "key": {
+    "item": 610000002,
+    "count": 1,
+    "name": "Insect Shell"
+   },
+   "materials": [
+    {
+     "item": 600000002,
+     "count": 3,
+     "name": "Mahn-Mann Mushroom"
+    },
+    {
+     "item": 640000012,
+     "count": 1,
+     "name": "Scarabi"
+    }
+   ],
+   "result": {
+    "item": 640000016,
+    "count": 1,
+    "name": "Scarab Infusion"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page; matches in-game Recipe item 650000021"
+  },
+  {
+   "id": 66,
+   "name": "Compass",
+   "category": "Other",
+   "key": {
+    "item": 610000015,
+    "count": 1,
+    "name": "Metallic Dust"
+   },
+   "materials": [
+    {
+     "item": 600000005,
+     "count": 2,
+     "name": "Borokul Tear"
+    },
+    {
+     "item": 600000006,
+     "count": 4,
+     "name": "Coal"
+    }
+   ],
+   "result": {
+    "item": 650000028,
+    "count": 1,
+    "name": "Compass"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 67,
+   "name": "Aqua Wand (Box)",
+   "category": "Weapon",
+   "key": {
+    "item": 700101000,
+    "count": 1,
+    "name": "Minimum Weapon Mold"
+   },
+   "materials": [
+    {
+     "item": 600000012,
+     "count": 3,
+     "name": "Mountain Floret"
+    },
+    {
+     "item": 600000016,
+     "count": 3,
+     "name": "Aqua Shard"
+    }
+   ],
+   "result": {
+    "item": 620000031,
+    "count": 1,
+    "name": "Aqua Wand (Box)"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 68,
+   "name": "Aqua Staff (Box)",
+   "category": "Weapon",
+   "key": {
+    "item": 700101000,
+    "count": 1,
+    "name": "Minimum Weapon Mold"
+   },
+   "materials": [
+    {
+     "item": 600000012,
+     "count": 4,
+     "name": "Mountain Floret"
+    },
+    {
+     "item": 600000016,
+     "count": 6,
+     "name": "Aqua Shard"
+    }
+   ],
+   "result": {
+    "item": 620000032,
+    "count": 1,
+    "name": "Aqua Staff (Box)"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 69,
+   "name": "Bone Shield (Box)",
+   "category": "Weapon",
+   "key": {
+    "item": 700101000,
+    "count": 1,
+    "name": "Minimum Weapon Mold"
+   },
+   "materials": [
+    {
+     "item": 600000016,
+     "count": 3,
+     "name": "Aqua Shard"
+    },
+    {
+     "item": 610000012,
+     "count": 8,
+     "name": "Bone Shard"
+    },
+    {
+     "item": 610000022,
+     "count": 6,
+     "name": "Skull Shard"
+    }
+   ],
+   "result": {
+    "item": 620000027,
+    "count": 1,
+    "name": "Bone Shield (Box)"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 70,
+   "name": "Shell Shield (Box)",
+   "category": "Weapon",
+   "key": {
+    "item": 700101000,
+    "count": 1,
+    "name": "Minimum Weapon Mold"
+   },
+   "materials": [
+    {
+     "item": 610000002,
+     "count": 10,
+     "name": "Insect Shell"
+    },
+    {
+     "item": 610000004,
+     "count": 6,
+     "name": "Sticky Goo"
+    },
+    {
+     "item": 610000016,
+     "count": 2,
+     "name": "Venom Sac"
+    }
+   ],
+   "result": {
+    "item": 620000042,
+    "count": 1,
+    "name": "Shell Shield (Box)"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 71,
+   "name": "Bone Knife (Box)",
+   "category": "Weapon",
+   "key": {
+    "item": 700101000,
+    "count": 1,
+    "name": "Minimum Weapon Mold"
+   },
+   "materials": [
+    {
+     "item": 610000006,
+     "count": 3,
+     "name": "Jaggy Fang"
+    },
+    {
+     "item": 610000012,
+     "count": 3,
+     "name": "Bone Shard"
+    },
+    {
+     "item": 610000016,
+     "count": 2,
+     "name": "Venom Sac"
+    },
+    {
+     "item": 610000022,
+     "count": 8,
+     "name": "Skull Shard"
+    }
+   ],
+   "result": {
+    "item": 620000030,
+    "count": 1,
+    "name": "Bone Knife (Box)"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 72,
+   "name": "Skullcrack (Box)",
+   "category": "Weapon",
+   "key": {
+    "item": 700101000,
+    "count": 1,
+    "name": "Minimum Weapon Mold"
+   },
+   "materials": [
+    {
+     "item": 600000003,
+     "count": 6,
+     "name": "Ghostly Fungus"
+    },
+    {
+     "item": 610000006,
+     "count": 6,
+     "name": "Jaggy Fang"
+    },
+    {
+     "item": 610000012,
+     "count": 6,
+     "name": "Bone Shard"
+    },
+    {
+     "item": 610000022,
+     "count": 10,
+     "name": "Skull Shard"
+    }
+   ],
+   "result": {
+    "item": 620000033,
+    "count": 1,
+    "name": "Skullcrack (Box)"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 73,
+   "name": "Sexy Bus Stop (Box)",
+   "category": "Weapon",
+   "key": {
+    "item": 290205000,
+    "count": 1,
+    "name": "Sexy Bus Stop"
+   },
+   "materials": [
+    {
+     "item": 700101000,
+     "count": 1,
+     "name": "Minimum Weapon Mold"
+    }
+   ],
+   "result": {
+    "item": 620000043,
+    "count": 1,
+    "name": "Sexy Bus Stop (Box)"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 74,
+   "name": "Fish Basket (Box)",
+   "category": "Weapon",
+   "key": {
+    "item": 610000017,
+    "count": 10,
+    "name": "Stockfish"
+   },
+   "materials": [],
+   "result": {
+    "item": 620000022,
+    "count": 1,
+    "name": "Fish Basket (Box)"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 75,
+   "name": "Dyadian II",
+   "category": "Weapon",
+   "key": {
+    "item": 110309000,
+    "count": 1,
+    "name": "Dyadian I"
+   },
+   "materials": [
+    {
+     "item": 110309000,
+     "count": 1,
+     "name": "Dyadian I"
+    }
+   ],
+   "result": {
+    "item": 620000046,
+    "count": 1,
+    "name": "Dyadian II"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 76,
+   "name": "Shellfists (Box)",
+   "category": "Armor",
+   "key": {
+    "item": 710101000,
+    "count": 1,
+    "name": "Minimum Armor Mold"
+   },
+   "materials": [
+    {
+     "item": 610000002,
+     "count": 6,
+     "name": "Insect Shell"
+    },
+    {
+     "item": 610000004,
+     "count": 4,
+     "name": "Sticky Goo"
+    },
+    {
+     "item": 610000016,
+     "count": 1,
+     "name": "Venom Sac"
+    }
+   ],
+   "result": {
+    "item": 620000029,
+    "count": 1,
+    "name": "Shellfists (Box)"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 77,
+   "name": "Scaraboid Spike (Box)",
+   "category": "Armor",
+   "key": {
+    "item": 710101000,
+    "count": 1,
+    "name": "Minimum Armor Mold"
+   },
+   "materials": [
+    {
+     "item": 610000002,
+     "count": 8,
+     "name": "Insect Shell"
+    },
+    {
+     "item": 610000004,
+     "count": 3,
+     "name": "Sticky Goo"
+    },
+    {
+     "item": 610000006,
+     "count": 3,
+     "name": "Jaggy Fang"
+    },
+    {
+     "item": 610000016,
+     "count": 1,
+     "name": "Venom Sac"
+    }
+   ],
+   "result": {
+    "item": 620000028,
+    "count": 1,
+    "name": "Scaraboid Spike (Box)"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 78,
+   "name": "Spike Mask (Box)",
+   "category": "Armor",
+   "key": {
+    "item": 710101000,
+    "count": 1,
+    "name": "Minimum Armor Mold"
+   },
+   "materials": [
+    {
+     "item": 610000002,
+     "count": 8,
+     "name": "Insect Shell"
+    },
+    {
+     "item": 610000004,
+     "count": 5,
+     "name": "Sticky Goo"
+    },
+    {
+     "item": 610000006,
+     "count": 5,
+     "name": "Jaggy Fang"
+    },
+    {
+     "item": 610000016,
+     "count": 1,
+     "name": "Venom Sac"
+    }
+   ],
+   "result": {
+    "item": 620000035,
+    "count": 1,
+    "name": "Spike Mask (Box)"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 79,
+   "name": "Metal Eyeglasses",
+   "category": "Armor",
+   "key": {
+    "item": 710101000,
+    "count": 1,
+    "name": "Minimum Armor Mold"
+   },
+   "materials": [
+    {
+     "item": 600000005,
+     "count": 4,
+     "name": "Borokul Tear"
+    },
+    {
+     "item": 610000015,
+     "count": 1,
+     "name": "Metallic Dust"
+    }
+   ],
+   "result": {
+    "item": 760201000,
+    "count": 1,
+    "name": "Metal Eyeglasses"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 80,
+   "name": "Farsight Goggles (Box)",
+   "category": "Armor",
+   "key": {
+    "item": 710101000,
+    "count": 1,
+    "name": "Minimum Armor Mold"
+   },
+   "materials": [
+    {
+     "item": 600000005,
+     "count": 6,
+     "name": "Borokul Tear"
+    },
+    {
+     "item": 600000015,
+     "count": 1,
+     "name": "Sandman Flower"
+    },
+    {
+     "item": 610000015,
+     "count": 1,
+     "name": "Metallic Dust"
+    }
+   ],
+   "result": {
+    "item": 620000026,
+    "count": 1,
+    "name": "Farsight Goggles (Box)"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 81,
+   "name": "Straw Hat (Box)",
+   "category": "Costume",
+   "key": {
+    "item": 390101000,
+    "count": 1,
+    "name": "Straw Hat"
+   },
+   "materials": [
+    {
+     "item": 710101000,
+     "count": 1,
+     "name": "Minimum Armor Mold"
+    }
+   ],
+   "result": {
+    "item": 620000036,
+    "count": 1,
+    "name": "Straw Hat (Box)"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 82,
+   "name": "Vintage Bowler Hat (Box)",
+   "category": "Costume",
+   "key": {
+    "item": 390103000,
+    "count": 1,
+    "name": "Vintage Bowler Hat"
+   },
+   "materials": [
+    {
+     "item": 710101000,
+     "count": 1,
+     "name": "Minimum Armor Mold"
+    }
+   ],
+   "result": {
+    "item": 620000038,
+    "count": 1,
+    "name": "Vintage Bowler Hat (Box)"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 83,
+   "name": "Black Bowler Hat (Box)",
+   "category": "Costume",
+   "key": {
+    "item": 390102000,
+    "count": 1,
+    "name": "Black Bowler Hat"
+   },
+   "materials": [
+    {
+     "item": 710101000,
+     "count": 1,
+     "name": "Minimum Armor Mold"
+    }
+   ],
+   "result": {
+    "item": 620000037,
+    "count": 1,
+    "name": "Black Bowler Hat (Box)"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 84,
+   "name": "Dotted Hood (Box)",
+   "category": "Costume",
+   "key": {
+    "item": 390105000,
+    "count": 1,
+    "name": "Dotted Hood"
+   },
+   "materials": [
+    {
+     "item": 710101000,
+     "count": 1,
+     "name": "Minimum Armor Mold"
+    }
+   ],
+   "result": {
+    "item": 620000039,
+    "count": 1,
+    "name": "Dotted Hood (Box)"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 85,
+   "name": "Conical Hat (Box)",
+   "category": "Costume",
+   "key": {
+    "item": 390104000,
+    "count": 1,
+    "name": "Conical Hat"
+   },
+   "materials": [
+    {
+     "item": 710101000,
+     "count": 1,
+     "name": "Minimum Armor Mold"
+    }
+   ],
+   "result": {
+    "item": 620000024,
+    "count": 1,
+    "name": "Conical Hat (Box)"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 86,
+   "name": "Dirndl (Box)",
+   "category": "Costume",
+   "key": {
+    "item": 390302000,
+    "count": 1,
+    "name": "Dirndl"
+   },
+   "materials": [
+    {
+     "item": 710101000,
+     "count": 1,
+     "name": "Minimum Armor Mold"
+    }
+   ],
+   "result": {
+    "item": 620000041,
+    "count": 1,
+    "name": "Dirndl (Box)"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 87,
+   "name": "Dotted Scarf (Box)",
+   "category": "Costume",
+   "key": {
+    "item": 390401000,
+    "count": 1,
+    "name": "Dotted Scarf"
+   },
+   "materials": [
+    {
+     "item": 710101000,
+     "count": 1,
+     "name": "Minimum Armor Mold"
+    }
+   ],
+   "result": {
+    "item": 620000040,
+    "count": 1,
+    "name": "Dotted Scarf (Box)"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 88,
+   "name": "Pirate Tricorn (Box)",
+   "category": "Costume",
+   "key": {
+    "item": 391701000,
+    "count": 1,
+    "name": "Pirate Tricorn"
+   },
+   "materials": [
+    {
+     "item": 710101000,
+     "count": 1,
+     "name": "Minimum Armor Mold"
+    }
+   ],
+   "result": {
+    "item": 620000047,
+    "count": 1,
+    "name": "Pirate Tricorn (Box)"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 89,
+   "name": "Pirate Leather Jerkin (Box)",
+   "category": "Costume",
+   "key": {
+    "item": 391702000,
+    "count": 1,
+    "name": "Pirate Leather Jerkin"
+   },
+   "materials": [
+    {
+     "item": 710101000,
+     "count": 1,
+     "name": "Minimum Armor Mold"
+    }
+   ],
+   "result": {
+    "item": 620000048,
+    "count": 1,
+    "name": "Pirate Leather Jerkin (Box)"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 90,
+   "name": "Pirate Leather Gloves (Box)",
+   "category": "Costume",
+   "key": {
+    "item": 391705000,
+    "count": 1,
+    "name": "Pirate Leather Gloves"
+   },
+   "materials": [
+    {
+     "item": 710101000,
+     "count": 1,
+     "name": "Minimum Armor Mold"
+    }
+   ],
+   "result": {
+    "item": 620000049,
+    "count": 1,
+    "name": "Pirate Leather Gloves (Box)"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 91,
+   "name": "Pirate Leather Boots (Box)",
+   "category": "Costume",
+   "key": {
+    "item": 391706000,
+    "count": 1,
+    "name": "Pirate Leather Boots"
+   },
+   "materials": [
+    {
+     "item": 710101000,
+     "count": 1,
+     "name": "Minimum Armor Mold"
+    }
+   ],
+   "result": {
+    "item": 620000050,
+    "count": 1,
+    "name": "Pirate Leather Boots (Box)"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 92,
+   "name": "Skull Charm (Box)",
+   "category": "Jewel",
+   "key": {
+    "item": 720101000,
+    "count": 1,
+    "name": "Minimum Jewel Mold"
+   },
+   "materials": [
+    {
+     "item": 610000012,
+     "count": 4,
+     "name": "Bone Shard"
+    },
+    {
+     "item": 610000022,
+     "count": 10,
+     "name": "Skull Shard"
+    },
+    {
+     "item": 600000015,
+     "count": 1,
+     "name": "Sandman Flower"
+    }
+   ],
+   "result": {
+    "item": 620000044,
+    "count": 1,
+    "name": "Skull Charm (Box)"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 93,
+   "name": "Azure Bloom (Box)",
+   "category": "Jewel",
+   "key": {
+    "item": 720101000,
+    "count": 1,
+    "name": "Minimum Jewel Mold"
+   },
+   "materials": [
+    {
+     "item": 600000003,
+     "count": 5,
+     "name": "Ghostly Fungus"
+    },
+    {
+     "item": 600000015,
+     "count": 1,
+     "name": "Sandman Flower"
+    },
+    {
+     "item": 600000016,
+     "count": 5,
+     "name": "Aqua Shard"
+    }
+   ],
+   "result": {
+    "item": 620000045,
+    "count": 1,
+    "name": "Azure Bloom (Box)"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  },
+  {
+   "id": 94,
+   "name": "Onyx Jade Raptor",
+   "category": "Mount",
+   "key": {
+    "item": 610000032,
+    "count": 10,
+    "name": "Onyx Raptor Egg"
+   },
+   "materials": [
+    {
+     "item": 501100100,
+     "count": 1,
+     "name": "Jade Raptor"
+    },
+    {
+     "item": 600000005,
+     "count": 90,
+     "name": "Borokul Tear"
+    },
+    {
+     "item": 600000015,
+     "count": 10,
+     "name": "Sandman Flower"
+    },
+    {
+     "item": 600000018,
+     "count": 10,
+     "name": "Gio' Essence"
+    },
+    {
+     "item": 650000030,
+     "count": 20,
+     "name": "Onyx Stone"
+    },
+    {
+     "item": 650000059,
+     "count": 1,
+     "name": "Flawless Onyx Stone"
+    }
+   ],
+   "result": {
+    "item": 501100200,
+    "count": 1,
+    "name": "Onyx Jade Raptor"
+   },
+   "source": "Ninelives Wiki (atwiki) Crafting page"
+  }
+ ]
+}

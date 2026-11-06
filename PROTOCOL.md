@@ -86,6 +86,8 @@ Item slot: `{slotNumber, itemID, randomCode, itemCount}`.
 | `rmResetSkilltree` | | `{pcSG}` |
 | `loadAlchemyMixedItems` | | **bare list** of `{recipeID, mixCount}` |
 | `saveAlchemyMixedItem` | `recipeID` | `0` |
+| `loadAlchemyRecipeList` | `vendorID, keyItemId` | **bare list** of `{isEnabled, isHidden, venderID, recipeID, keyItemID, keyItemCount, resultItemID, resultItemCount, mats: [{id, count}], orderWeight}` for that key item |
+| `loadAlchemyRecipeCode` | `vendorID, recipeID, keyItemId, keyItemCount, resultItemID, resultItemCount` | encrypted plain text (not JSON): `md5("recipe_correct_" + vendorID + recipeID + keyItemID + keyItemCount + resultItemID + resultItemCount + each mat's id + count)`, lowercase hex. The client refuses to mix unless it matches its own hash. |
 | `loadCharacterQuests` | | **bare list** of `{questID}` |
 | `saveCharacterQuest` / `removeCharacterQuest` | `questID` | `0` |
 | `completeCharacterQuest` | `questID, isRequestRemove` | `0` |
