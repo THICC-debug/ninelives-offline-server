@@ -95,6 +95,11 @@ Plain `IMod` (just a `Load()` method) still works, for tiny mods.
 - **Postfix** runs after it and can read or change the result (`ref T __result`).
 - See the [Harmony docs](https://harmony.pardeike.net/articles/patching.html) for more.
 
+### Content without code
+
+Item prices and stats, loot and shop stock: the [ContentLoader](mods/ContentLoader) mod loads
+content packs (JSON) and exports the game's original tables for reference.
+
 ### Quests
 
 Quests don't need code: the [QuestLoader](mods/QuestLoader) mod loads quest packs (JSON) and comes

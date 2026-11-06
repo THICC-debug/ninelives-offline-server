@@ -129,6 +129,7 @@ Each mod is self-contained and released on its own:
 | [TravelMod](mods/TravelMod) | Remembers your position across logins, and teleports between spawn points (F9/F10) |
 | [QuestLoader](mods/QuestLoader) | Custom quests from JSON quest packs, plus a browser-based quest editor |
 | [DevTools](mods/DevTools) | In-game command box (F7): give items, gold, exp, teleport, flags |
+| [ContentLoader](mods/ContentLoader) | Change item prices and stats, loot tables and shop stock with JSON content packs |
 
 ## ⚗️ Alchemy recipes
 
