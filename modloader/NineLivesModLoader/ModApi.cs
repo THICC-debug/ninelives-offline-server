@@ -118,16 +118,37 @@ namespace NineLivesModLoader
         public static void GiveExp(long amount) { var s = Stats; if (s != null) s.exp.add(amount); }
 
         static readonly Dictionary<int, string> names = new Dictionary<int, string>();
+        static HashSet<int> hasItemFile;
 
         /// <summary>An item's display name, e.g. 630000050 -> "Fever". Null if unknown.</summary>
         public static string ItemName(int itemId)
         {
             string n;
             if (names.TryGetValue(itemId, out n)) return n;
-            try { var st = Item.LoadFromResource(itemId); n = st != null ? st.dispName : null; }
-            catch { n = null; }
-            names[itemId] = n;
+            names[itemId] = n = LookUpName(itemId);
             return n;
+        }
+
+        static string LookUpName(int itemId)
+        {
+            try
+            {
+                if (hasItemFile == null) hasItemFile = new HashSet<int>(Item.getItemXMLIDList());
+                int fileId = itemId;
+                if (!hasItemFile.Contains(fileId))
+                {
+                    // Variants ("Fine Knife" etc.) have no item file of their own: they use their base item's.
+                    var lib = ItemLibraryBase.GetItemLibraryCtrl();
+                    ActionAndButton e;
+                    if (lib == null || lib.itemIDList == null || !lib.itemIDList.TryGetValue(itemId, out e) || e == null
+                        || e.baseItemID <= 0 || !hasItemFile.Contains(e.baseItemID))
+                        return null;                 // no data: don't ask the game (it would log an error)
+                    fileId = e.baseItemID;
+                }
+                var st = Item.LoadFromResource(fileId);
+                return st != null ? st.dispName : null;
+            }
+            catch { return null; }
         }
 
         /// <summary>Is a progress flag set? (Mods should use flags 9000-9999.)</summary>
