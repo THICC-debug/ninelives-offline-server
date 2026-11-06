@@ -26,6 +26,7 @@ namespace TravelMod
             { "Zone_CrimsonIsles", new[] {
                 new KeyValuePair<string, Vector3>("Crimson Crest (binding stone)", new Vector3(1282.5f, 145f, 1121.1f)),
                 new KeyValuePair<string, Vector3>("Crimson Crest alchemy shop (Towner)", new Vector3(1268f, 147.5f, 1067f)),
+                new KeyValuePair<string, Vector3>("Crimson Crest Herb Vendor", new Vector3(1285f, 147.5f, 1076f)),
             } },
         };
 

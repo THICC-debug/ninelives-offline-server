@@ -11,7 +11,7 @@
   point. TravelMod saves your position whenever the game saves (about every 20 seconds) and
   puts you back there when you log in.
 - **F9:** teleport to the next spawn point / binding stone in the zone. **Shift+F9** goes back.
-- **F10:** teleport to named places (currently: Crimson Crest's binding stone and alchemy shop).
+- **F10:** teleport to named places (currently in Crimson Crest: the binding stone, the alchemy shop and the Herb Vendor).
 - Keys can be changed in `Mods\config\travelmod.cfg`. TravelMod shows up in the in-game mod list (F11).
 
 The place you jumped to shows at the top of the screen for a few seconds.
