@@ -6,7 +6,7 @@
   <PropertyGroup>
     <TargetFramework>net35</TargetFramework>
     <AssemblyName>ContentLoader</AssemblyName>
-    <Version>1.0.0</Version>
+    <Version>1.1.0</Version>
     <LangVersion>latest</LangVersion>
     <GameDir Condition="'$(GameDir)' == ''">$(MSBuildThisFileDirectory)..\..\..\Ninelives</GameDir>
     <Managed>$(GameDir)\Ninelives_Data\Managed</Managed>
@@ -33,6 +33,8 @@
     <!-- If the game is running its files are locked: warn instead of failing. -->
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(GameDir)\Mods" ContinueOnError="WarnAndContinue" />
     <Copy SourceFiles="$(OutDir)0Harmony.dll" DestinationFolder="$(GameDir)\Mods\lib" ContinueOnError="WarnAndContinue" />
+    <ItemGroup><CEditor Include="editor\*.py;editor\*.html" /></ItemGroup>
+    <Copy SourceFiles="@(CEditor)" DestinationFolder="$(GameDir)\Mods\ContentLoader\editor" ContinueOnError="WarnAndContinue" />
   </Target>
 
   <!-- Release zip, laid out to unzip straight into the game folder:
@@ -46,10 +48,16 @@
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(Stage)Mods" />
     <Copy SourceFiles="$(OutDir)0Harmony.dll" DestinationFolder="$(Stage)Mods\lib" />
     <Copy SourceFiles="README.md" DestinationFiles="$(Stage)Mods\$(AssemblyName)-README.md" />
+    <ItemGroup><CEditorPkg Include="editor\*.py;editor\*.html" /></ItemGroup>
+    <Copy SourceFiles="@(CEditorPkg)" DestinationFolder="$(Stage)Mods\ContentLoader\editor" />
     <Copy SourceFiles="example-content.json" DestinationFolder="$(Stage)Mods\Content" Condition="Exists('example-content.json')" />
     <MakeDir Directories="$(ReleaseDir)" />
     <ZipDirectory SourceDirectory="$(Stage)" DestinationFile="$(ReleaseDir)$(AssemblyName)-$(Version).zip" Overwrite="true" />
     <Message Importance="high" Text="Release: $(ReleaseDir)$(AssemblyName)-$(Version).zip" />
   </Target>
+
+  <ItemGroup>
+    <None Remove="editor\**" />
+  </ItemGroup>
 
 </Project>

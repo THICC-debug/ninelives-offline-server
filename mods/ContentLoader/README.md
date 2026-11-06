@@ -1,6 +1,6 @@
 # ContentLoader for Nine Lives
 
-**Version 1.0.0** · a mod for *Ninelives* 0.24.3 (offline)
+**Version 1.1.0** · a mod for *Ninelives* 0.24.3 (offline) · includes a content editor
 
 > [!NOTE]
 > This mod was made with AI (Anthropic's Claude, in Claude Code) and tested by a human player.
@@ -11,6 +11,8 @@ Change the game's content with JSON **content packs**, with no code:
 - **Loot:** what monsters and chests drop, and how often
 - **Shops:** what each vendor sells
 
+Edit packs by hand, or with the **content editor**, a simple page in your browser.
+
 ## Requirements
 
 - *Ninelives* 0.24.3 patched with the
@@ -19,9 +21,32 @@ Change the game's content with JSON **content packs**, with no code:
 
 ## Install
 
-Unzip into your game folder (the one with `Ninelives.exe`). You get `Mods\ContentLoader.dll` and
-`Mods\Content\example-content.json`. The example makes alchemy herbs cheaper and Gnolls drop more.
+Unzip into your game folder (the one with `Ninelives.exe`). You get `Mods\ContentLoader.dll`,
+the editor in `Mods\ContentLoader\editor\`, and `Mods\Content\example-content.json`. The example makes alchemy herbs cheaper and Gnolls drop more.
 Delete the example if you don't want it.
+
+## The content editor
+
+You need [Python 3.8+](https://www.python.org/downloads/). Play once with ContentLoader installed
+(enter the world) so it can export the game's data, then run:
+
+```
+python Mods\ContentLoader\editor\content_editor.py
+```
+
+It opens in your browser (`http://127.0.0.1:8096`).
+
+- **Items:** every item's original price and stats. **Change this item**, then set a new price,
+  markup, stats, name or description. Blank fields keep the original.
+- **Loot:** every loot table, labelled with the monsters that use it (as you visit zones). Shows the
+  chest chance, how many items, what always drops, and each random group's chance in %.
+  **Change this table** copies the original into your pack to edit.
+- **Shops:** the same for every vendor, labelled by name (with [QuestLoader](../QuestLoader) installed).
+- **Shared item groups** (at the bottom of the Loot and Shops lists): changing one changes every
+  table that uses it.
+
+**Save pack** (Ctrl+S) writes `Mods\Content\<pack>.json`. In game, type `reloadcontent` in the
+[DevTools](../DevTools) command box (F7) to see it without restarting.
 
 ## The exported reference files
 
@@ -100,7 +125,7 @@ item is shown. Shops restock with the new list when they next refresh.
 
 ```
 dotnet build -c Release              # build and install into the game
-dotnet build -c Release -t:Package   # make release\ContentLoader-1.0.0.zip
+dotnet build -c Release -t:Package   # make release\ContentLoader-1.1.0.zip
 ```
 
 License: MIT (code only; the game belongs to SmokymonkeyS).

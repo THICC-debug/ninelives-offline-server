@@ -11,7 +11,7 @@ using UnityEngine;
 
 namespace ContentLoader
 {
-    [ModInfo("contentloader", "ContentLoader", "1.0.0", Author = "Nine Lives offline project",
+    [ModInfo("contentloader", "ContentLoader", "1.1.0", Author = "Nine Lives offline project",
         Description = "Change item prices and stats, loot tables and shop stock with JSON content packs in Mods\\Content.")]
     public class ContentLoader : Mod
     {
