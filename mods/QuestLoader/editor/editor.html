@@ -76,6 +76,7 @@
 </main>
 <datalist id="itemList"></datalist>
 <datalist id="npcList"></datalist>
+<datalist id="flagList"></datalist>
 
 <script>
 const TYPES = ["Normal","Daily","Repeatable","Seasonal","Errand","Kill","Collect","Defence","Message","ItemReceive","TimeAttack","Main"];
@@ -99,6 +100,7 @@ async function boot() {
   D.items.forEach(i => itemName[i.id] = i.name);
   $("#itemList").innerHTML = D.items.map(i => `<option value="${i.id} · ${esc(i.name)}">`).join("");
   buildNpcs();
+  buildFlags();
   const packs = D.packs.length ? D.packs : ["my-quests"];
   $("#packSel").innerHTML = packs.map(p => `<option>${esc(p)}</option>`).join("");
   await openPack(packs[0]);
@@ -122,10 +124,33 @@ function buildNpcs() {
   $("#npcList").innerHTML = opts.join("");
 }
 
+// ---------------------------------------------------------------- flags
+// The game's progress flags are mostly "this quest is done" markers: each quest sets its clearFlag.
+// Work out what every flag number means from the original quests (and this pack's quests).
+let flagInfo = {};
+function buildFlags() {
+  flagInfo = {};
+  const add = (f, text) => { if (f > 0) (flagInfo[f] = flagInfo[f] || []).push(text); };
+  D.originals.forEach(q => {
+    add(q.clearFlag, `"${q.title}" done`);
+    (q.setFlagsOnClear || []).forEach(s => add(s.flag, `${s.on ? "set" : "cleared"} by finishing "${q.title}"`));
+  });
+  if (pack) pack.quests.forEach(q => add(q.clearFlag, `your quest "${q.title}" done`));
+  const opts = Object.keys(flagInfo).map(Number).sort((a, b) => a - b)
+    .map(f => `<option value="${f} · ${esc(flagInfo[f][0])}">`);
+  $("#flagList").innerHTML = opts.join("");
+}
+function flagLabel(f) {
+  if (!(f > 0)) return "";
+  if (flagInfo[f]) return flagInfo[f].join("; ");
+  return f >= 9000 && f <= 9999 ? "mod flag (9000–9999), not used by the game" : "not a quest flag (may be used by the world itself)";
+}
+
 async function openPack(name) {
   if (dirty && !confirm("Discard unsaved changes?")) { $("#packSel").value = packName; return; }
   pack = await api("/api/pack?name=" + encodeURIComponent(name));
   pack.quests = pack.quests || []; packName = name; sel = null; dirty = false;
+  buildFlags();
   status(`Pack "${name}": ${pack.quests.length} quest(s)`);
   renderList(); renderEditor();
 }
@@ -229,17 +254,30 @@ function renderEditor() {
     <fieldset><legend>Items given when you accept</legend><div id="receives"></div>
       ${ro ? "" : '<button data-add="receives">+ Item</button>'}</fieldset>
 
-    <fieldset><legend>Progress flags (advanced)</legend><div class="grid">
-      <label>Flag set when cleared<input type="number" data-k="clearFlag" value="${q.clearFlag || 0}" ${dis}></label>
-      <label>Work flag set when cleared<input type="number" data-k="clearWorkFlag" value="${q.clearWorkFlag || 0}" ${dis}></label>
+    <fieldset><legend>When it's offered</legend>
+      <div id="reqFlags"></div>
+      ${ro ? "" : '<button data-addflag="req">+ Only after / before a quest</button>'}
+      <div id="reqItems" style="margin-top:6px"></div>
+      ${ro ? "" : '<button data-additem="req">+ Needs an item</button>'}
+      <p class="hint">Pick a quest by name: "only after X is done" uses X's finish flag. With none of these, it's offered right away.</p>
+      <details style="margin-top:8px"><summary class="hint">Advanced: "any of" conditions and work flags (JSON)</summary>
+        <textarea data-json="requiresOther" style="min-height:50px" ${dis}>${esc(otherReqJson(q))}</textarea>
+        <p class="hint">Keys: flagsAny, itemsAny, workFlagsAll, workFlagsAny. e.g. <code>{"flagsAny":[{"flag":8138,"on":true},{"flag":8151,"on":true}]}</code></p>
+      </details>
+    </fieldset>
+
+    <fieldset><legend>When it's finished</legend><div class="grid">
+      <label>Finish flag (marks this quest done)<input list="flagList" data-k="clearFlag" data-pick="flag" value="${esc(pickVal(q.clearFlag, flagLabelMap()))}" ${dis}></label>
+      <label>Work flag (rarely used)<input type="number" data-k="clearWorkFlag" value="${q.clearWorkFlag || 0}" ${dis}></label>
     </div>
-    ${ro ? "" : '<p class="hint">Mod quests should use flags 9000–9999. <button id="freeFlag">Use next free flag</button></p>'}
-      <label style="margin-top:8px">Requirements before it's offered (JSON)<textarea data-json="requires" style="min-height:60px" ${dis}>${esc(q.requires ? JSON.stringify(q.requires, null, 1) : "")}</textarea></label>
-      <p class="hint">e.g. <code>{"flagsAll":[{"flag":8138,"on":true}]}</code> = only after the quest with clear flag 8138. Also flagsAny, itemsAll, itemsAny.</p>
-      <label style="margin-top:8px">Flags changed when cleared (JSON)<textarea data-json="setFlagsOnClear" style="min-height:40px" ${dis}>${esc(q.setFlagsOnClear ? JSON.stringify(q.setFlagsOnClear) : "")}</textarea></label>
+    <p class="hint" id="clearFlagHint">${esc(flagLabel(q.clearFlag))}</p>
+    ${ro ? "" : '<p class="hint">Without a finish flag the quest can be done again and again. Mod quests: 9000–9999. <button id="freeFlag">Use next free flag</button></p>'}
+      <div id="setFlags" style="margin-top:6px"></div>
+      ${ro ? "" : '<button data-addflag="set">+ Also mark another quest/flag</button>'}
     </fieldset>`;
 
   renderRows("targets", q, ro); renderRows("rewards", q, ro); renderRows("receives", q, ro);
+  renderFlagRows("reqFlags", q, ro, "req"); renderFlagRows("setFlags", q, ro, "set"); renderReqItems(q, ro);
   if (ro) {
     $("#cpNew").onclick = () => copyOriginal(q, false);
     $("#cpSame").onclick = () => copyOriginal(q, true);
@@ -264,14 +302,27 @@ function renderEditor() {
     else if (k === "messages") q[k] = el.value ? el.value.split("\n") : undefined;
     else q[k] = el.value;
     setDirty(); if (k === "title" || k === "id" || k === "giver") renderList();
+    if (k === "clearFlag") $("#clearFlagHint").textContent = flagLabel(q.clearFlag);
   });
   ed.querySelectorAll("[data-type]").forEach(el => el.onchange = () => {
     q.types = TYPES.filter(t => ed.querySelector(`[data-type="${t}"]`).checked); setDirty();
   });
-  ed.querySelectorAll("[data-json]").forEach(el => el.onchange = () => {
-    const k = el.dataset.json;
-    try { q[k] = el.value.trim() ? JSON.parse(el.value) : undefined; el.style.borderColor = ""; setDirty(); }
-    catch { el.style.borderColor = "var(--bad)"; status(`"${k}" isn't valid JSON`, "bad"); }
+  ed.querySelectorAll("[data-addflag]").forEach(b => b.onclick = () => {
+    if (b.dataset.addflag === "req") { q.requires = q.requires || {}; (q.requires.flagsAll = q.requires.flagsAll || []).push({ flag: 0, on: true }); }
+    else (q.setFlagsOnClear = q.setFlagsOnClear || []).push({ flag: 0, on: true });
+    setDirty(); renderEditor();
+  });
+  ed.querySelectorAll("[data-additem]").forEach(b => b.onclick = () => {
+    q.requires = q.requires || {}; (q.requires.itemsAll = q.requires.itemsAll || []).push({ item: 0, count: 1, atLeast: true, includeBank: false });
+    setDirty(); renderEditor();
+  });
+  ed.querySelectorAll("[data-json=requiresOther]").forEach(el => el.onchange = () => {
+    try {
+      const other = el.value.trim() ? JSON.parse(el.value) : {};
+      const r = q.requires || {};
+      q.requires = { flagsAll: r.flagsAll, itemsAll: r.itemsAll, ...other };
+      el.style.borderColor = ""; setDirty();
+    } catch { el.style.borderColor = "var(--bad)"; status("The advanced conditions aren't valid JSON", "bad"); }
   });
   showProblems(q);
 }
@@ -311,6 +362,67 @@ function renderRows(key, q, ro) {
   });
 }
 
+function flagLabelMap() { const m = {}; Object.keys(flagInfo).forEach(f => m[f] = flagInfo[f][0]); return m; }
+
+function otherReqJson(q) {
+  if (!q.requires) return "";
+  const { flagsAll, itemsAll, ...other } = q.requires;
+  const keep = {}; Object.keys(other).forEach(k => { if (other[k] && other[k].length) keep[k] = other[k]; });
+  return Object.keys(keep).length ? JSON.stringify(keep, null, 1) : "";
+}
+
+// Requirement flags ("only after X") and flags set on clear, as readable rows.
+function renderFlagRows(boxId, q, ro, mode) {
+  const box = $("#" + boxId), dis = ro ? "disabled" : "";
+  const rows = mode === "req" ? ((q.requires && q.requires.flagsAll) || []) : (q.setFlagsOnClear || []);
+  const opts = mode === "req" ? [["true", "Only after"], ["false", "Only before"]] : [["true", "Mark done:"], ["false", "Mark NOT done:"]];
+  box.innerHTML = rows.map((r, i) => `<div class="row" data-row="${i}">
+      <select data-f="on" ${dis}>${opts.map(([v, t]) => `<option value="${v}" ${String(!!r.on) === v ? "selected" : ""}>${t}</option>`).join("")}</select>
+      <input class="item-pick" list="flagList" data-f="flag" value="${esc(pickVal(r.flag, flagLabelMap()))}" placeholder="type a quest name or flag number" ${dis}>
+      ${mode === "req" ? "is done" : ""}
+      ${ro ? "" : `<button class="danger" data-rm="${i}" title="Remove">✕</button>`}
+      <span class="hint" style="flex-basis:100%">${esc(flagLabel(r.flag))}</span></div>`).join("") || (ro ? '<p class="hint">None.</p>' : "");
+  if (ro) return;
+  box.querySelectorAll("[data-rm]").forEach(b => b.onclick = () => { rows.splice(+b.dataset.rm, 1); setDirty(); renderEditor(); });
+  box.querySelectorAll("[data-f]").forEach(el => el.onchange = () => {
+    const r = rows[+el.closest("[data-row]").dataset.row];
+    if (el.dataset.f === "on") r.on = el.value === "true"; else r.flag = parseId(el.value);
+    setDirty(); renderEditor();
+  });
+}
+
+function renderReqItems(q, ro) {
+  const box = $("#reqItems"), dis = ro ? "disabled" : "";
+  const rows = (q.requires && q.requires.itemsAll) || [];
+  box.innerHTML = rows.map((r, i) => `<div class="row" data-row="${i}">
+      Player has <select data-f="atLeast" ${dis}><option value="true" ${r.atLeast !== false ? "selected" : ""}>at least</option><option value="false" ${r.atLeast === false ? "selected" : ""}>fewer than</option></select>
+      <input class="num" type="number" data-f="count" value="${r.count}" ${dis}>
+      × <input class="item-pick" list="itemList" data-f="item" value="${esc(pickVal(r.item, itemName))}" placeholder="type an item name" ${dis}>
+      <label style="display:inline-flex;gap:4px;color:var(--ink)"><input type="checkbox" data-f="includeBank" ${r.includeBank ? "checked" : ""} ${dis}>counts bank</label>
+      ${ro ? "" : `<button class="danger" data-rm="${i}" title="Remove">✕</button>`}</div>`).join("");
+  if (ro) return;
+  box.querySelectorAll("[data-rm]").forEach(b => b.onclick = () => { rows.splice(+b.dataset.rm, 1); setDirty(); renderEditor(); });
+  box.querySelectorAll("[data-f]").forEach(el => el.onchange = () => {
+    const r = rows[+el.closest("[data-row]").dataset.row], f = el.dataset.f;
+    if (f === "atLeast") r.atLeast = el.value === "true";
+    else if (f === "includeBank") r.includeBank = el.checked;
+    else if (f === "item") r.item = parseId(el.value);
+    else r.count = +el.value || 0;
+    setDirty();
+  });
+}
+
+// Drop empty lists so saved packs stay tidy.
+function tidy(q) {
+  if (q.requires) {
+    Object.keys(q.requires).forEach(k => { if (!q.requires[k] || !q.requires[k].length) delete q.requires[k]; else if (k.startsWith("flags") || k.startsWith("workFlags")) q.requires[k] = q.requires[k].filter(f => f.flag > 0); });
+    Object.keys(q.requires).forEach(k => { if (!q.requires[k].length) delete q.requires[k]; });
+    if (!Object.keys(q.requires).length) delete q.requires;
+  }
+  if (q.setFlagsOnClear) { q.setFlagsOnClear = q.setFlagsOnClear.filter(f => f.flag > 0); if (!q.setFlagsOnClear.length) delete q.setFlagsOnClear; }
+  ["targets", "rewards", "receives"].forEach(k => { if (q[k] && !q[k].length) delete q[k]; });
+}
+
 // ---------------------------------------------------------------- checks & save
 function problemsOf(q) {
   const p = [];
@@ -330,6 +442,8 @@ async function save() {
   const bad = pack.quests.map(q => [q, problemsOf(q)]).filter(x => x[1].length);
   if (bad.length && !confirm(`${bad.length} quest(s) have problems (e.g. "${bad[0][0].title}": ${bad[0][1][0]}). Save anyway?`)) return;
   pack.name = pack.name || packName;
+  pack.quests.forEach(tidy);
+  buildFlags();
   try {
     const r = await api("/api/pack?name=" + encodeURIComponent(packName), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(pack) });
     setDirty(false); status(`Saved ${r.quests} quest(s) to ${r.saved}. Restart the game to load them.`, "ok");

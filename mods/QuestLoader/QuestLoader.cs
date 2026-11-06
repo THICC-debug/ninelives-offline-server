@@ -9,7 +9,7 @@ using UnityEngine;
 
 namespace QuestLoader
 {
-    [ModInfo("questloader", "QuestLoader", "1.0.0", Author = "Nine Lives offline project",
+    [ModInfo("questloader", "QuestLoader", "1.1.0", Author = "Nine Lives offline project",
         Description = "Loads custom quests from Mods\\Quests and exports the game's quests, items and NPCs for the quest editor.")]
     public class QuestLoader : Mod
     {
@@ -26,6 +26,10 @@ namespace QuestLoader
         float scanNpcsAt = -1;
         /// <summary>Quests added by packs (not replacements of originals).</summary>
         internal static readonly HashSet<int> NewQuestIds = new HashSet<int>();
+        /// <summary>Original quests a pack currently replaces.</summary>
+        static readonly HashSet<int> ReplacedIds = new HashSet<int>();
+        /// <summary>The game's own quests, as they were before any pack, for restoring on reload.</summary>
+        static readonly Dictionary<int, QuestDef> OriginalDefs = new Dictionary<int, QuestDef>();
 
         public override void Load()
         {
@@ -35,6 +39,7 @@ namespace QuestLoader
             Directory.CreateDirectory(ExportDir);
             Directory.CreateDirectory(PacksDir);
             new Harmony("ninelives.questloader").PatchAll(typeof(QuestLoader).Assembly);
+            Commands.Register("reloadquests", "reloadquests", "reload quest packs from Mods\\Quests", args => Reload());
             Log("ready - quest packs go in Mods\\Quests");
         }
 
@@ -47,14 +52,26 @@ namespace QuestLoader
                 try { ExportQuests(ctrl); } catch (Exception e) { Log("quest export failed: " + e); }
                 try { ExportItems(); } catch (Exception e) { Log("item export failed: " + e); }
             }
-            try { ApplyPacks(ctrl); } catch (Exception e) { Log("loading quest packs failed: " + e); }
+            try { Log(ApplyPacks(ctrl, false)); } catch (Exception e) { Log("loading quest packs failed: " + e); }
         }
 
         void ExportQuests(QuestControllerBase ctrl)
         {
             var list = ctrl.quests.Values.OrderBy(q => q.id).Select(Convert.ToDef).ToList();
+            foreach (var d in list) OriginalDefs[d.id] = d;
             File.WriteAllText(Path.Combine(ExportDir, "quests.json"), ToJson(list));
             Log("exported " + list.Count + " original quests");
+        }
+
+        /// <summary>Re-read every pack and update the live game. Used by the reloadquests command.</summary>
+        public string Reload()
+        {
+            var ctrl = QuestController.GetQuestCtrl();
+            if (ctrl == null) return "Not in the world yet.";
+            string summary = ApplyPacks(ctrl, true);
+            Log("reload: " + summary);
+            Messages.Show("Quest packs reloaded");
+            return summary;
         }
 
         void ExportItems()
@@ -72,27 +89,82 @@ namespace QuestLoader
             Log("exported " + items.Count + " item names");
         }
 
-        void ApplyPacks(QuestControllerBase ctrl)
+        /// <summary>
+        /// Apply every pack to the controller. reload = the controller already has pack quests in it
+        /// (remove ones that were deleted, restore originals no longer replaced). Existing quests are
+        /// updated in place, so quests the player has accepted keep working.
+        /// </summary>
+        string ApplyPacks(QuestControllerBase ctrl, bool reload)
         {
-            int added = 0, replaced = 0;
+            var problems = new List<string>();
+            var defs = new List<KeyValuePair<string, QuestDef>>();
             foreach (var file in Directory.GetFiles(PacksDir, "*.json").OrderBy(f => f))
             {
                 QuestPack pack;
                 try { pack = JsonConvert.DeserializeObject<QuestPack>(File.ReadAllText(file)); }
-                catch (Exception e) { Log("couldn't read " + Path.GetFileName(file) + ": " + e.Message); continue; }
+                catch (Exception e) { problems.Add(Path.GetFileName(file) + ": " + e.Message); continue; }
                 if (pack == null || pack.quests == null) continue;
-                foreach (var def in pack.quests)
+                foreach (var def in pack.quests) defs.Add(new KeyValuePair<string, QuestDef>(Path.GetFileName(file), def));
+            }
+            var ids = new HashSet<int>(defs.Select(kv => kv.Value.id));
+
+            int removed = 0, restored = 0;
+            if (reload)
+            {
+                foreach (var id in NewQuestIds.Where(i => !ids.Contains(i)).ToList())
                 {
-                    try
+                    Quest q;
+                    if (ctrl.quests.TryGetValue(id, out q))
                     {
-                        bool existed = ctrl.quests.ContainsKey(def.id);
-                        Convert.Apply(ctrl, def);
-                        if (existed) replaced++; else { added++; NewQuestIds.Add(def.id); }
+                        Convert.Unlink(ctrl, q);
+                        ctrl.quests.Remove(id);
+                        var qc = ctrl as QuestController;
+                        if (qc != null && qc.receivedQuests != null && qc.receivedQuests.ContainsKey(id))
+                            problems.Add("quest " + id + " was removed but you'd accepted it; it stays in your log until you restart");
                     }
-                    catch (Exception e) { Log(Path.GetFileName(file) + ": quest " + def.id + " failed: " + e.Message); }
+                    NewQuestIds.Remove(id);
+                    removed++;
+                }
+                foreach (var id in ReplacedIds.Where(i => !ids.Contains(i)).ToList())
+                {
+                    QuestDef orig;
+                    if (OriginalDefs.TryGetValue(id, out orig)) { Convert.Apply(ctrl, orig); restored++; }
+                    ReplacedIds.Remove(id);
                 }
             }
-            if (added + replaced > 0) Log("quest packs: " + added + " added, " + replaced + " replaced");
+            else
+            {
+                NewQuestIds.Clear();   // a fresh controller (new zone) only has the game's own quests
+                ReplacedIds.Clear();
+            }
+
+            int added = 0, replaced = 0, updated = 0;
+            foreach (var kv in defs)
+            {
+                var def = kv.Value;
+                try
+                {
+                    bool isOriginal = OriginalDefs.Count > 0 ? OriginalDefs.ContainsKey(def.id) : ctrl.quests.ContainsKey(def.id) && !NewQuestIds.Contains(def.id);
+                    bool wasThere = isOriginal ? ReplacedIds.Contains(def.id) : NewQuestIds.Contains(def.id);
+                    Convert.Apply(ctrl, def);
+                    if (isOriginal) ReplacedIds.Add(def.id); else NewQuestIds.Add(def.id);
+                    if (reload && wasThere) updated++; else if (isOriginal) replaced++; else added++;
+                }
+                catch (Exception e) { problems.Add(kv.Key + ": quest " + def.id + " failed: " + e.Message); }
+            }
+
+            var summary = "quest packs: " + added + " added, " + replaced + " replaced" +
+                          (reload ? ", " + updated + " updated, " + removed + " removed, " + restored + " originals restored" : "");
+            if (reload)
+            {
+                // Finished quests aren't offered again, so edits to them aren't visible. Say so.
+                var finished = defs.Select(kv => kv.Value).Where(d => d.clearFlag > 0 && Game.GetFlag(d.clearFlag)).ToList();
+                foreach (var d in finished.Take(3))
+                    summary += "\n\"" + d.title + "\" is already finished, so it isn't offered. To replay it: flag " + d.clearFlag + " off";
+            }
+            foreach (var p in problems) { Log(p); }
+            if (problems.Count > 0) summary += "\n" + problems.Count + " problem(s): " + problems[0] + (problems.Count > 1 ? " (more in Mods\\ModLoader.log)" : "");
+            return summary;
         }
 
         // ------------------------------------------------------------ NPC list for the editor
@@ -277,7 +349,7 @@ namespace QuestLoader
             if (d.ender > 0) ctrl.setLinkEnderCID(d.ender, q);
         }
 
-        static void Unlink(QuestControllerBase ctrl, Quest q)
+        internal static void Unlink(QuestControllerBase ctrl, Quest q)
         {
             foreach (var table in new[] { ctrl.cidToQuestsList, ctrl.cidToQuestsGiverList, ctrl.cidToQuestsEnderList })
                 foreach (var l in table.Values) l.Remove(q);

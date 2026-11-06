@@ -1,6 +1,6 @@
 # QuestLoader for Nine Lives
 
-**Version 1.0.0** · a mod for *Ninelives* 0.24.3 (offline) · includes a quest editor
+**Version 1.1.0** · a mod for *Ninelives* 0.24.3 (offline) · includes a quest editor
 
 > [!NOTE]
 > This mod was made with AI (Anthropic's Claude, in Claude Code) and tested by a human player.
@@ -19,7 +19,7 @@
 
 - *Ninelives* 0.24.3 patched with the
   [Nine Lives offline server](https://github.com/THICC-debug/ninelives-offline-server)'s
-  `Patch Game.bat` (mod loader 2.0 or newer).
+  `Patch Game.bat` (mod loader 2.1 or newer).
 - For the editor: [Python 3.8+](https://www.python.org/downloads/).
 
 ## Install
@@ -46,7 +46,12 @@ It opens in your browser (`http://127.0.0.1:8095`).
    or **Replace this quest in my pack** to change the original.
 2. **New quest** starts from scratch. Pick the NPCs who give and finish it, write what they say,
    add a goal (bring items or defeat monsters) and rewards (exp, gold, items).
-3. **Save pack** (Ctrl+S) writes `Mods\Quests\<pack>.json`. Restart the game to load it.
+3. **Save pack** (Ctrl+S) writes `Mods\Quests\<pack>.json`.
+4. **Load it without restarting:** in game, open the [DevTools](../DevTools) command box (F7) and type `reloadquests`.
+   New quests appear, changed ones update (even ones you've accepted), and deleted ones disappear.
+   Without DevTools, restart the game.
+
+**When it's offered / finished:** pick quests by name instead of typing flag numbers. "Only after *Crafting?* is done" uses that quest's finish flag. Every flag number shows what it means, for example `8138 · "Crafting?" done`.
 
 NPCs show up in the editor's NPC picker once you've visited the zone they're in.
 
@@ -87,14 +92,14 @@ NPCs show up in the editor's NPC picker once you've visited the zone they're in.
 ## Known limits
 
 - Quests can only use NPCs that already exist in the game. Adding new NPCs isn't supported yet.
-- Flags are plain numbers; the editor doesn't know what the original ones mean.
+- Flags that aren't quest-finish markers (used by the world itself) show as "not a quest flag".
 - The editor edits English text only.
 
 ## Build from source
 
 ```
 dotnet build -c Release              # build and install into the game
-dotnet build -c Release -t:Package   # make release\QuestLoader-1.0.0.zip
+dotnet build -c Release -t:Package   # make release\QuestLoader-1.1.0.zip
 ```
 
 License: MIT (code only; the game belongs to SmokymonkeyS).
