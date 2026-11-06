@@ -72,6 +72,22 @@ class Editor(BaseHTTPRequestHandler):
             return None, name
         return os.path.join(self.packs, name + ".json"), name
 
+    def custom_npcs(self):
+        """NPCs added with the NPCLoader mod (Mods\\NPCs\\*.json), so they show in the NPC picker right away."""
+        out, folder = [], os.path.join(self.game, "Mods", "NPCs")
+        if not os.path.isdir(folder):
+            return out
+        for f in sorted(os.listdir(folder)):
+            if not f.endswith(".json"):
+                continue
+            try:
+                for n in read_json(os.path.join(folder, f), {}).get("npcs", []):
+                    out.append({"cid": n.get("id"), "name": (n.get("name") or "?") + " (custom)", "zone": n.get("zone", ""),
+                                "x": n.get("x", 0), "y": n.get("y", 0), "z": n.get("z", 0)})
+            except Exception:
+                pass
+        return out
+
     def do_GET(self):
         u = urlparse(self.path)
         if u.path in ("/", "/index.html"):
@@ -83,7 +99,7 @@ class Editor(BaseHTTPRequestHandler):
                 "game": self.game,
                 "originals": read_json(os.path.join(self.export, "quests.json"), []),
                 "items": read_json(os.path.join(self.export, "items.json"), []),
-                "npcs": read_json(os.path.join(self.export, "npcs.json"), []),
+                "npcs": read_json(os.path.join(self.export, "npcs.json"), []) + self.custom_npcs(),
                 "packs": packs,
             })
         if u.path == "/api/pack":

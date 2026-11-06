@@ -6,7 +6,7 @@
 
 ![Game version](https://img.shields.io/badge/game%20version-0.24.3-6b4fbb)
 ![Platform](https://img.shields.io/badge/platform-Windows-0078d4)
-![Python](https://img.shields.io/badge/python-3.8%2B-3776ab?logo=python&logoColor=white)
+![Installer](https://img.shields.io/badge/install-Setup.exe-3776ab)
 ![Dependencies](https://img.shields.io/badge/dependencies-none-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Made with AI](https://img.shields.io/badge/made%20with-AI%20(Claude)-d97757)
@@ -30,6 +30,8 @@ This project brings it back for single-player, offline play:
 
 - 🖥️ **A stand-in server** that runs on your PC and answers everything the game asks for:
   login, characters, items, bank, skills, quests, alchemy and the Scarab Gem shop.
+- 📦 **A one-click installer** (`Setup.exe`) that patches the game, installs everything and
+  can undo it all.
 - 🔧 **A small patcher** that points the game at `127.0.0.1` instead of the dead server.
 - 💾 **Your saves stay on your PC** in one readable `save.json` file.
 - 🚫 **Nothing goes out to the internet.** The game's Google Analytics pings are redirected
@@ -41,37 +43,58 @@ This project brings it back for single-player, offline play:
 
 ## ✅ Requirements
 
-| You need | Why |
-|---|---|
-| Your own copy of **Ninelives 0.24.3** for Windows | This repo contains **no game files**. |
-| [Python 3.8+](https://www.python.org/downloads/) | Runs the server. No packages to install. |
-| [.NET 8 SDK](https://dotnet.microsoft.com/download) | Only to run the patcher once. |
+- Your own copy of **Ninelives 0.24.3** for Windows. This repo contains **no game files**.
+- Windows 10 or 11. The installer brings everything else it needs, Python included.
 
 ## 🚀 Quick start
 
-1. **Download** this repo (green **Code** button → *Download ZIP*) and unzip it **next to**
-   your game folder:
+1. **Download** `NineLivesOffline-<version>.zip` from the
+   [Releases page](https://github.com/THICC-debug/ninelives-offline-server/releases) and unzip it
+   anywhere.
+2. **Run `Setup.exe`.** It finds the game (or click **Browse** and pick the folder with
+   `Ninelives.exe`), checks it's the original 0.24.3, and backs up the two files it patches.
+3. **Pick your mods** and click **Install**.
+4. **Play** with the **Nine Lives (Offline)** desktop shortcut, or
+   `Play Nine Lives Offline.bat` in the game folder. Log in with **any email and password**.
+   Your account is created on the spot.
 
-   ```
-   SomeFolder\
-   ├── Ninelives\              ← your game (holds Ninelives.exe)
-   └── offline-server\         ← this repo
-   ```
+The server starts minimized next to the game and stops by itself when you close the game.
+Your save is `Ninelives\OfflineServer\save.json`.
 
-   Game somewhere else? Open the two `.bat` files in Notepad and change `GAME_DIR`.
+**Update or change mods:** run `Setup.exe` again, tick or untick mods, click **Update**.
+Your save and packs are kept.
 
-2. **Patch the game** (once): double-click **`Patch Game.bat`**.
-   It backs up the original files first and checks they're the right version.
+**Uninstall:** run `Setup.exe` and click **Uninstall**. The original game files go back, and
+you choose whether to keep your save and mod packs.
 
-3. **Play:** double-click **`Start Nine Lives.bat`**. It opens the server window, then the game.
-   Log in with **any email and password**. Your account is created on the spot.
+<details>
+<summary><b>From source (developers)</b></summary>
 
-Keep the server window open while you play.
+You need [Python 3.8+](https://www.python.org/downloads/) and the
+[.NET 8 SDK](https://dotnet.microsoft.com/download). Unzip this repo **next to** your game folder:
 
-### Undo
+```
+SomeFolder\
+├── Ninelives\              ← your game (holds Ninelives.exe)
+└── offline-server\         ← this repo
+```
 
-Run `Patch Game.bat restore`. The untouched originals are kept in
-`Ninelives\Ninelives_Data\OfflineBackup\`.
+Game somewhere else? Open the two `.bat` files in Notepad and change `GAME_DIR`.
+
+1. Double-click **`Patch Game.bat`** once. It builds the mod loader and patches the game.
+   `Patch Game.bat restore` undoes it.
+2. Double-click **`Start Nine Lives.bat`**. It opens the server window, then the game.
+
+To build the player release (Setup.exe and everything it installs):
+
+```
+python installer/build_release.py
+```
+
+That writes `installer/release/NineLivesOffline-<version>.zip`. See
+[installer/README.md](installer/README.md).
+
+</details>
 
 ## ⚙️ How it works
 
@@ -86,7 +109,7 @@ The game talks to its server with plain HTTP. Each request is an AES-256-encrypt
 blob, using a key built into the game. The server decrypts the request, updates
 `save.json` and sends back exactly the reply the game expects.
 
-The patcher makes three small edits with [Mono.Cecil](https://github.com/jbevain/cecil):
+The patcher (and Setup.exe, which uses the same code) makes a few small edits with [Mono.Cecil](https://github.com/jbevain/cecil):
 
 | File | Change |
 |---|---|
@@ -104,7 +127,8 @@ who wants to write their own server (in Rust, Go, anything) has a complete spec.
 |---|---|
 | `ninelives_server.py` | The offline server (Python standard library only) |
 | `aes.py` | Pure-Python AES-256-CBC, checked against the official FIPS-197 test vector |
-| `patcher/` | The patcher (C#, .NET 8, Mono.Cecil) |
+| `patcher/` | The patcher (C#, .NET 8, Mono.Cecil). `PatchCore.cs` is shared with Setup.exe |
+| `installer/` | Setup.exe (C#, .NET Framework 4.8) and the release build script |
 | `modloader/` | The mod loader the patcher installs (C#, .NET 3.5) |
 | `mods/ExampleMod/` | A starter mod to copy |
 | `Patch Game.bat` | Patches the game and installs the mod loader (or `restore` to undo) |
@@ -129,6 +153,7 @@ Each mod is self-contained and released on its own:
 | [TravelMod](mods/TravelMod) | Remembers your position across logins, and teleports between spawn points (F9/F10) |
 | [QuestLoader](mods/QuestLoader) | Custom quests from JSON quest packs, plus a browser-based quest editor |
 | [DevTools](mods/DevTools) | In-game command box (F7): give items, gold, exp, teleport, flags |
+| [NPCLoader](mods/NPCLoader) | Custom NPCs (quest givers, vendors, alchemists), placed in game with F7 commands |
 | [ContentLoader](mods/ContentLoader) | Change item prices and stats, loot tables and shop stock with JSON content packs, plus a browser-based content editor |
 
 ## ⚗️ Alchemy recipes
@@ -176,8 +201,9 @@ to patch anything else.
 <details>
 <summary><b>"Network error" in game</b></summary>
 
-The server isn't running. Close the game and start it again with `Start Nine Lives.bat`,
-and keep the black server window open.
+The server isn't running. Close the game and start it again with the **Nine Lives (Offline)**
+shortcut (or `Start Nine Lives.bat` from source). Don't close the server window (it sits
+minimized on the taskbar) while you play.
 </details>
 
 <details>

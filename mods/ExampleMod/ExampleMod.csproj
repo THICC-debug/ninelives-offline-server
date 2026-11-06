@@ -26,7 +26,7 @@
   </ItemGroup>
 
   <!-- Install into the game: the mod in Mods\, Harmony in Mods\lib\. -->
-  <Target Name="InstallMod" AfterTargets="Build" Condition="Exists('$(GameDir)\Mods')">
+  <Target Name="InstallMod" AfterTargets="Build" Condition="Exists('$(GameDir)\Mods') and '$(NoInstall)' != 'true'">
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(GameDir)\Mods" />
     <Copy SourceFiles="$(OutDir)0Harmony.dll" DestinationFolder="$(GameDir)\Mods\lib" />
   </Target>

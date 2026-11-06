@@ -1,6 +1,6 @@
 # ContentLoader for Nine Lives
 
-**Version 1.2.0** · a mod for *Ninelives* 0.24.3 (offline) · includes a content editor
+**Version 1.2.1** · a mod for *Ninelives* 0.24.3 (offline) · includes a content editor
 
 > [!NOTE]
 > This mod was made with AI (Anthropic's Claude, in Claude Code) and tested by a human player.
@@ -132,7 +132,7 @@ item is shown. Shops restock with the new list when they next refresh.
 
 ```
 dotnet build -c Release              # build and install into the game
-dotnet build -c Release -t:Package   # make release\ContentLoader-1.2.0.zip
+dotnet build -c Release -t:Package   # make release\ContentLoader-1.2.1.zip
 ```
 
 License: MIT (code only; the game belongs to SmokymonkeyS).

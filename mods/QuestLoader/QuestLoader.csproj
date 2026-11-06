@@ -34,7 +34,7 @@
   </ItemGroup>
 
   <!-- Install into the game: the mod in Mods\, the editor in Mods\QuestLoader\editor\. -->
-  <Target Name="InstallMod" AfterTargets="Build" Condition="Exists('$(GameDir)\Mods')">
+  <Target Name="InstallMod" AfterTargets="Build" Condition="Exists('$(GameDir)\Mods') and '$(NoInstall)' != 'true'">
     <ItemGroup><EditorFiles Include="editor\*.py;editor\*.html" /></ItemGroup>
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(GameDir)\Mods" ContinueOnError="WarnAndContinue" />
     <Copy SourceFiles="$(OutDir)0Harmony.dll" DestinationFolder="$(GameDir)\Mods\lib" ContinueOnError="WarnAndContinue" />

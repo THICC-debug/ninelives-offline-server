@@ -11,7 +11,7 @@ using UnityEngine;
 
 namespace ContentLoader
 {
-    [ModInfo("contentloader", "ContentLoader", "1.2.0", Author = "Nine Lives offline project",
+    [ModInfo("contentloader", "ContentLoader", "1.2.1", Author = "Nine Lives offline project",
         Description = "Change item prices and stats, loot tables and shop stock with JSON content packs in Mods\\Content.")]
     public class ContentLoader : Mod
     {
@@ -241,11 +241,60 @@ namespace ContentLoader
         }
 
         // ------------------------------------------------------------ export
-        void Export(ItemBase table, string file)
+        // The game's own tables never change, so each file is written once (delete it to redo it).
+        // The work runs a few milliseconds per frame so the game never stalls, and item names are
+        // looked up once per base item: the game re-parses an item's XML on every uncached lookup,
+        // and there are thousands of variants ("Fine Knife"), which used to freeze the game for minutes.
+        System.Collections.IEnumerator exportJob;
+        readonly Dictionary<int, string> nameCache = new Dictionary<int, string>();
+
+        bool NeedsExport(string file) { return !File.Exists(Path.Combine(ExportDir, file)); }
+
+        System.Collections.IEnumerator ExportAll()
+        {
+            var lib = ItemLibraryBase.GetItemLibraryCtrl();
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            if (NeedsExport("loot.json")) { var e = Export(new ItemDropList(), "loot.json"); while (e.MoveNext()) yield return null; }
+            if (NeedsExport("shops.json")) { var e = Export(new ShopItemList(), "shops.json"); while (e.MoveNext()) yield return null; }
+            if (lib != null && lib.itemIDList != null)
+            {
+                if (NeedsExport("items.json")) { var e = ExportItems(lib); while (e.MoveNext()) yield return null; }
+                if (NeedsExport("variants.json")) { var e = ExportVariants(lib); while (e.MoveNext()) yield return null; }
+            }
+            Log("exports done in " + sw.Elapsed.TotalSeconds.ToString("0.0") + " s (spread over frames)");
+        }
+
+        /// <summary>Item name, with base names cached: a variant is its affix + its base item's name.</summary>
+        string NameOf(int id)
+        {
+            string n;
+            if (nameCache.TryGetValue(id, out n)) return n;
+            var lib = ItemLibraryBase.GetItemLibraryCtrl();
+            ActionAndButton e = null;
+            if (lib != null && lib.itemIDList != null) lib.itemIDList.TryGetValue(id, out e);
+            if (e != null && e.baseItemID > 0 && e.baseItemID != id)
+            {
+                var baseName = NameOf(e.baseItemID);
+                string affix = null;
+                int i = lib.itemRandomCodeIDs != null ? lib.itemRandomCodeIDs.IndexOf(e.randomCodeID) : -1;
+                if (e.randomCodeID != 0 && i >= 0 && lib.itemRandomCodes[i].affixType != ItemAffix.none)
+                    affix = lib.itemRandomCodes[i].affixType.ToString();
+                n = baseName == null ? null : affix != null ? affix + " " + baseName : baseName;
+            }
+            else n = Game.ItemName(id);
+            nameCache[id] = n;
+            return n;
+        }
+
+        System.Collections.IEnumerator Export(ItemBase table, string file)
         {
             var t = new DropTables { groups = new Dictionary<string, List<ItemStack>>(), drops = new Dictionary<string, DropDef>() };
+            int n = 0;
             foreach (var kv in table.groups.OrderBy(k => k.Key))
+            {
                 t.groups[kv.Key.ToString()] = Stacks(kv.Value);
+                if (++n % 20 == 0) yield return null;
+            }
             foreach (var kv in table.dropLists.OrderBy(k => k.Key))
             {
                 var l = kv.Value;
@@ -257,32 +306,34 @@ namespace ContentLoader
                     d.random = l.groups.Select(g => g.commonGroupID != 0 ? new RandomGroup { rate = g.rate, group = g.commonGroupID }
                                                                         : new RandomGroup { rate = g.rate, items = Stacks(g) }).ToList();
                 t.drops[kv.Key.ToString()] = d;
+                if (++n % 20 == 0) yield return null;
             }
             File.WriteAllText(Path.Combine(ExportDir, file), ToJson(t));
             Log("exported " + t.drops.Count + " drop lists and " + t.groups.Count + " groups to " + file);
         }
 
-        static List<ItemStack> Stacks(ItemDropRateGroupEx g)
+        List<ItemStack> Stacks(ItemDropRateGroupEx g)
         {
-            return g.idSets.Select(s => new ItemStack { id = s.id, count = s.stackMax, name = Game.ItemName(s.id) }).ToList();
+            return g.idSets.Select(s => new ItemStack { id = s.id, count = s.stackMax, name = NameOf(s.id) }).ToList();
         }
 
-        void ExportItems(ItemLibraryBase lib)
+        System.Collections.IEnumerator ExportItems(ItemLibraryBase lib)
         {
-            var path = Path.Combine(ExportDir, "items.json");
-            if (File.Exists(path) || lib.itemIDList == null) return;
             var fresh = new ItemStats();
             var all = new SortedDictionary<int, ItemOverride>();
             var hasData = new HashSet<int>(Item.getItemXMLIDList());   // skip ids with no item file (skills etc.)
-            foreach (var kv in lib.itemIDList)
+            int n = 0;
+            foreach (var kv in lib.itemIDList.ToList())
             {
                 var e = kv.Value;
                 if (e == null || !hasData.Contains(kv.Key)) continue;
-                var o = new ItemOverride { name = Game.ItemName(kv.Key), price = e.price, buyPriceAmp = e.buyPriceAmp };
+                var o = new ItemOverride { price = e.price, buyPriceAmp = e.buyPriceAmp };
                 ItemStats st = null;
                 try { st = Item.LoadFromResource(kv.Key, true); } catch { }
                 if (st != null)
                 {
+                    o.name = st.dispName;
+                    if (!nameCache.ContainsKey(kv.Key)) nameCache[kv.Key] = st.dispName;
                     o.stats = new Dictionary<string, object>();
                     foreach (var f in statFields.Values)
                     {
@@ -292,23 +343,26 @@ namespace ContentLoader
                         o.stats[f.Name] = v is Enum ? v.ToString() : v;
                     }
                 }
+                else o.name = NameOf(kv.Key);
                 all[kv.Key] = o;
+                if (++n % 25 == 0) yield return null;
             }
             var outp = all.ToDictionary(k => k.Key.ToString(), k => k.Value);
-            File.WriteAllText(path, ToJson(outp));
+            File.WriteAllText(Path.Combine(ExportDir, "items.json"), ToJson(outp));
             Log("exported " + outp.Count + " items to items.json");
         }
 
         // Variants ("Fine Knife") and their base item, so tools can group them and name them.
-        void ExportVariants(ItemLibraryBase lib)
+        System.Collections.IEnumerator ExportVariants(ItemLibraryBase lib)
         {
-            if (lib == null || lib.itemIDList == null) return;
             var v = new SortedDictionary<int, Dictionary<string, object>>();
-            foreach (var kv in lib.itemIDList)
+            int n = 0;
+            foreach (var kv in lib.itemIDList.ToList())
             {
                 var e = kv.Value;
                 if (e == null || e.baseItemID <= 0 || e.baseItemID == kv.Key) continue;
-                v[kv.Key] = new Dictionary<string, object> { { "base", e.baseItemID }, { "name", Game.ItemName(kv.Key) } };
+                v[kv.Key] = new Dictionary<string, object> { { "base", e.baseItemID }, { "name", NameOf(kv.Key) } };
+                if (++n % 200 == 0) yield return null;
             }
             File.WriteAllText(Path.Combine(ExportDir, "variants.json"), ToJson(v.ToDictionary(k => k.Key.ToString(), k => k.Value)));
             Log("exported " + v.Count + " item variants");
@@ -317,8 +371,7 @@ namespace ContentLoader
         // Monsters and their drop ids, gathered as zones are visited.
         public override void OnZoneLoaded(string zone) { scanAt = Time.realtimeSinceStartup + 8f; }
 
-        // Export once per session, a few seconds into the world, from fresh copies of the game's
-        // own tables (so the files always show the originals, whatever the packs change).
+        // Export once, a few seconds into the world.
         public override void OnPlayerSpawned() { if (!exported) exportAt = Time.realtimeSinceStartup + 5f; }
 
         public override void OnUpdate()
@@ -327,10 +380,18 @@ namespace ContentLoader
             if (exportAt > 0 && now >= exportAt)
             {
                 exportAt = -1; exported = true;
-                Try("loot export", () => Export(new ItemDropList(), "loot.json"));
-                Try("shop export", () => Export(new ShopItemList(), "shops.json"));
-                Try("item export", () => ExportItems(ItemLibraryBase.GetItemLibraryCtrl()));
-                Try("variant export", () => ExportVariants(ItemLibraryBase.GetItemLibraryCtrl()));
+                exportJob = ExportAll();
+            }
+            if (exportJob != null)
+            {
+                // At most ~8 ms of export work per frame.
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                try
+                {
+                    while (sw.ElapsedMilliseconds < 8)
+                        if (!exportJob.MoveNext()) { exportJob = null; break; }
+                }
+                catch (Exception e) { Log("export failed: " + e.Message); exportJob = null; }
             }
             if (scanAt < 0 || now < scanAt) return;
             scanAt = -1;

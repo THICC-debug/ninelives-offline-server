@@ -1,0 +1,16 @@
+{
+  "name": "example-npcs",
+  "author": "Nine Lives offline project",
+  "description": "An example NPC for NPCLoader: Old Bram, next to Crimson Crest's binding stone. Delete this file to remove him.",
+  "npcs": [
+    {
+      "id": 90001,
+      "name": "Old Bram",
+      "zone": "Zone_CrimsonIsles",
+      "x": 1285.5, "y": 144.8, "z": 1116.5,
+      "rotation": 0,
+      "template": 250,
+      "role": "quest"
+    }
+  ]
+}

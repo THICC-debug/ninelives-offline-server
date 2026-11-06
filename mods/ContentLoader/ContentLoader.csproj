@@ -6,7 +6,7 @@
   <PropertyGroup>
     <TargetFramework>net35</TargetFramework>
     <AssemblyName>ContentLoader</AssemblyName>
-    <Version>1.2.0</Version>
+    <Version>1.2.1</Version>
     <LangVersion>latest</LangVersion>
     <GameDir Condition="'$(GameDir)' == ''">$(MSBuildThisFileDirectory)..\..\..\Ninelives</GameDir>
     <Managed>$(GameDir)\Ninelives_Data\Managed</Managed>
@@ -29,7 +29,7 @@
   </ItemGroup>
 
   <!-- Install into the game: the mod in Mods\, Harmony in Mods\lib\. -->
-  <Target Name="InstallMod" AfterTargets="Build" Condition="Exists('$(GameDir)\Mods')">
+  <Target Name="InstallMod" AfterTargets="Build" Condition="Exists('$(GameDir)\Mods') and '$(NoInstall)' != 'true'">
     <!-- If the game is running its files are locked: warn instead of failing. -->
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(GameDir)\Mods" ContinueOnError="WarnAndContinue" />
     <Copy SourceFiles="$(OutDir)0Harmony.dll" DestinationFolder="$(GameDir)\Mods\lib" ContinueOnError="WarnAndContinue" />

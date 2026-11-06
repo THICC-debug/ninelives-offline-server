@@ -22,3 +22,6 @@ original-files/
 *.zip
 __pycache__/
 *.pyc
+
+# Installer download cache
+installer/.cache/

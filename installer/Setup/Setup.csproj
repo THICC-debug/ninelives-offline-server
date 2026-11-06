@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Setup.exe for Nine Lives Offline: patches the game, installs the server (with its own Python),
+       the mod loader and the chosen mods, and can undo all of it.
+       Targets .NET Framework 4.8, which comes with Windows 10 and 11, so players don't install anything.
+       Mono.Cecil is embedded in the exe, so Setup.exe is a single file next to its files\ folder.
+       Build the whole release with:  python installer\build_release.py -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <AssemblyName>Setup</AssemblyName>
+    <RootNamespace>NineLivesSetup</RootNamespace>
+    <Version>1.0.0</Version>
+    <Product>Nine Lives Offline</Product>
+    <Description>Nine Lives Offline setup</Description>
+    <LangVersion>latest</LangVersion>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies.net48" Version="1.0.3" PrivateAssets="all" />
+    <PackageReference Include="Mono.Cecil" Version="0.11.6" />
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The patch logic is shared with the developer patcher. -->
+    <Compile Include="..\..\patcher\PatchCore.cs" Link="PatchCore.cs" />
+  </ItemGroup>
+
+  <!-- Embed Mono.Cecil.dll so Setup.exe works on its own (loaded in Program.cs). -->
+  <Target Name="EmbedCecil" BeforeTargets="PrepareForBuild">
+    <ItemGroup>
+      <EmbeddedResource Include="$(NuGetPackageRoot)mono.cecil\0.11.6\lib\net40\Mono.Cecil.dll" LogicalName="Mono.Cecil.dll" />
+    </ItemGroup>
+  </Target>
+
+</Project>

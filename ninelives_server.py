@@ -596,14 +596,47 @@ class Handler(BaseHTTPRequestHandler):
         self._handle(self.rfile.read(n) if n else b"")
 
 
+def game_running():
+    """Is Ninelives.exe running? (Windows only; used by --exit-with-game.)"""
+    import subprocess
+    try:
+        out = subprocess.run(["tasklist", "/FI", "IMAGENAME eq Ninelives.exe", "/NH"],
+                             capture_output=True, text=True, creationflags=0x08000000).stdout
+    except Exception:
+        return True       # can't tell: keep running
+    return "ninelives.exe" in out.lower()
+
+
+def watch_game(srv):
+    """Stop the server a little after the game closes (the Play launcher uses this)."""
+    seen, waited = False, 0
+    while True:
+        time.sleep(5)
+        waited += 5
+        if game_running():
+            seen = True
+        elif seen or waited >= 180:    # closed, or never started within 3 minutes
+            log("The game has closed - stopping the server." if seen else
+                "The game didn't start within 3 minutes - stopping the server.")
+            srv.shutdown()
+            return
+
+
 def main():
-    srv = ThreadingHTTPServer((HOST, PORT), Handler)
+    try:
+        srv = ThreadingHTTPServer((HOST, PORT), Handler)
+    except OSError:
+        log("Port %d is already in use - is the server already running in another window?" % PORT)
+        sys.exit(2)
     log("Nine Lives offline server running on http://%s:%d  (Ctrl+C to stop)" % (HOST, PORT))
     log("Saves: " + SAVE_PATH)
+    if "--exit-with-game" in sys.argv:
+        threading.Thread(target=watch_game, args=(srv,), daemon=True).start()
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
-        log("Stopped.")
+        pass
+    log("Stopped.")
 
 
 if __name__ == "__main__":
