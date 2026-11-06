@@ -111,6 +111,8 @@ who wants to write their own server (in Rust, Go, anything) has a complete spec.
 | `Start Nine Lives.bat` | Starts the server, then the game |
 | `PROTOCOL.md` | Every server request and reply the game uses |
 | `MODDING.md` | How to make mods |
+| `recipes.json` | Alchemy recipes (editable) |
+| `ITEMS.md` | Item IDs and names for editing recipes |
 
 ## 🧩 Modding
 
@@ -119,11 +121,23 @@ that change the game's code at runtime with Harmony, so game files never get edi
 Copy [`mods/ExampleMod`](mods/ExampleMod) to get started. The full guide is in
 **[MODDING.md](MODDING.md)**.
 
-## 🐞 Known issues
+Each mod is self-contained and released on its own:
 
-- **Alchemy vendors show no recipes.** The recipe lists only ever lived on SmokymonkeyS'
-  servers and aren't in the game files. If you have records of the old recipes (screenshots,
-  wiki pages, archived posts), please open an issue so they can be rebuilt.
+| Mod | What it does |
+|---|---|
+| [TravelMod](mods/TravelMod) | Remembers your position across logins, and teleports between spawn points (F9/F10) |
+
+## ⚗️ Alchemy recipes
+
+The recipe lists only ever lived on SmokymonkeyS' servers, so they were lost when the
+servers went down. They've been rebuilt in **[recipes.json](recipes.json)**: 94 recipes from the
+player-written [Ninelives Wiki](https://w.atwiki.jp/nine_lives/pages/35.html) (2016),
+cross-checked against the in-game "Recipe:" items, whose pictures show the exact
+ingredients and match the wiki. Edit the file to add or fix recipes. IDs are in
+[ITEMS.md](ITEMS.md), and changes apply right away with no server restart.
+
+Not known: which alchemist taught which recipe (every alchemist knows them all here), which
+recipes were secret, and the Delyxol recipe, which the game itself leaves unfinished.
 
 ## 🛠️ Tweaks
 

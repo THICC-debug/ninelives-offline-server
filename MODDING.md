@@ -93,7 +93,22 @@ backup in `Ninelives_Data\OfflineBackup\` automatically.
 - Shared libraries go in `Mods\lib\`. The loader finds them there automatically.
 - To turn a mod off, move its DLL out of `Mods\`.
 
-## Sharing a mod
+## Releasing a mod
+
+Every mod is self-contained in its own folder, so each one can be released on its own:
+
+```
+mods/YourMod/
+├── YourMod.csproj     ← has a <Version> and a Package target
+├── YourMod.cs
+├── README.md          ← what it does, keys, install, "made with AI" note if it applies
+└── release/           ← YourMod-<version>.zip appears here (not committed)
+```
+
+`dotnet build -c Release -t:Package` builds `release/YourMod-<version>.zip`, laid out to unzip
+straight into the game folder (`Mods/YourMod.dll`, `Mods/lib/0Harmony.dll`,
+`Mods/YourMod-README.md`). [TravelMod](mods/TravelMod) is a complete example. Upload the zip
+as a GitHub release (tag it `yourmod-v1.0.0`) or on a mod site.
 
 Share only **your** DLL and source code, never game files. If your mod changes how the
 game talks to the server, document it in [PROTOCOL.md](PROTOCOL.md).
