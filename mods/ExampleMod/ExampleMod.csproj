@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Example Nine Lives mod. Copy this folder to start your own. -->
+  <PropertyGroup>
+    <TargetFramework>net35</TargetFramework>
+    <AssemblyName>ExampleMod</AssemblyName>
+    <LangVersion>latest</LangVersion>
+    <GameDir Condition="'$(GameDir)' == ''">$(MSBuildThisFileDirectory)..\..\..\Ninelives</GameDir>
+    <Managed>$(GameDir)\Ninelives_Data\Managed</Managed>
+    <!-- Compile against the untouched game code (the patcher's backup) when it exists. -->
+    <GameCode Condition="Exists('$(GameDir)\Ninelives_Data\OfflineBackup\Assembly-UnityScript.dll')">$(GameDir)\Ninelives_Data\OfflineBackup</GameCode>
+    <GameCode Condition="'$(GameCode)' == ''">$(Managed)</GameCode>
+    <Loader>$(MSBuildThisFileDirectory)..\..\modloader\NineLivesModLoader\bin\Release\net35\NineLivesModLoader.dll</Loader>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies.net35" Version="1.0.3" PrivateAssets="all" />
+    <PackageReference Include="Lib.Harmony" Version="2.2.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="NineLivesModLoader"><HintPath>$(Loader)</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine"><HintPath>$(Managed)\UnityEngine.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Assembly-UnityScript"><HintPath>$(GameCode)\Assembly-UnityScript.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Assembly-CSharp-firstpass"><HintPath>$(GameCode)\Assembly-CSharp-firstpass.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+
+  <!-- Install into the game: the mod in Mods\, Harmony in Mods\lib\. -->
+  <Target Name="InstallMod" AfterTargets="Build" Condition="Exists('$(GameDir)\Mods')">
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(GameDir)\Mods" />
+    <Copy SourceFiles="$(OutDir)0Harmony.dll" DestinationFolder="$(GameDir)\Mods\lib" />
+  </Target>
+
+</Project>

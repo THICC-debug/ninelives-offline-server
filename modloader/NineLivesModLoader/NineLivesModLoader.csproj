@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Tiny mod loader for Ninelives 0.24.3 (Unity 5.3.6, old Mono = .NET 3.5).
+       The patcher copies this DLL into Ninelives_Data\Managed and calls ModLoader.Init()
+       when the game's code starts. -->
+  <PropertyGroup>
+    <TargetFramework>net35</TargetFramework>
+    <AssemblyName>NineLivesModLoader</AssemblyName>
+    <LangVersion>latest</LangVersion>
+    <Version>1.0.0</Version>
+    <GameDir Condition="'$(GameDir)' == ''">$(MSBuildThisFileDirectory)..\..\..\Ninelives</GameDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies.net35" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="UnityEngine"><HintPath>$(GameDir)\Ninelives_Data\Managed\UnityEngine.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+
+</Project>

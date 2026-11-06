@@ -13,7 +13,7 @@ original-files/
 *.unity3d
 
 # Build output
-patcher/bin/
-patcher/obj/
+**/bin/
+**/obj/
 __pycache__/
 *.pyc

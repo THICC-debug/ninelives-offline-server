@@ -36,6 +36,8 @@ This project brings it back for single-player, offline play:
   to the local server as well.
 - 🎲 **Real loot.** The game has offline drop and shop tables built in. The patch switches
   them on, so drops come from the game's own data.
+- 🧩 **A mod loader.** Drop mod DLLs into a `Mods` folder and change the game with
+  [Harmony](https://harmony.pardeike.net/). See **[MODDING.md](MODDING.md)**.
 
 ## ✅ Requirements
 
@@ -91,6 +93,7 @@ The patcher makes three small edits with [Mono.Cecil](https://github.com/jbevain
 | `Assembly-UnityScript.dll` | Server address → `127.0.0.1:8080` |
 | `Assembly-UnityScript.dll` | `VersionDefine.offlineItemDrop = true` (local loot tables) |
 | `Assembly-CSharp-firstpass.dll` | Google Analytics URL → the local server |
+| `Assembly-UnityScript.dll` | Calls the mod loader once at startup |
 
 The full request and reply format is documented in **[PROTOCOL.md](PROTOCOL.md)**. Anyone
 who wants to write their own server (in Rust, Go, anything) has a complete spec.
@@ -102,9 +105,25 @@ who wants to write their own server (in Rust, Go, anything) has a complete spec.
 | `ninelives_server.py` | The offline server (Python standard library only) |
 | `aes.py` | Pure-Python AES-256-CBC, checked against the official FIPS-197 test vector |
 | `patcher/` | The patcher (C#, .NET 8, Mono.Cecil) |
-| `Patch Game.bat` | Runs the patcher (or `restore` to undo) |
+| `modloader/` | The mod loader the patcher installs (C#, .NET 3.5) |
+| `mods/ExampleMod/` | A starter mod to copy |
+| `Patch Game.bat` | Patches the game and installs the mod loader (or `restore` to undo) |
 | `Start Nine Lives.bat` | Starts the server, then the game |
 | `PROTOCOL.md` | Every server request and reply the game uses |
+| `MODDING.md` | How to make mods |
+
+## 🧩 Modding
+
+The patch also installs a small mod loader. Mods are .NET DLLs in `Ninelives\Mods\`
+that change the game's code at runtime with Harmony, so game files never get edited by hand.
+Copy [`mods/ExampleMod`](mods/ExampleMod) to get started. The full guide is in
+**[MODDING.md](MODDING.md)**.
+
+## 🐞 Known issues
+
+- **Alchemy vendors show no recipes.** The recipe lists only ever lived on SmokymonkeyS'
+  servers and aren't in the game files. If you have records of the old recipes (screenshots,
+  wiki pages, archived posts), please open an issue so they can be rebuilt.
 
 ## 🛠️ Tweaks
 
@@ -153,7 +172,7 @@ This project was built in one session by **Claude** (Anthropic), using Claude Co
 request of a player who wanted to keep the game alive. Claude:
 
 - decompiled the game's .NET code to understand how it talks to its server,
-- documented the protocol and wrote the server, the AES code and the patcher,
+- documented the protocol and wrote the server, the AES code, the patcher and the mod loader,
 - tested the server with scripted requests, then fixed the bugs found when a human played
   through login, character creation and loading back in.
 

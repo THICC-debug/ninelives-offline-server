@@ -63,12 +63,25 @@ foreach (var name in known.Keys)
     }
 }
 
+const string LoaderDll = "NineLivesModLoader.dll";
 if (args.Contains("--restore"))
 {
     foreach (var name in known.Keys)
         File.Copy(Path.Combine(backup, name), Path.Combine(managed, name), true);
+    var installedLoader = Path.Combine(managed, LoaderDll);
+    if (File.Exists(installedLoader)) File.Delete(installedLoader);
     Console.WriteLine("Restored the original game files.");
     return 0;
+}
+
+// Optional: --loader <path to NineLivesModLoader.dll> installs the mod loader too.
+string? loaderPath = null;
+int li = Array.IndexOf(args, "--loader");
+if (li >= 0 && li + 1 < args.Length) loaderPath = Path.GetFullPath(args[li + 1]);
+if (loaderPath != null && !File.Exists(loaderPath))
+{
+    Console.WriteLine("Mod loader not found: " + loaderPath);
+    return 1;
 }
 
 var resolver = new DefaultAssemblyResolver();
@@ -97,8 +110,35 @@ var rp = new ReaderParameters { AssemblyResolver = resolver };
     il.InsertBefore(ret, il.Create(OpCodes.Ldc_I4_1));
     il.InsertBefore(ret, il.Create(OpCodes.Stsfld, vd.Fields.First(f => f.Name == "offlineItemDrop")));
 
-    asm.Write(Path.Combine(managed, UnityScript));
     Console.WriteLine("Server address -> http://127.0.0.1:8080/kyrill/, offline loot on");
+
+    if (loaderPath != null)
+    {
+        File.Copy(loaderPath, Path.Combine(managed, LoaderDll), true);
+        using var loader = AssemblyDefinition.ReadAssembly(loaderPath);
+        var init = mod.ImportReference(loader.MainModule.GetType("NineLivesModLoader.ModLoader")
+                                             .Methods.First(m => m.Name == "Init"));
+        // Call ModLoader.Init() from two static constructors that run at startup:
+        // the module initializer and Universe (the game's global state class).
+        // Init() only runs once, whichever fires first.
+        foreach (var type in new[] { mod.GetType("<Module>"), mod.GetType("Universe") })
+        {
+            var init_cctor = type.Methods.FirstOrDefault(m => m.Name == ".cctor");
+            if (init_cctor == null)
+            {
+                init_cctor = new MethodDefinition(".cctor",
+                    MethodAttributes.Private | MethodAttributes.Static | MethodAttributes.HideBySig |
+                    MethodAttributes.SpecialName | MethodAttributes.RTSpecialName, mod.TypeSystem.Void);
+                init_cctor.Body.GetILProcessor().Append(Instruction.Create(OpCodes.Ret));
+                type.Methods.Add(init_cctor);
+            }
+            init_cctor.Body.GetILProcessor().InsertBefore(init_cctor.Body.Instructions[0], Instruction.Create(OpCodes.Call, init));
+        }
+        Directory.CreateDirectory(Path.Combine(game, "Mods", "lib"));
+        Console.WriteLine("Mod loader installed (mods go in " + Path.Combine(game, "Mods") + ")");
+    }
+
+    asm.Write(Path.Combine(managed, UnityScript));
 }
 
 // 2) Send Google Analytics hits to the local server instead of Google.
