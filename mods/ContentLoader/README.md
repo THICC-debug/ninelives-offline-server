@@ -1,6 +1,6 @@
 # ContentLoader for Nine Lives
 
-**Version 1.1.0** · a mod for *Ninelives* 0.24.3 (offline) · includes a content editor
+**Version 1.2.0** · a mod for *Ninelives* 0.24.3 (offline) · includes a content editor
 
 > [!NOTE]
 > This mod was made with AI (Anthropic's Claude, in Claude Code) and tested by a human player.
@@ -36,14 +36,20 @@ python Mods\ContentLoader\editor\content_editor.py
 
 It opens in your browser (`http://127.0.0.1:8096`).
 
-- **Items:** every item's original price and stats. **Change this item**, then set a new price,
-  markup, stats, name or description. Blank fields keep the original.
+- **Items:** every item's original price and stats, filterable by category (weapons, armor, herbs,
+  potions…). **Change this item**, then set a new price, markup, stats (with plain names like
+  "Weapon damage"), name or description. Blank fields keep the original. **Where it comes from**
+  lists every loot table and shop that has it, including its variants (Fine, Rugged…).
 - **Loot:** every loot table, labelled with the monsters that use it (as you visit zones). Shows the
   chest chance, how many items, what always drops, and each random group's chance in %.
-  **Change this table** copies the original into your pack to edit.
+  **Change this table** copies the original into your pack to edit. **Roll 10 kills** previews what
+  the table drops, using the game's own rules.
 - **Shops:** the same for every vendor, labelled by name (with [QuestLoader](../QuestLoader) installed).
 - **Shared item groups** (at the bottom of the Loot and Shops lists): changing one changes every
   table that uses it.
+
+**Pack info & changes** edits the pack's name, author and description, and lists everything it changes.
+Press `/` to jump to search.
 
 **Save pack** (Ctrl+S) writes `Mods\Content\<pack>.json`. In game, type `reloadcontent` in the
 [DevTools](../DevTools) command box (F7) to see it without restarting.
@@ -59,6 +65,7 @@ A few seconds after you enter the world, ContentLoader writes the game's **origi
 | `loot.json` | Every loot table (drop id → what drops) and the shared item groups |
 | `shops.json` | Every shop's stock (drop id = the shop NPC's id) |
 | `monsters.json` | Which monster uses which loot table, added as you visit zones |
+| `variants.json` | Item variants ("Fine Knife") and their base item |
 
 ## Content packs
 
@@ -125,7 +132,7 @@ item is shown. Shops restock with the new list when they next refresh.
 
 ```
 dotnet build -c Release              # build and install into the game
-dotnet build -c Release -t:Package   # make release\ContentLoader-1.1.0.zip
+dotnet build -c Release -t:Package   # make release\ContentLoader-1.2.0.zip
 ```
 
 License: MIT (code only; the game belongs to SmokymonkeyS).

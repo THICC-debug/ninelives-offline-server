@@ -11,7 +11,7 @@ using UnityEngine;
 
 namespace ContentLoader
 {
-    [ModInfo("contentloader", "ContentLoader", "1.1.0", Author = "Nine Lives offline project",
+    [ModInfo("contentloader", "ContentLoader", "1.2.0", Author = "Nine Lives offline project",
         Description = "Change item prices and stats, loot tables and shop stock with JSON content packs in Mods\\Content.")]
     public class ContentLoader : Mod
     {
@@ -299,6 +299,21 @@ namespace ContentLoader
             Log("exported " + outp.Count + " items to items.json");
         }
 
+        // Variants ("Fine Knife") and their base item, so tools can group them and name them.
+        void ExportVariants(ItemLibraryBase lib)
+        {
+            if (lib == null || lib.itemIDList == null) return;
+            var v = new SortedDictionary<int, Dictionary<string, object>>();
+            foreach (var kv in lib.itemIDList)
+            {
+                var e = kv.Value;
+                if (e == null || e.baseItemID <= 0 || e.baseItemID == kv.Key) continue;
+                v[kv.Key] = new Dictionary<string, object> { { "base", e.baseItemID }, { "name", Game.ItemName(kv.Key) } };
+            }
+            File.WriteAllText(Path.Combine(ExportDir, "variants.json"), ToJson(v.ToDictionary(k => k.Key.ToString(), k => k.Value)));
+            Log("exported " + v.Count + " item variants");
+        }
+
         // Monsters and their drop ids, gathered as zones are visited.
         public override void OnZoneLoaded(string zone) { scanAt = Time.realtimeSinceStartup + 8f; }
 
@@ -315,6 +330,7 @@ namespace ContentLoader
                 Try("loot export", () => Export(new ItemDropList(), "loot.json"));
                 Try("shop export", () => Export(new ShopItemList(), "shops.json"));
                 Try("item export", () => ExportItems(ItemLibraryBase.GetItemLibraryCtrl()));
+                Try("variant export", () => ExportVariants(ItemLibraryBase.GetItemLibraryCtrl()));
             }
             if (scanAt < 0 || now < scanAt) return;
             scanAt = -1;

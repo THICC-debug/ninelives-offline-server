@@ -86,6 +86,7 @@ class Editor(BaseHTTPRequestHandler):
                 "game": self.game,
                 "items": read_json(os.path.join(self.export, "items.json"), {}),
                 "loot": read_json(os.path.join(self.export, "loot.json"), {}),
+                "variants": read_json(os.path.join(self.export, "variants.json"), {}),
                 "shops": read_json(os.path.join(self.export, "shops.json"), {}),
                 "monsters": read_json(os.path.join(self.export, "monsters.json"), []),
                 # From QuestLoader, if installed: NPC names (shops are keyed by NPC id) and extra item names.

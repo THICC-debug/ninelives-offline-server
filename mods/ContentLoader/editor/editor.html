@@ -22,16 +22,18 @@
   button:hover { border-color: var(--accent); }
   button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
   button.danger { color: var(--bad); }
+  button.link { background: none; border: 0; padding: 0; color: var(--accent); text-decoration: underline; cursor: pointer; }
   input, select, textarea { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; }
+  textarea { width: 100%; min-height: 60px; resize: vertical; }
   #status { color: var(--muted); margin-left: auto; }
   #status.bad { color: var(--bad); } #status.ok { color: var(--ok); }
-  main { display: grid; grid-template-columns: 330px 1fr; height: calc(100vh - 54px); }
+  main { display: grid; grid-template-columns: 340px 1fr; height: calc(100vh - 54px); }
   aside { border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; background: var(--panel); }
   .tabs { display: flex; border-bottom: 1px solid var(--line); }
   .tabs button { flex: 1; border: 0; border-radius: 0; background: none; padding: 9px 4px; border-bottom: 2px solid transparent; }
   .tabs button.on { border-bottom-color: var(--accent); font-weight: 600; }
-  .filters { display: flex; gap: 6px; padding: 8px; }
-  .filters input { flex: 1; min-width: 0; }
+  .filters { display: flex; gap: 6px; padding: 8px; flex-wrap: wrap; }
+  .filters input[type=search] { flex: 1; min-width: 140px; }
   #list { overflow: auto; flex: 1; }
   .item { padding: 7px 12px; border-bottom: 1px solid var(--line); cursor: pointer; }
   .item:hover { background: var(--chip); }
@@ -41,25 +43,30 @@
   .badge.on { color: var(--accent); border: 1px solid var(--accent); }
   .section { padding: 6px 12px; font-size: 12px; color: var(--muted); background: var(--bg); border-bottom: 1px solid var(--line); }
   #editor { overflow: auto; padding: 18px 24px 60px; }
-  .empty { color: var(--muted); max-width: 600px; margin: 60px auto; text-align: center; }
+  .empty { color: var(--muted); max-width: 600px; margin: 40px auto; text-align: center; }
   fieldset { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; margin: 0 0 14px; background: var(--panel); }
   legend { padding: 0 6px; font-weight: 600; }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px 14px; }
   label { display: block; font-size: 12px; color: var(--muted); }
-  label > input, label > select { display: block; width: 100%; margin-top: 2px; color: var(--ink); }
+  label > input, label > select, label > textarea { display: block; width: 100%; margin-top: 2px; color: var(--ink); }
   .row { display: flex; gap: 8px; align-items: center; margin: 6px 0; flex-wrap: wrap; }
-  .row input.pick { min-width: 260px; flex: 1; }
-  .row input.num { width: 90px; }
+  .row input.pick { min-width: 240px; flex: 1; }
+  .row input.num { width: 84px; }
   .hint { color: var(--muted); font-size: 12px; margin: 4px 0 0; }
   .actions { display: flex; gap: 8px; margin: 0 0 14px; flex-wrap: wrap; align-items: center; }
   .title { font-size: 20px; font-weight: 600; margin: 0 0 2px; }
   table.kv { border-collapse: collapse; width: 100%; font-size: 13px; }
-  table.kv td { padding: 3px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
-  table.kv td:first-child { color: var(--muted); width: 38%; }
+  table.kv td { padding: 4px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  table.kv td.k { width: 34%; } table.kv td.k small { display: block; color: var(--muted); }
+  table.kv td.orig { color: var(--muted); width: 22%; }
+  table.kv td.changed input { border-color: var(--accent); }
   .group { border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; margin: 8px 0; }
   .group .head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  .pct { color: var(--accent); font-weight: 600; min-width: 54px; }
+  .pct { color: var(--accent); font-weight: 600; min-width: 48px; }
   .names { color: var(--muted); font-size: 12px; margin-top: 4px; }
+  .rolls { font-size: 13px; margin: 8px 0 0; padding-left: 20px; }
+  .rolls li { margin: 3px 0; } .rolls .none { color: var(--muted); }
+  ul.plain { margin: 4px 0; padding-left: 18px; } ul.plain li { margin: 3px 0; }
   @media (max-width: 760px) { main { grid-template-columns: 1fr; height: auto; } aside { max-height: 45vh; } }
 </style>
 </head>
@@ -68,13 +75,18 @@
   <h1>Nine Lives Content Editor</h1>
   <label style="color:var(--ink)">Pack <select id="packSel"></select></label>
   <button id="newPack">New pack</button>
+  <button id="packInfo">Pack info &amp; changes</button>
   <button id="save" class="primary" title="Ctrl+S">Save pack</button>
   <span id="status">Loading…</span>
 </header>
 <main>
   <aside>
     <div class="tabs"><button data-tab="items" class="on">Items</button><button data-tab="loot">Loot</button><button data-tab="shops">Shops</button></div>
-    <div class="filters"><input id="search" placeholder="Search name or id…"><label style="display:flex;gap:4px;align-items:center;color:var(--ink);font-size:12px"><input type="checkbox" id="onlyChanged">changed</label></div>
+    <div class="filters">
+      <input type="search" id="search" placeholder="Search name or id…  ( / )">
+      <select id="cat" title="Item category"></select>
+      <label style="display:flex;gap:4px;align-items:center;color:var(--ink);font-size:12px"><input type="checkbox" id="onlyChanged">only changed</label>
+    </div>
     <div id="list"></div>
   </aside>
   <section id="editor"></section>
@@ -82,18 +94,60 @@
 <datalist id="itemList"></datalist>
 
 <script>
-// Stats worth editing (the rest, like icons and equip slots, would break the item).
-const STATS = ["dispName","comment_en","stackMax","weaponDamage","weaponDamageRandom","weaponSpeed","damage","damageRandom",
-  "defense","resistance","avoidance","health","mana","healthRecovery","regenerate","healthLeech","manaLeech","critRate","critDamage",
-  "castSpeed","casttime","cooldown","attackSpeedAmp","dexterity","CCResistance","bowRange","bowLoadSpeed","missileRangeAmp","itemWeight","itemRareType"];
+// ---------------------------------------------------------------- reference tables
+// Item categories by id range (the first two digits of the 9-digit id).
+const CATS = [
+  ["all", "All items", () => true],
+  ["w1", "Weapons (one-handed) & shields", p => p >= 10 && p <= 15],
+  ["w2", "Weapons (two-handed) & bows", p => p >= 21 && p <= 26],
+  ["held", "Held items (torches, baskets…)", p => p === 29],
+  ["armor", "Armor & costumes", p => p >= 30 && p <= 39],
+  ["jewel", "Jewelry & charms", p => p >= 40 && p <= 45],
+  ["mount", "Mounts & pets", p => p === 50 || p === 51],
+  ["herb", "Herbs & gathered materials", p => p === 60],
+  ["mat", "Monster materials", p => p === 61],
+  ["box", "Boxes & bags", p => p === 62],
+  ["pot", "Potions, food & crafted items", p => p === 63],
+  ["drink", "Drinks", p => p === 64],
+  ["quest", "Quest & key items", p => p === 65],
+  ["mold", "Molds", p => p >= 70 && p <= 72],
+  ["craft", "Crafted gear", p => p >= 75 && p <= 79],
+  ["other", "Other", p => p < 10 || p > 79 || (p > 15 && p < 21) || (p > 26 && p < 29) || (p > 45 && p < 50) || (p > 51 && p < 60) || (p > 65 && p < 70) || (p > 72 && p < 75)],
+];
+const catOf = id => Math.floor(+id / 10000000);
+
+// Stats worth editing, with plain names. (Icons, equip slots etc. are left alone: changing them breaks items.)
+const STATS = {
+  dispName: ["Name", "what the game shows"], comment_en: ["Description", "English tooltip text"],
+  stackMax: ["Stack size", "how many fit in one slot"],
+  weaponDamage: ["Weapon damage", "base hit"], weaponDamageRandom: ["Weapon damage range", "random extra on top"],
+  weaponSpeed: ["Weapon speed", "seconds per swing (lower is faster)"],
+  damage: ["Damage bonus", ""], damageRandom: ["Damage bonus range", ""],
+  defense: ["Defense", "armor"], resistance: ["Resistance", "against magic"], avoidance: ["Avoidance", "dodge"],
+  health: ["Health", "max health bonus"], mana: ["Mana", "max mana bonus"],
+  healthRecovery: ["Health recovery", ""], regenerate: ["Regeneration", ""],
+  healthLeech: ["Health leech", "heal from damage dealt"], manaLeech: ["Mana leech", ""],
+  critRate: ["Critical chance", ""], critDamage: ["Critical damage", ""],
+  castSpeed: ["Cast speed", ""], casttime: ["Cast time", "seconds (usable items)"], cooldown: ["Cooldown", "seconds (usable items)"],
+  attackSpeedAmp: ["Attack speed bonus", ""], dexterity: ["Dexterity", ""], CCResistance: ["Crowd-control resistance", "stuns, slows"],
+  bowRange: ["Bow range", ""], bowLoadSpeed: ["Bow draw speed", ""], missileRangeAmp: ["Missile range bonus", ""],
+  itemWeight: ["Weight class", "Light / Medium / Heavy"], itemRareType: ["Rarity", "Common, Crafted, Rare, Epic, Legendary"],
+};
+const statLabel = s => (STATS[s] || [s])[0];
+
 let D = {}, pack = null, packName = null, tab = "items", sel = null, dirty = false;
-const names = {}, monstersByDrop = {}, npcNames = {};
+const names = {}, baseOf = {}, variantsOf = {}, monstersByDrop = {}, npcNames = {};
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const clone = o => JSON.parse(JSON.stringify(o));
 const parseId = v => { const m = String(v).match(/^\s*(-?\d+)/); return m ? +m[1] : 0; };
-const nm = id => names[id] || `item ${id}`;
-const pick = id => id ? `${id} · ${names[id] || "?"}` : "";
+// Variants ("Fine Knife") get their real name from variants.json once exported; until then, a variant's
+// id is its base item's id with the last two digits changed (100101010 -> 100101000), so name it after that.
+const guessBase = id => { const b = Math.floor(+id / 100) * 100; return b !== +id && names[b] ? b : 0; };
+const nm = id => names[id] || ((baseOf[id] && names[baseOf[id]]) ? names[baseOf[id]] + " (variant)"
+                               : guessBase(id) ? names[guessBase(id)] + " (variant)" : `item ${id}`);
+const pick = id => id ? `${id} · ${nm(id)}` : "";
+const has = (o, k) => o && Object.prototype.hasOwnProperty.call(o, k);
 
 function status(msg, cls) { const s = $("#status"); s.textContent = msg; s.className = cls || ""; }
 function setDirty(v = true) { dirty = v; status(v ? "Unsaved changes" : "Saved", v ? "" : "ok"); }
@@ -103,13 +157,18 @@ async function boot() {
   D = await api("/api/data");
   (D.itemNames || []).forEach(i => names[i.id] = i.name);
   Object.entries(D.items || {}).forEach(([id, it]) => { if (it.name) names[id] = it.name; });
-  [D.loot, D.shops].forEach(t => t && t.groups && Object.values(t.groups).forEach(g => g.forEach(s => { if (s.name) names[s.id] = s.name; })));
-  [D.loot, D.shops].forEach(t => t && t.drops && Object.values(t.drops).forEach(d => {
-    (d.always || []).forEach(s => { if (s.name) names[s.id] = s.name; });
-    (d.random || []).forEach(g => (g.items || []).forEach(s => { if (s.name) names[s.id] = s.name; })); }));
+  const take = s => { if (s && s.name && !names[s.id]) names[s.id] = s.name; };
+  [D.loot, D.shops].forEach(t => { if (!t) return;
+    Object.values(t.groups || {}).forEach(g => g.forEach(take));
+    Object.values(t.drops || {}).forEach(d => { (d.always || []).forEach(take); (d.random || []).forEach(g => (g.items || []).forEach(take)); }); });
+  Object.entries(D.variants || {}).forEach(([id, v]) => {
+    baseOf[id] = v.base; (variantsOf[v.base] = variantsOf[v.base] || []).push(+id);
+    if (v.name) names[id] = v.name;
+  });
   $("#itemList").innerHTML = Object.keys(names).map(Number).sort((a, b) => a - b).map(id => `<option value="${id} · ${esc(names[id])}">`).join("");
   (D.monsters || []).forEach(m => (monstersByDrop[m.dropId] = monstersByDrop[m.dropId] || new Set()).add(m.name));
   (D.npcs || []).forEach(n => { if (n.name) npcNames[n.cid] = n.name; });
+  $("#cat").innerHTML = CATS.map(([k, label]) => `<option value="${k}">${label}</option>`).join("");
   const packs = D.packs.length ? D.packs : ["my-content"];
   $("#packSel").innerHTML = packs.map(p => `<option>${esc(p)}</option>`).join("");
   await openPack(packs[0]);
@@ -119,28 +178,38 @@ async function boot() {
 async function openPack(name) {
   if (dirty && !confirm("Discard unsaved changes?")) { $("#packSel").value = packName; return; }
   pack = await api("/api/pack?name=" + encodeURIComponent(name));
-  packName = name; sel = null; dirty = false;
+  packName = name; sel = { tab: "info", key: "info" }; dirty = false;
   status(`Pack "${name}" loaded`);
   renderList(); renderEditor();
 }
 
-// pack sections, created on demand
 const P = {
   items: () => (pack.items = pack.items || {}),
   drops: t => { pack[t] = pack[t] || {}; return (pack[t].drops = pack[t].drops || {}); },
   groups: t => { pack[t] = pack[t] || {}; return (pack[t].groups = pack[t].groups || {}); },
 };
-const has = (o, k) => o && Object.prototype.hasOwnProperty.call(o, k);
 function tableLabel(t, id) {
-  if (t === "shops") return npcNames[id] ? `${npcNames[id]}` : `Shop ${id}`;
+  if (t === "shops") return npcNames[id] || `vendor ${id}`;
   const m = monstersByDrop[id];
-  return m ? [...m].slice(0, 4).join(", ") + (m.size > 4 ? ` +${m.size - 4}` : "") : (id >= 100000 ? "special drop" : "no monster seen using it yet");
+  return m ? [...m].slice(0, 4).join(", ") + (m.size > 4 ? ` +${m.size - 4} more` : "") : (id >= 100000 ? "special drop" : "no monster seen using it yet");
+}
+const sharedGroup = (t, gid) => (((pack[t] || {}).groups) || {})[gid] || (((D[t] || {}).groups) || {})[gid] || [];
+const tableOf = (t, id) => (((pack[t] || {}).drops) || {})[id] || (((D[t] || {}).drops) || {})[id];
+
+// "Knife ×5, Short Sword ×3" instead of a long list of repeats
+function compact(stacks, max = 8) {
+  const c = new Map();
+  stacks.forEach(s => { const n = nm(s.id).replace(/ \(variant\)$/, ""); c.set(n, (c.get(n) || 0) + 1); });
+  const parts = [...c.entries()].sort((a, b) => b[1] - a[1]).map(([n, k]) => k > 1 ? `${n} ×${k}` : n);
+  return parts.slice(0, max).join(", ") + (parts.length > max ? `, +${parts.length - max} more` : "");
 }
 
 // ---------------------------------------------------------------- list
 function renderList() {
   document.querySelectorAll(".tabs button").forEach(b => b.classList.toggle("on", b.dataset.tab === tab));
+  $("#cat").style.display = tab === "items" ? "" : "none";
   const term = $("#search").value.trim().toLowerCase(), only = $("#onlyChanged").checked, html = [];
+  const cat = CATS.find(c => c[0] === $("#cat").value) || CATS[0];
   const add = (key, title, sub, changed) => {
     if (only && !changed) return;
     if (term && !(`${key} ${title} ${sub}`.toLowerCase().includes(term))) return;
@@ -148,110 +217,191 @@ function renderList() {
     html.push(`<div class="item${on ? " sel" : ""}" data-key="${esc(key)}"><b>${esc(title)}</b>${changed ? '<span class="badge on">changed</span>' : ""}<small>${esc(sub)}</small></div>`);
   };
   if (tab === "items") {
-    Object.entries(D.items || {}).sort((a, b) => +a[0] - +b[0]).forEach(([id, it]) =>
-      add("i:" + id, it.name || id, `#${id} · ${it.price ?? "?"} gold`, has(pack.items, id)));
-  } else {
-    const t = D[tab] || {};
-    html.push(`<div class="section">${tab === "loot" ? "Loot tables (by drop id)" : "Shops (by vendor)"}</div>`);
-    Object.keys(t.drops || {}).map(Number).sort((a, b) => a - b).forEach(id =>
-      add("d:" + id, `${tab === "loot" ? "Table" : "Shop"} ${id}`, tableLabel(tab, id), has(pack[tab] && pack[tab].drops, String(id))));
-    Object.keys((pack[tab] && pack[tab].drops) || {}).filter(id => !(t.drops || {})[id]).forEach(id => add("d:" + id, `${tab === "loot" ? "Table" : "Shop"} ${id}`, "new", true));
-    html.push(`<div class="section">Shared item groups (used by several tables)</div>`);
-    Object.keys(t.groups || {}).map(Number).sort((a, b) => a - b).forEach(id => {
-      const g = t.groups[id]; add("g:" + id, `Group ${id}`, `${g.length} items: ${g.slice(0, 3).map(s => nm(s.id)).join(", ")}`, has(pack[tab] && pack[tab].groups, String(id)));
+    Object.entries(D.items || {}).filter(([id]) => cat[2](catOf(id))).sort((a, b) => +a[0] - +b[0]).forEach(([id, it]) => {
+      const o = (pack.items || {})[id], price = o && o.price != null ? o.price : it.price;
+      add("i:" + id, (o && o.stats && o.stats.dispName) || it.name || id, `#${id} · ${price ?? "?"} gold${variantsOf[id] ? ` · ${variantsOf[id].length} variants` : ""}`, !!o);
     });
+  } else {
+    const t = D[tab] || {}, word = tab === "loot" ? "Table" : "Shop";
+    html.push(`<div class="section">${tab === "loot" ? "Loot tables (a monster's drop id)" : "Shops (by vendor)"}</div>`);
+    const ids = new Set([...Object.keys(t.drops || {}), ...Object.keys((pack[tab] && pack[tab].drops) || {})]);
+    [...ids].map(Number).sort((a, b) => a - b).forEach(id =>
+      add("d:" + id, tab === "shops" && npcNames[id] ? npcNames[id] : `${word} ${id}`, tab === "shops" ? `shop ${id}` : tableLabel(tab, id),
+          has(pack[tab] && pack[tab].drops, String(id))));
+    html.push(`<div class="section">Shared item groups (used by several tables)</div>`);
+    Object.keys(t.groups || {}).map(Number).sort((a, b) => a - b).forEach(id =>
+      add("g:" + id, `Group ${id}`, `${t.groups[id].length} items: ${compact(t.groups[id], 3)}`, has(pack[tab] && pack[tab].groups, String(id))));
   }
-  $("#list").innerHTML = html.join("") || '<div class="empty">Nothing here yet.</div>';
-  $("#list").querySelectorAll(".item").forEach(el => el.onclick = () => { sel = { tab, key: el.dataset.key }; renderList(); renderEditor(); });
+  $("#list").innerHTML = html.join("") || '<div class="empty">Nothing matches.</div>';
+  $("#list").querySelectorAll(".item").forEach(el => el.onclick = () => go(tab, el.dataset.key));
 }
+function go(t, key) { tab = t; sel = { tab: t, key }; renderList(); renderEditor(); const el = $(`#list [data-key="${key}"]`); if (el) el.scrollIntoView({ block: "nearest" }); }
 
 // ---------------------------------------------------------------- editor
 function renderEditor() {
   const ed = $("#editor");
-  if (!sel) {
-    ed.innerHTML = `<div class="empty"><p class="title">Pick something to change</p>
-      <p><b>Items</b>: prices, stats, names. <b>Loot</b>: what monsters and chests drop. <b>Shops</b>: what vendors sell.</p>
-      <p class="hint">Packs are saved in <code>Mods\\Content</code>. In game, type <code>reloadcontent</code> in the DevTools box (F7) to load changes.</p></div>`;
-    return;
-  }
+  if (!sel || sel.tab === "info") return infoEditor(ed);
   const [kind, key] = [sel.key[0], sel.key.slice(2)];
   if (kind === "i") itemEditor(ed, key);
   else if (kind === "d") dropEditor(ed, sel.tab, key);
   else groupEditor(ed, sel.tab, key);
 }
 
+// Pack info and a list of everything the pack changes.
+function infoEditor(ed) {
+  const links = [];
+  Object.keys(pack.items || {}).forEach(id => links.push(["items", "i:" + id, `Item: ${nm(id)} (#${id})`]));
+  ["loot", "shops"].forEach(t => {
+    Object.keys(((pack[t] || {}).drops) || {}).forEach(id => links.push([t, "d:" + id, `${t === "loot" ? "Loot table" : "Shop"} ${id}: ${tableLabel(t, +id)}`]));
+    Object.keys(((pack[t] || {}).groups) || {}).forEach(id => links.push([t, "g:" + id, `${t === "loot" ? "Loot" : "Shop"} group ${id}`]));
+  });
+  ed.innerHTML = `<p class="title">Pack: ${esc(packName)}</p><p class="hint">Saved as <code>Mods\\Content\\${esc(packName)}.json</code>. In game, <code>reloadcontent</code> in the DevTools box (F7) loads it.</p>
+    <fieldset><legend>About this pack</legend><div class="grid">
+      <label>Name<input id="pName" value="${esc(pack.name || packName)}"></label>
+      <label>Author<input id="pAuthor" value="${esc(pack.author || "")}"></label></div>
+      <label style="margin-top:8px">Description<textarea id="pDesc">${esc(pack.description || "")}</textarea></label></fieldset>
+    <fieldset><legend>What this pack changes (${links.length})</legend>
+      ${links.length ? `<ul class="plain">${links.map(([t, k, label]) => `<li><button class="link" data-go="${t}|${k}">${esc(label)}</button></li>`).join("")}</ul>`
+                     : '<p class="hint">Nothing yet. Pick an item, loot table or shop on the left, then "Change this…".</p>'}
+    </fieldset>`;
+  $("#pName").onchange = e => { pack.name = e.target.value; setDirty(); };
+  $("#pAuthor").onchange = e => { pack.author = e.target.value || undefined; setDirty(); };
+  $("#pDesc").onchange = e => { pack.description = e.target.value || undefined; setDirty(); };
+  ed.querySelectorAll("[data-go]").forEach(b => b.onclick = () => { const [t, k] = b.dataset.go.split("|"); go(t, k); });
+}
+
+// Where an item (or any of its variants) drops or is sold.
+function sourcesOf(id) {
+  const ids = new Set([+id, ...(variantsOf[id] || [])]), out = [];
+  const isMine = x => ids.has(x) || (!variantsOf[id] && guessBase(x) === +id);   // variants, even before variants.json exists
+  ["loot", "shops"].forEach(t => {
+    const groupsWith = new Set(Object.keys(((D[t] || {}).groups) || {}).filter(g => sharedGroup(t, g).some(s => isMine(s.id))));
+    const all = new Set([...Object.keys(((D[t] || {}).drops) || {}), ...Object.keys(((pack[t] || {}).drops) || {})]);
+    all.forEach(did => {
+      const d = tableOf(t, did); if (!d) return;
+      const how = [];
+      if ((d.always || []).some(s => isMine(s.id))) how.push("always");
+      (d.random || []).forEach(g => { if ((g.items || []).some(s => isMine(s.id))) how.push("random"); else if (g.group && groupsWith.has(String(g.group))) how.push(`via group ${g.group}`); });
+      if (how.length) out.push({ t, did, how: [...new Set(how)].join(", ") });
+    });
+  });
+  return out;
+}
+
 function itemEditor(ed, id) {
   const it = D.items[id] || {}, st = it.stats || {};
   const o = (pack.items || {})[id];
-  const shown = STATS.filter(s => has(st, s));
-  ed.innerHTML = `<p class="title">${esc(it.name || id)}</p><p class="hint">Item ${id}</p>
-    <div class="actions">${o ? '<button class="danger" id="revert">Remove my changes</button>' : '<button class="primary" id="start">Change this item</button>'}</div>
+  const rows = [...new Set([...Object.keys(STATS).filter(s => has(st, s)), ...Object.keys((o && o.stats) || {})])];
+  const src = sourcesOf(id);
+  const price = (o && o.price) ?? it.price, amp = (o && o.buyPriceAmp) ?? it.buyPriceAmp;
+  ed.innerHTML = `<p class="title">${esc((o && o.stats && o.stats.dispName) || it.name || id)}</p>
+    <p class="hint">Item ${id} · ${CATS.find(c => c[0] !== "all" && c[2](catOf(id)))?.[1] || ""}${variantsOf[id] ? ` · ${variantsOf[id].length} variants (Fine, Rugged… share these stats)` : ""}</p>
+    <div class="actions">${o ? '<button class="danger" id="revert">Remove my changes</button>' : '<button class="primary" id="start">Change this item</button><span class="hint">Showing the original.</span>'}</div>
     <fieldset><legend>Price</legend><div class="grid">
       <label>Base price (original ${it.price ?? "?"})<input type="number" id="price" value="${o && o.price != null ? o.price : ""}" placeholder="${it.price ?? ""}" ${o ? "" : "disabled"}></label>
       <label>Shop markup (original ${it.buyPriceAmp ?? "?"})<input type="number" step="0.1" id="amp" value="${o && o.buyPriceAmp != null ? o.buyPriceAmp : ""}" placeholder="${it.buyPriceAmp ?? ""}" ${o ? "" : "disabled"}></label>
-    </div><p class="hint">Shops sell for price × markup per item${it.price != null && it.buyPriceAmp != null ? ` (now ${Math.round(((o && o.price) ?? it.price) * ((o && o.buyPriceAmp) ?? it.buyPriceAmp))} gold each)` : ""}. Leave blank to keep the original.</p></fieldset>
-    <fieldset><legend>Stats</legend><div id="stats"></div>
-      ${o ? `<div class="row"><select id="newStat"><option value="">+ change another stat…</option>${STATS.filter(s => !has((o.stats || {}), s)).map(s => `<option>${s}</option>`).join("")}</select></div>` : ""}
-      <p class="hint">Originals are shown on the left. Numbers for most stats; names and descriptions are text.</p></fieldset>`;
-  const rows = [...new Set([...shown, ...Object.keys((o && o.stats) || {})])];
-  $("#stats").innerHTML = `<table class="kv">${rows.map(s => {
-    const orig = has(st, s) ? st[s] : "(none)", mine = o && o.stats && has(o.stats, s) ? o.stats[s] : "";
-    return `<tr><td>${s}</td><td>${esc(orig)}</td><td>${o ? `<input data-stat="${s}" value="${esc(mine)}" placeholder="unchanged" style="width:100%">` : ""}</td></tr>`;
-  }).join("")}</table>` + (rows.length ? "" : '<p class="hint">No stats on this item.</p>');
+    </div><p class="hint">${price != null && amp != null ? `Shops sell it for <b>${Math.round(price * amp)} gold</b> each and buy it back for ${price}.` : ""} Blank keeps the original.</p></fieldset>
+    <fieldset><legend>Stats</legend>
+      <table class="kv">${rows.map(s => {
+        const mine = o && o.stats && has(o.stats, s) ? o.stats[s] : "";
+        return `<tr><td class="k">${esc(statLabel(s))}<small>${esc((STATS[s] || [, s])[1] || s)}</small></td>
+          <td class="orig">${has(st, s) ? esc(st[s]) : "—"}</td>
+          <td class="${mine !== "" ? "changed" : ""}">${o ? `<input data-stat="${s}" value="${esc(mine)}" placeholder="unchanged" style="width:100%">` : ""}</td></tr>`;
+      }).join("")}</table>${rows.length ? "" : '<p class="hint">No editable stats on this item.</p>'}
+      ${o ? `<div class="row"><select id="newStat"><option value="">+ change another stat…</option>${Object.keys(STATS).filter(s => !rows.includes(s)).map(s => `<option value="${s}">${esc(statLabel(s))}</option>`).join("")}</select></div>` : ""}
+    </fieldset>
+    <fieldset><legend>Where it comes from</legend>${src.length
+      ? `<ul class="plain">${src.map(s => `<li><button class="link" data-go="${s.t}|d:${s.did}">${s.t === "loot" ? "Loot table" : "Shop"} ${s.did}</button> · ${esc(s.t === "loot" ? tableLabel("loot", +s.did) : (npcNames[s.did] || ""))} <span class="hint">(${esc(s.how)})</span></li>`).join("")}</ul>`
+      : '<p class="hint">Not in any loot table or shop (it may come from quests, crafting or the world).</p>'}</fieldset>`;
+  ed.querySelectorAll("[data-go]").forEach(b => b.onclick = () => { const [t, k] = b.dataset.go.split("|"); go(t, k); });
   if (!o) { $("#start").onclick = () => { P.items()[id] = { name: it.name }; setDirty(); renderList(); renderEditor(); }; return; }
   $("#revert").onclick = () => { delete pack.items[id]; setDirty(); renderList(); renderEditor(); };
-  const num = (el, k) => { const v = el.value.trim(); if (v === "") delete o[k]; else o[k] = +v; setDirty(); renderList(); };
-  $("#price").onchange = e => { num(e.target, "price"); renderEditor(); };
-  $("#amp").onchange = e => { num(e.target, "buyPriceAmp"); renderEditor(); };
+  const num = (el, k) => { const v = el.value.trim(); if (v === "") delete o[k]; else o[k] = +v; setDirty(); renderList(); renderEditor(); };
+  $("#price").onchange = e => num(e.target, "price");
+  $("#amp").onchange = e => num(e.target, "buyPriceAmp");
   ed.querySelectorAll("[data-stat]").forEach(el => el.onchange = () => {
     const s = el.dataset.stat, v = el.value.trim(); o.stats = o.stats || {};
     if (v === "") delete o.stats[s];
     else o.stats[s] = v === "true" ? true : v === "false" ? false : (isNaN(+v) || s === "dispName" || s.startsWith("comment") ? v : +v);
     if (!Object.keys(o.stats).length) delete o.stats;
-    setDirty();
+    setDirty(); el.parentElement.classList.toggle("changed", v !== ""); if (s === "dispName") renderList();
   });
-  $("#newStat").onchange = e => { if (!e.target.value) return; o.stats = o.stats || {}; o.stats[e.target.value] = has(st, e.target.value) ? st[e.target.value] : 0; setDirty(); renderEditor(); };
+  $("#newStat").onchange = e => { const s = e.target.value; if (!s) return; o.stats = o.stats || {}; o.stats[s] = has(st, s) ? st[s] : 0; setDirty(); renderEditor(); };
 }
 
-function groupSummary(t, g) {
-  if (g.group) { const sg = ((D[t] || {}).groups || {})[g.group] || []; const mine = (((pack[t] || {}).groups) || {})[g.group];
-    const items = mine || sg; return `shared group ${g.group}${mine ? " (changed in your pack)" : ""}: ${items.length} items, e.g. ${items.slice(0, 5).map(s => nm(s.id)).join(", ")}`; }
-  return (g.items || []).map(s => `${nm(s.id)}${s.count > 1 ? " ×" + s.count : ""}`).join(", ") || "(empty)";
+// Simulate drops with the game's own rules (ItemBase.getRandomItemIDs).
+function rollOnce(t, d) {
+  if (t === "loot" && d.dropRate != null && Math.random() > d.dropRate) return null;
+  const res = [], max = d.max ?? 3, min = d.min ?? 1;
+  for (const s of (d.always || [])) { if (res.length >= max) return res; res.push({ id: s.id, count: s.count || 1 }); }
+  if (res.length >= max) return res;
+  const groups = (d.random || []).map(g => ({ rate: g.rate || 0, items: g.group ? sharedGroup(t, g.group) : (g.items || []) })).filter(g => g.rate > 0 && g.items.length);
+  const total = groups.reduce((a, g) => a + g.rate, 0);
+  const lo = Math.max(1, min - res.length), hi = max - res.length;
+  const n = lo + Math.floor(Math.random() * Math.max(1, hi - lo + 1));
+  for (let i = 0; i < n && total > 0; i++) {
+    let r = Math.random() * total, g = groups[groups.length - 1];
+    for (const x of groups) { if ((r -= x.rate) < 0) { g = x; break; } }
+    const s = g.items[Math.floor(Math.random() * g.items.length)];
+    res.push({ id: s.id, count: 1 + Math.floor(Math.random() * (s.count || 1)) });
+  }
+  return res;
 }
 
 function dropEditor(ed, t, id) {
   const orig = ((D[t] || {}).drops || {})[id], mine = (((pack[t] || {}).drops) || {})[id];
   const d = mine || orig || {}, ro = !mine, dis = ro ? "disabled" : "";
   const total = (d.random || []).reduce((s, g) => s + (g.rate || 0), 0) || 1;
-  ed.innerHTML = `<p class="title">${t === "loot" ? "Loot table" : "Shop"} ${id}</p><p class="hint">${esc(tableLabel(t, id))}</p>
-    <div class="actions">${ro ? '<button class="primary" id="start">Change this table</button><span class="hint">Shows the original. Changing it copies it into your pack first.</span>'
+  const head = t === "shops" ? (npcNames[id] || `Shop ${id}`) : `Loot table ${id}`;
+  ed.innerHTML = `<p class="title">${esc(head)}</p><p class="hint">${t === "shops" ? `Shop ${id}` : esc(tableLabel(t, +id))}</p>
+    <div class="actions">${ro ? '<button class="primary" id="start">Change this table</button><span class="hint">Showing the original. Changing it copies it into your pack first.</span>'
                               : `<button class="danger" id="revert">Back to the original</button>${orig ? "" : '<span class="badge on">new table</span>'}`}</div>
     <fieldset><legend>How much</legend><div class="grid">
-      ${t === "loot" ? `<label>Chest chance (0–1)<input type="number" step="0.01" data-f="dropRate" value="${d.dropRate ?? ""}" ${dis}></label>` : ""}
-      <label>Fewest items<input type="number" data-f="min" value="${d.min ?? ""}" ${dis}></label>
-      <label>Most items<input type="number" data-f="max" value="${d.max ?? ""}" ${dis}></label>
-    </div>${t === "loot" ? `<p class="hint">${d.dropRate != null ? `A monster using this table leaves a chest ${Math.round(d.dropRate * 100)}% of the time.` : ""}</p>` : ""}</fieldset>
+      ${t === "loot" ? `<label>Chest chance (0–1)<input type="number" step="0.01" min="0" max="1" data-f="dropRate" value="${d.dropRate ?? ""}" ${dis}></label>` : ""}
+      <label>Fewest items<input type="number" min="0" data-f="min" value="${d.min ?? ""}" ${dis}></label>
+      <label>Most items<input type="number" min="0" data-f="max" value="${d.max ?? ""}" ${dis}></label>
+    </div><p class="hint">${t === "loot" && d.dropRate != null ? `A monster using this table leaves a chest <b>${Math.round(d.dropRate * 100)}%</b> of the time, with ` : (t === "shops" ? "The shop stocks " : "")}${d.min ?? 1}–${d.max ?? 3} items.</p></fieldset>
+    <fieldset><legend>Preview</legend><button id="roll">${t === "loot" ? "Roll 10 kills" : "Restock 10 times"}</button>
+      <span class="hint">Simulated with the game's own rules, using the table as shown.</span><ol class="rolls" id="rolls"></ol></fieldset>
     <fieldset><legend>Always included</legend><div id="always"></div>${ro ? "" : '<button id="addAlways">+ Item</button>'}</fieldset>
     <fieldset><legend>Random picks</legend>
       <p class="hint">For the rest, a group is picked by weight, then one item from it (count = up to).</p>
       <div id="random"></div>${ro ? "" : '<button id="addGroup">+ Group with its own items</button> <button id="addShared">+ Use a shared group</button>'}</fieldset>`;
   $("#always").innerHTML = itemRows(d.always || [], ro, "always") || '<p class="hint">None.</p>';
   $("#random").innerHTML = (d.random || []).map((g, i) => `<div class="group" data-g="${i}"><div class="head">
-      <span class="pct">${Math.round((g.rate || 0) / total * 100)}%</span>
-      weight <input class="num" type="number" data-gf="rate" value="${g.rate}" ${dis}>
-      ${g.group ? `shared group <input class="num" type="number" data-gf="group" value="${g.group}" ${dis}>` : ""}
+      <span class="pct">${((g.rate || 0) / total * 100).toFixed((g.rate || 0) / total < 0.01 && g.rate ? 1 : 0)}%</span>
+      weight <input class="num" type="number" min="0" data-gf="rate" value="${g.rate}" ${dis}>
+      ${g.group ? `shared <button class="link" data-gogroup="${g.group}">group ${g.group}</button>` : ""}
       ${ro ? "" : `<button class="danger" data-rmg="${i}">Remove group</button>`}</div>
-      ${g.group ? `<div class="names">${esc(groupSummary(t, g))}</div>` : `<div>${itemRows(g.items || [], ro, "g" + i)}</div>${ro ? "" : `<button data-addin="${i}">+ Item</button>`}`}
+      ${g.group ? `<div class="names">${sharedGroup(t, g.group).length} items: ${esc(compact(sharedGroup(t, g.group)))}</div>`
+                : `<div>${itemRows(g.items || [], ro, "g" + i)}</div>${ro ? "" : `<button data-addin="${i}">+ Item</button>`}`}
     </div>`).join("") || '<p class="hint">None.</p>';
+  $("#roll").onclick = () => {
+    $("#rolls").innerHTML = Array.from({ length: 10 }, () => {
+      const r = rollOnce(t, d);
+      if (!r) return '<li class="none">no chest</li>';
+      return `<li>${r.length ? esc(r.map(s => `${nm(s.id)}${s.count > 1 ? " ×" + s.count : ""}`).join(", ")) : '<span class="none">empty</span>'}</li>`;
+    }).join("");
+  };
+  ed.querySelectorAll("[data-gogroup]").forEach(b => b.onclick = () => go(t, "g:" + b.dataset.gogroup));
   if (ro) { $("#start").onclick = () => { P.drops(t)[id] = clone(orig || { min: 1, max: 1, random: [] }); setDirty(); renderList(); renderEditor(); }; return; }
   $("#revert").onclick = () => { delete pack[t].drops[id]; setDirty(); renderList(); renderEditor(); };
-  ed.querySelectorAll("[data-f]").forEach(el => el.onchange = () => { const v = el.value.trim(); if (v === "") delete d[el.dataset.f]; else d[el.dataset.f] = +v; setDirty(); renderEditor(); });
-  ed.querySelectorAll("[data-gf]").forEach(el => el.onchange = () => { d.random[+el.closest("[data-g]").dataset.g][el.dataset.gf] = +el.value || 0; setDirty(); renderEditor(); });
+  ed.querySelectorAll("[data-f]").forEach(el => el.onchange = () => {
+    let v = el.value.trim();
+    if (v === "") delete d[el.dataset.f]; else { v = +v; if (el.dataset.f === "dropRate") v = Math.min(1, Math.max(0, v)); else v = Math.max(0, Math.round(v)); d[el.dataset.f] = v; }
+    setDirty(); renderEditor();
+  });
+  ed.querySelectorAll("[data-gf]").forEach(el => el.onchange = () => { d.random[+el.closest("[data-g]").dataset.g][el.dataset.gf] = Math.max(0, +el.value || 0); setDirty(); renderEditor(); });
   ed.querySelectorAll("[data-rmg]").forEach(b => b.onclick = () => { d.random.splice(+b.dataset.rmg, 1); setDirty(); renderEditor(); });
   ed.querySelectorAll("[data-addin]").forEach(b => b.onclick = () => { const g = d.random[+b.dataset.addin]; (g.items = g.items || []).push({ id: 0, count: 1 }); setDirty(); renderEditor(); });
   $("#addAlways").onclick = () => { (d.always = d.always || []).push({ id: 0, count: 1 }); setDirty(); renderEditor(); };
   $("#addGroup").onclick = () => { (d.random = d.random || []).push({ rate: 100, items: [{ id: 0, count: 1 }] }); setDirty(); renderEditor(); };
-  $("#addShared").onclick = () => { const gid = parseId(prompt("Shared group id (see 'Shared item groups' in the list):", "11")); if (!gid) return; (d.random = d.random || []).push({ rate: 100, group: gid }); setDirty(); renderEditor(); };
+  $("#addShared").onclick = () => {
+    const opts = Object.keys(((D[t] || {}).groups) || {}).slice(0, 40).map(g => `${g}: ${compact(sharedGroup(t, g), 2)}`).join("\n");
+    const gid = parseId(prompt("Shared group id. Some groups:\n" + opts, "11")); if (!gid) return;
+    if (!sharedGroup(t, gid).length) { alert("There's no group " + gid + " in " + t + "."); return; }
+    (d.random = d.random || []).push({ rate: 100, group: gid }); setDirty(); renderEditor();
+  };
   wireItemRows(ed, key => key === "always" ? d.always : d.random[+key.slice(1)].items);
 }
 
@@ -259,10 +409,16 @@ function groupEditor(ed, t, id) {
   const orig = ((D[t] || {}).groups || {})[id] || [], mine = (((pack[t] || {}).groups) || {})[id];
   const g = mine || orig, ro = !mine;
   const users = Object.entries((D[t] || {}).drops || {}).filter(([, d]) => (d.random || []).some(r => r.group == id)).map(([k]) => k);
-  ed.innerHTML = `<p class="title">Shared group ${id}</p><p class="hint">${g.length} items. Used by ${users.length} table(s)${users.length ? ": " + users.slice(0, 12).join(", ") + (users.length > 12 ? "…" : "") : ""}. Changing it changes all of them.</p>
+  ed.innerHTML = `<p class="title">Shared group ${id}</p><p class="hint">${g.length} items: ${esc(compact(g, 6))}</p>
     <div class="actions">${ro ? '<button class="primary" id="start">Change this group</button>' : '<button class="danger" id="revert">Back to the original</button>'}</div>
-    <fieldset><legend>Items</legend><div id="gitems"></div>${ro ? "" : '<button id="addIt">+ Item</button>'}<p class="hint">Count = up to how many of that item drop at once.</p></fieldset>`;
+    <fieldset><legend>Used by ${users.length} table(s)</legend>${users.length
+      ? users.map(u => `<button class="link" data-go="${t}|d:${u}">${t === "shops" ? (npcNames[u] || "Shop " + u) : "Table " + u}</button>`).join(" · ")
+      : '<p class="hint">No table uses it.</p>'}<p class="hint">Changing this group changes every one of them.</p></fieldset>
+    <fieldset><legend>Items</legend>${g.length > 12 ? '<input type="search" id="gfilter" placeholder="Filter these items…" style="width:100%;margin-bottom:6px">' : ""}
+      <div id="gitems"></div>${ro ? "" : '<button id="addIt">+ Item</button>'}<p class="hint">Count = up to how many of that item drop at once.</p></fieldset>`;
   $("#gitems").innerHTML = itemRows(g, ro, "grp") || '<p class="hint">Empty.</p>';
+  ed.querySelectorAll("[data-go]").forEach(b => b.onclick = () => { const [tt, k] = b.dataset.go.split("|"); go(tt, k); });
+  const f = $("#gfilter"); if (f) f.oninput = () => { const q = f.value.toLowerCase(); ed.querySelectorAll("#gitems .row").forEach(r => r.style.display = r.querySelector("[data-sf=id]").value.toLowerCase().includes(q) ? "" : "none"); };
   if (ro) { $("#start").onclick = () => { P.groups(t)[id] = clone(orig); setDirty(); renderList(); renderEditor(); }; return; }
   $("#revert").onclick = () => { delete pack[t].groups[id]; setDirty(); renderList(); renderEditor(); };
   $("#addIt").onclick = () => { g.push({ id: 0, count: 1 }); setDirty(); renderEditor(); };
@@ -272,7 +428,7 @@ function groupEditor(ed, t, id) {
 function itemRows(list, ro, key) {
   const dis = ro ? "disabled" : "";
   return list.map((s, i) => `<div class="row" data-list="${key}" data-i="${i}">
-      <input class="num" type="number" data-sf="count" value="${s.count}" ${dis}> ×
+      <input class="num" type="number" min="1" data-sf="count" value="${s.count}" ${dis}> ×
       <input class="pick" list="itemList" data-sf="id" value="${esc(pick(s.id))}" placeholder="type an item name" ${dis}>
       ${ro ? "" : `<button class="danger" data-rmi="${i}" title="Remove">✕</button>`}</div>`).join("");
 }
@@ -281,7 +437,7 @@ function wireItemRows(ed, listFor) {
     const list = () => listFor(row.dataset.list), i = +row.dataset.i;
     row.querySelectorAll("[data-sf]").forEach(el => el.onchange = () => {
       const s = list()[i];
-      if (el.dataset.sf === "id") { s.id = parseId(el.value); s.name = names[s.id]; } else s.count = Math.max(1, +el.value || 1);
+      if (el.dataset.sf === "id") { s.id = parseId(el.value); s.name = names[s.id]; el.value = pick(s.id); } else s.count = Math.max(1, +el.value || 1);
       setDirty();
     });
     const rm = row.querySelector("[data-rmi]"); if (rm) rm.onclick = () => { list().splice(i, 1); setDirty(); renderEditor(); };
@@ -293,10 +449,11 @@ function tidy() {
   ["loot", "shops"].forEach(t => { if (!pack[t]) return;
     ["drops", "groups"].forEach(k => { if (pack[t][k] && !Object.keys(pack[t][k]).length) delete pack[t][k]; });
     if (!Object.keys(pack[t]).length) delete pack[t]; });
-  if (pack.items && !Object.keys(pack.items).length) delete pack.items;
+  if (pack.items) { Object.keys(pack.items).forEach(id => { const o = pack.items[id]; if (o.price == null && o.buyPriceAmp == null && !o.stats) delete pack.items[id]; });
+    if (!Object.keys(pack.items).length) delete pack.items; }
 }
 function problems() {
-  const p = [], bad = s => !(s.id > 0) || !names[s.id];
+  const p = [], bad = s => !(s.id > 0) || nm(s.id).startsWith("item ");
   ["loot", "shops"].forEach(t => {
     Object.entries((pack[t] || {}).drops || {}).forEach(([id, d]) => {
       if ((d.always || []).some(bad) || (d.random || []).some(g => (g.items || []).some(bad))) p.push(`${t} table ${id} has an unknown item`);
@@ -312,11 +469,12 @@ async function save() {
   pack.name = pack.name || packName; tidy();
   try {
     const r = await api("/api/pack?name=" + encodeURIComponent(packName), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(pack) });
-    setDirty(false); status(`Saved to ${r.saved}. In game: reloadcontent (F7).`, "ok"); renderList();
+    setDirty(false); status(`Saved. In game: reloadcontent (F7).`, "ok"); renderList(); if (sel && sel.tab === "info") renderEditor();
   } catch (e) { status("Save failed: " + e.message, "bad"); }
 }
 
 $("#save").onclick = save;
+$("#packInfo").onclick = () => { sel = { tab: "info", key: "info" }; renderList(); renderEditor(); };
 $("#packSel").onchange = e => openPack(e.target.value);
 $("#newPack").onclick = () => {
   const n = prompt("Name for the new pack (letters, numbers, spaces, - and _):", "my-content"); if (!n) return;
@@ -324,8 +482,11 @@ $("#newPack").onclick = () => {
   $("#packSel").value = n; openPack(n);
 };
 document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => { tab = b.dataset.tab; renderList(); });
-$("#search").oninput = renderList; $("#onlyChanged").onchange = renderList;
-document.addEventListener("keydown", e => { if ((e.ctrlKey || e.metaKey) && e.key === "s") { e.preventDefault(); save(); } });
+$("#search").oninput = renderList; $("#onlyChanged").onchange = renderList; $("#cat").onchange = renderList;
+document.addEventListener("keydown", e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === "s") { e.preventDefault(); save(); }
+  if (e.key === "/" && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) { e.preventDefault(); $("#search").focus(); }
+});
 window.addEventListener("beforeunload", e => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
 boot().catch(e => status("Couldn't load: " + e.message, "bad"));
 </script>
