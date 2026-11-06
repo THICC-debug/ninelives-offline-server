@@ -1,23 +1,25 @@
-# Personal data - never commit
-save.json
-save.json.tmp
-save.backup-*.json
-server.log
+# Personal data - never commit (holds your account email and characters)
+save*.json
+*.log
+*.bak
+*.tmp
 
-# Game files belong to SmokymonkeyS - never commit
+# Game files and game data belong to SmokymonkeyS - never commit
 original-files/
 *.dll
 *.exe
+*.pdb
 *.assets
 *.resS
 *.resource
 *.unity3d
+**/export/
+Mods/
 
-# Build output
+# Build output and release zips (upload zips as GitHub releases instead)
 **/bin/
 **/obj/
+**/release/
+*.zip
 __pycache__/
 *.pyc
-
-# Mod release zips (upload as GitHub releases instead)
-**/release/
