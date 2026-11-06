@@ -14,7 +14,6 @@ original-files/
 *.resource
 *.unity3d
 **/export/
-Mods/
 
 # Build output and release zips (upload zips as GitHub releases instead)
 **/bin/
