@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NPCs</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header>
+  <label style="color:var(--ink)">Pack <select id="packSel"></select></label>
+  <button id="newPack">New pack</button>
+  <button id="newNpc">New NPC</button>
+  <button id="save" class="primary" title="Ctrl+S">Save pack</button>
+  <span id="status">Loading…</span>
+</header>
+<main>
+  <aside>
+    <input id="search" type="search" placeholder="Search name, id, zone…">
+    <div id="list"></div>
+  </aside>
+  <section id="editor"></section>
+</main>
+
+<script>
+const FIRST_ID = 90001;
+const ROLES = {
+  quest: "Talks: offers and takes the quests that have this NPC as giver or hand-in",
+  shop: "Opens a shop. Its stock is the shop table with this NPC's id (Shops tab)",
+  alchemy: "Opens the alchemy window",
+  bank: "Opens the bank",
+  share: "Opens the shared bank",
+  skillReset: "Offers a skill reset",
+  none: "Nothing: just someone standing there",
+};
+let D = {}, pack = null, packName = null, sel = -1, dirty = false;
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const zoneName = z => String(z || "").replace(/^Zone_/, "").replace(/([a-z])([A-Z])/g, "$1 $2");
+const r1 = v => Math.round((+v || 0) * 10) / 10;
+
+function status(msg, cls) { const s = $("#status"); s.textContent = msg; s.className = cls || ""; }
+function setDirty(v = true) { dirty = v; status(v ? "Unsaved changes" : "Saved", v ? "" : "ok"); }
+async function api(path, opts) { const r = await fetch(path, opts); const j = await r.json(); if (!r.ok) throw new Error(j.error || r.statusText); return j; }
+
+// The game's own NPCs (from QuestLoader's export), by zone.
+const gameNpcs = () => (D.npcs || []).filter(n => n.cid > 0 && n.cid < FIRST_ID);
+const zones = () => [...new Set([...gameNpcs().map(n => n.zone), ...(pack ? pack.npcs.map(n => n.zone) : [])].filter(Boolean))].sort();
+const npcsIn = z => gameNpcs().filter(n => n.zone === z).sort((a, b) => (a.name || "").localeCompare(b.name || "") || a.cid - b.cid);
+const gameNpc = cid => gameNpcs().find(n => n.cid === cid);
+
+async function boot() {
+  D = await api("/api/npcs/data");
+  const packs = D.packs.length ? D.packs : ["my-npcs"];
+  fillPacks(packs);
+  await openPack(packs.find(p => !(D.packsOff || []).includes(p)) || packs[0]);
+  if (!gameNpcs().length) status("No NPC list yet: play once with QuestLoader installed (visit a zone), then reload.", "bad");
+}
+
+function fillPacks(names) {
+  const off = new Set(D.packsOff || []);
+  $("#packSel").innerHTML = names.map(p => `<option value="${esc(p)}">${esc(p)}${off.has(p) ? " (off)" : ""}</option>`).join("");
+  if (packName) $("#packSel").value = packName;
+}
+function ensurePack(n) { if (![...$("#packSel").options].some(o => o.value === n)) $("#packSel").insertAdjacentHTML("beforeend", `<option value="${esc(n)}">${esc(n)}</option>`); $("#packSel").value = n; }
+
+async function openPack(name) {
+  if (dirty && !confirm("Discard unsaved changes?")) { $("#packSel").value = packName; return; }
+  pack = await api("/api/npcs/pack?name=" + encodeURIComponent(name));
+  pack.npcs = pack.npcs || []; packName = name; sel = pack.npcs.length ? 0 : -1; dirty = false;
+  status(`Pack "${name}": ${pack.npcs.length} NPC(s)`);
+  renderList(); renderEditor();
+}
+
+// Ids used by every pack (this one as edited, the others as saved).
+function usedIds() {
+  const ids = (D.custom || []).filter(n => n.pack !== packName).map(n => n.id || n.cid);
+  return [...ids, ...pack.npcs.map(n => n.id)];
+}
+const nextId = () => Math.max(FIRST_ID - 1, ...usedIds().filter(i => i >= FIRST_ID)) + 1;
+
+function newNpc(near) {
+  const z = near ? near.zone : (zones().includes("Zone_CrimsonIsles") ? "Zone_CrimsonIsles" : zones()[0] || "Zone_CrimsonIsles");
+  const base = near || npcsIn(z)[0] || { x: 0, y: 0, z: 0, cid: 0 };
+  const n = { id: nextId(), name: "New NPC", zone: z, x: r1(base.x + 1.5), y: r1(base.y), z: r1(base.z), rotation: 0,
+              template: base.cid || 0, role: "quest" };
+  pack.npcs.push(n); sel = pack.npcs.length - 1; setDirty(); renderList(); renderEditor();
+}
+
+// ---------------------------------------------------------------- list
+function renderList() {
+  const term = $("#search").value.trim().toLowerCase();
+  const html = pack.npcs.map((n, i) => {
+    if (term && !`${n.id} ${n.name} ${n.zone} ${n.role}`.toLowerCase().includes(term)) return "";
+    return `<div class="item${i === sel ? " sel" : ""}" data-i="${i}"><b>${esc(n.name || "(no name)")}</b>
+      <span class="badge">${esc(n.role || "quest")}</span>${n.enabled === false ? '<span class="badge off">hidden</span>' : ""}
+      <small>#${n.id} · ${esc(zoneName(n.zone))} · looks like ${esc((gameNpc(n.template) || {}).name || "NPC " + n.template)}</small></div>`;
+  }).join("");
+  $("#list").innerHTML = html || `<div class="empty">${pack.npcs.length ? "Nothing matches." : "No NPCs in this pack yet."}</div>`;
+  $("#list").querySelectorAll(".item").forEach(el => el.onclick = () => { sel = +el.dataset.i; renderList(); renderEditor(); });
+}
+
+// ---------------------------------------------------------------- editor
+function questsOf(id) {
+  const out = [];
+  (D.originals || []).forEach(q => { if (q.giver === id || q.ender === id) out.push({ ...q, where: "game" }); });
+  (D.packQuests || []).forEach(q => { if (q.giver === id || q.ender === id) out.push({ ...q, where: q.pack }); });
+  return out;
+}
+
+function problemsOf(n) {
+  const p = [];
+  if (!n.name) p.push("needs a name");
+  if (!(n.id >= FIRST_ID)) p.push(`ids should be ${FIRST_ID} or higher, so they never clash with the game's NPCs`);
+  if (usedIds().filter(i => i === n.id).length > 1) p.push("id " + n.id + " is used by another NPC");
+  if (!n.template) p.push("pick an NPC to copy the look from");
+  else if (gameNpcs().length && !npcsIn(n.zone).some(t => t.cid === n.template)) p.push("the look-alike NPC isn't in this zone (it has to be)");
+  if (!ROLES[n.role || "quest"]) p.push("unknown role");
+  return p;
+}
+
+function renderEditor() {
+  const ed = $("#editor");
+  if (sel < 0 || !pack.npcs[sel]) {
+    ed.innerHTML = `<div class="empty"><p class="title">Add people to the world</p>
+      <p>Each NPC is a copy of one of the game's own NPCs in the same zone (its body, clothes and animations), with its own name, place and job.</p>
+      <p><button class="primary" id="mk">New NPC</button></p>
+      <p class="hint">Saved in <code>Mods\\NPCs</code>. In game, <code>npcreload</code> in the F7 box (DevTools) shows changes; <code>pos</code> tells you where you're standing.</p></div>`;
+    $("#mk").onclick = () => newNpc(); return;
+  }
+  const n = pack.npcs[sel], role = n.role || "quest", tpl = gameNpc(n.template);
+  const qs = questsOf(n.id), hasShop = (D.shops || []).includes(String(n.id));
+  ed.innerHTML = `
+    <div class="actions"><button id="dup">Duplicate</button><button class="danger" id="del">Delete</button></div>
+    <div class="problems" id="problems"></div>
+    <fieldset><legend>Who</legend><div class="grid">
+      <label>Name<input data-k="name" value="${esc(n.name)}"></label>
+      <label>Id (${FIRST_ID} and up)<input type="number" data-k="id" value="${n.id}"></label>
+      <label>Job<select data-k="role">${Object.keys(ROLES).map(r => `<option ${r === role ? "selected" : ""}>${r}</option>`).join("")}</select></label>
+    </div>
+    <p class="hint">${esc(ROLES[role] || "")}</p>
+    <div class="checks" style="margin-top:8px">
+      <label><input type="checkbox" data-k="enabled" ${n.enabled === false ? "" : "checked"}>in the world (untick to hide without deleting)</label>
+      <label><input type="checkbox" data-k="sit" ${n.sit ? "checked" : ""}>sitting</label>
+    </div></fieldset>
+
+    <fieldset><legend>Looks like</legend>
+      <label>Copy the look of<select data-k="template" data-num>${
+        (npcsIn(n.zone).length ? npcsIn(n.zone) : (tpl ? [tpl] : [])).map(t => `<option value="${t.cid}" ${t.cid === n.template ? "selected" : ""}>${esc(t.name || "?")} (#${t.cid})</option>`).join("")
+        || `<option value="${n.template || 0}">NPC ${n.template || "?"} (no NPC list for this zone yet)</option>`}</select></label>
+      <p class="hint">Only NPCs in the same zone can be copied. The copy stands still and talks like its job above, whatever the original does.</p></fieldset>
+
+    <fieldset><legend>Where</legend><div class="grid">
+      <label>Zone<select data-k="zone">${zones().map(z => `<option value="${esc(z)}" ${z === n.zone ? "selected" : ""}>${esc(zoneName(z))}</option>`).join("")}</select></label>
+      <label>X<input type="number" step="0.1" data-k="x" value="${n.x}"></label>
+      <label>Y (height)<input type="number" step="0.1" data-k="y" value="${n.y}"></label>
+      <label>Z<input type="number" step="0.1" data-k="z" value="${n.z}"></label>
+      <label>Facing (degrees)<input type="number" step="5" data-k="rotation" value="${n.rotation || 0}"></label>
+    </div>
+    <div class="row" style="margin-top:10px"><span class="hint">Put next to</span>
+      <select id="near"><option value="">an NPC in this zone…</option>${npcsIn(n.zone).map(t => `<option value="${t.cid}">${esc(t.name || "?")} (#${t.cid})</option>`).join("")}</select></div>
+    <p class="hint">Or stand on the spot in game and type <code>pos</code> in the F7 box. The NPC is set down on whatever is under that spot, so the height can be a little off.</p></fieldset>
+
+    <fieldset><legend>${role === "shop" ? "Shop stock" : "Quests"}</legend>
+      ${role === "shop" ? `<p>${hasShop ? `This NPC sells the stock of <b>shop ${n.id}</b>.` : `There's no shop table ${n.id} yet, so the shop would be empty.`}</p>
+          <button class="primary" id="shop">${hasShop ? "Edit the stock" : "Make the stock"} in the Shops tab</button>
+          <p class="hint">${hasShop ? "" : "In the Shops tab, click \"Change this table\" to start it, then add items."}</p>`
+        : `${qs.length ? `<ul class="plain">${qs.map(q => `<li>${esc(q.title || "?")} <span class="hint">#${q.id} · ${q.giver === n.id ? "gives" : ""}${q.giver === n.id && q.ender === n.id ? " and " : ""}${q.ender === n.id ? "takes it back" : ""} · ${q.where === "game" ? "game quest" : "pack " + esc(q.where)}</span></li>`).join("")}</ul>`
+                      : '<p class="hint">No quests use this NPC yet.</p>'}
+          <button class="primary" id="newQuest">New quest for ${esc(n.name || "this NPC")}</button>
+          ${role !== "quest" ? '<p class="hint">Set the job to "quest" so clicking the NPC offers its quests.</p>' : ""}`}
+    </fieldset>`;
+
+  ed.querySelectorAll("[data-k]").forEach(el => el.onchange = () => {
+    const k = el.dataset.k;
+    if (el.type === "checkbox") { if (k === "enabled") { if (el.checked) delete n.enabled; else n.enabled = false; } else if (el.checked) n[k] = true; else delete n[k]; }
+    else if (el.type === "number" || el.dataset.num !== undefined) n[k] = +el.value || 0;
+    else n[k] = el.value;
+    if (k === "zone" && !npcsIn(n.zone).some(t => t.cid === n.template)) { const first = npcsIn(n.zone)[0]; if (first) { n.template = first.cid; n.x = r1(first.x + 1.5); n.y = r1(first.y); n.z = r1(first.z); } }
+    setDirty(); renderList();
+    if (["role", "zone", "id", "template"].includes(k)) renderEditor(); else showProblems(n);
+  });
+  $("#near").onchange = e => { const t = gameNpc(+e.target.value); if (!t) return; n.x = r1(t.x + 1.5); n.y = r1(t.y); n.z = r1(t.z); setDirty(); renderEditor(); };
+  $("#dup").onclick = () => { const c = JSON.parse(JSON.stringify(n)); c.id = nextId(); c.name += " (copy)"; c.x = r1(c.x + 1.5); pack.npcs.push(c); sel = pack.npcs.length - 1; setDirty(); renderList(); renderEditor(); };
+  $("#del").onclick = () => { if (confirm(`Delete ${n.name}?`)) { pack.npcs.splice(sel, 1); sel = Math.min(sel, pack.npcs.length - 1); setDirty(); renderList(); renderEditor(); } };
+  const shop = $("#shop"); if (shop) shop.onclick = () => parent.postMessage({ nav: "shops", msg: { cmd: "openShop", id: n.id } }, "*");
+  const nq = $("#newQuest"); if (nq) nq.onclick = async () => {
+    if (dirty) await save(true);   // the quest tab needs to know this NPC
+    parent.postMessage({ nav: "quests", msg: { cmd: "newQuest", giver: n.id } }, "*");
+  };
+  showProblems(n);
+}
+function showProblems(n) { const p = problemsOf(n); $("#problems").textContent = p.length ? "Check: " + p.join(" · ") : ""; }
+
+// ---------------------------------------------------------------- save
+async function save(quiet) {
+  const bad = pack.npcs.map(n => [n, problemsOf(n)]).filter(x => x[1].length);
+  if (!quiet && bad.length && !confirm(`${bad.length} NPC(s) have problems (e.g. ${bad[0][0].name}: ${bad[0][1][0]}). Save anyway?`)) return;
+  pack.name = pack.name || packName;
+  try {
+    const r = await api("/api/npcs/pack?name=" + encodeURIComponent(packName), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(pack) });
+    setDirty(false); status(`Saved ${r.count} NPC(s)${r.enabled ? "" : " (pack is off)"}. In game: npcreload (F7), or restart.`, "ok");
+    const fresh = await api("/api/npcs/data"); D.custom = fresh.custom; D.packs = fresh.packs; D.packsOff = fresh.packsOff; fillPacks(D.packs);
+    parent.postMessage({ broadcast: { cmd: "npcsChanged" } }, "*");
+    parent.postMessage({ broadcast: { cmd: "packsChanged", kind: "npcs" } }, "*");
+  } catch (e) { status("Save failed: " + e.message, "bad"); }
+}
+
+window.addEventListener("message", async e => {
+  const m = e.data || {};
+  if (m.cmd === "openPack") { ensurePack(m.name); await openPack(m.name); }
+  if (m.cmd === "packsChanged" && m.kind !== "npcs") {
+    const fresh = await api("/api/npcs/data");
+    D.originals = fresh.originals; D.packQuests = fresh.packQuests; D.shops = fresh.shops; D.packsOff = fresh.packsOff;
+    fillPacks(fresh.packs.length ? fresh.packs : [packName]); renderEditor();
+  }
+});
+$("#save").onclick = () => save();
+$("#newNpc").onclick = () => newNpc(sel >= 0 ? null : null);
+$("#packSel").onchange = e => openPack(e.target.value);
+$("#newPack").onclick = () => {
+  const n = prompt("Name for the new pack (letters, numbers, spaces, - and _):", "my-npcs"); if (!n) return;
+  ensurePack(n); openPack(n);
+};
+$("#search").oninput = renderList;
+document.addEventListener("keydown", e => { if ((e.ctrlKey || e.metaKey) && e.key === "s") { e.preventDefault(); save(); } });
+window.addEventListener("beforeunload", e => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
+boot().then(() => parent.postMessage({ ready: true }, "*")).catch(e => status("Couldn't load: " + e.message, "bad"));
+</script>
+</body>
+</html>

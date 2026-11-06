@@ -98,17 +98,19 @@ Plain `IMod` (just a `Load()` method) still works, for tiny mods.
 ### Content without code
 
 Item prices and stats, loot and shop stock: the [ContentLoader](mods/ContentLoader) mod loads
-content packs (JSON) and exports the game's original tables for reference.
+content packs (JSON) and exports the game's original tables for reference. Edit packs in the
+[Nine Lives Editor](editor/README.md) (Items, Loot and Shops tabs).
 
 ### NPCs
 
 The [NPCLoader](mods/NPCLoader) mod adds NPCs from JSON packs (or `npcadd` in game), as copies of
-existing NPCs with their own id, name and role. Quests and shops can use those ids.
+existing NPCs with their own id, name and role. Quests and shops can use those ids. The
+[Nine Lives Editor](editor/README.md)'s NPCs tab places them without typing commands.
 
 ### Quests
 
-Quests don't need code: the [QuestLoader](mods/QuestLoader) mod loads quest packs (JSON) and comes
-with a browser-based quest editor.
+Quests don't need code: the [QuestLoader](mods/QuestLoader) mod loads quest packs (JSON). Make them in
+the [Nine Lives Editor](editor/README.md)'s Quests tab.
 
 ## Finding what to patch
 

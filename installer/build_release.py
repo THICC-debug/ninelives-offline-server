@@ -26,17 +26,16 @@ REPO = os.path.dirname(HERE)
 PYTHON_VERSION = "3.13.17"
 PYTHON_URL = "https://www.python.org/ftp/python/%s/python-%s-embed-win32.zip" % (PYTHON_VERSION, PYTHON_VERSION)
 
-# The mods in the release. default = ticked on a fresh install.
-# (id, default, description, editor name, editor script)
+# The mods in the release. default = ticked on a fresh install. (id, default, description)
+# Their packs are edited in the Nine Lives Editor (editor/), which ships with the mods.
 MODS = [
-    ("TravelMod", True, "F10 menu to jump to the binding stone, shops and other places", "", ""),
-    ("QuestLoader", True, "Adds quests from quest packs (Mods\\Quests). Comes with a quest editor.",
-     "Quest Editor", "Mods\\QuestLoader\\editor\\quest_editor.py"),
-    ("ContentLoader", True, "Change item prices and stats, loot and shop stock with content packs. Comes with an editor.",
-     "Content Editor", "Mods\\ContentLoader\\editor\\content_editor.py"),
-    ("NPCLoader", False, "Add your own NPCs (quest givers, vendors) from NPC packs (Mods\\NPCs). New.", "", ""),
-    ("DevTools", False, "F7 command box for testing: teleport, give items and gold, set flags. Cheats!", "", ""),
+    ("TravelMod", True, "F10 menu to jump to the binding stone, shops and other places"),
+    ("QuestLoader", True, "Adds quests from quest packs (Mods\\Quests). Edit them in the Nine Lives Editor."),
+    ("ContentLoader", True, "Change item prices and stats, loot and shop stock with content packs (Nine Lives Editor)."),
+    ("NPCLoader", True, "Add your own NPCs (quest givers, vendors) from NPC packs (Nine Lives Editor)."),
+    ("DevTools", False, "F7 command box for testing: teleport, give items and gold, set flags. Cheats!"),
 ]
+EDITOR_FILES = ["ninelives_editor.py", "index.html", "overview.html", "quests.html", "content.html", "npcs.html", "style.css", "README.md"]
 
 SERVER_FILES = ["ninelives_server.py", "aes.py", "recipes.json", "README.md", "LICENSE", "PROTOCOL.md", "ITEMS.md", "MODDING.md"]
 
@@ -137,14 +136,14 @@ def main():
 
     # Mods: each one's own release zip (the same zip that's released on its own).
     os.makedirs(os.path.join(files, "mods"))
-    lines = ["# id | version | zip | default | description | editor name | editor script"]
-    for mid, default, desc, ed_name, ed_script in mods:
+    lines = ["# id | version | zip | default | description"]
+    for mid, default, desc in mods:
         proj = os.path.join(REPO, "mods", mid, mid + ".csproj")
         ver = csproj_version(proj)
         run(["dotnet", "build", "-c", "Release", "-v", "q", "-nologo", "-t:Package", proj, gd, "-p:NoInstall=true"])
         zname = "%s-%s.zip" % (mid, ver)
         shutil.copy2(os.path.join(REPO, "mods", mid, "release", zname), os.path.join(files, "mods", zname))
-        lines.append(" | ".join([mid, ver, zname, "1" if default else "0", desc, ed_name, ed_script]))
+        lines.append(" | ".join([mid, ver, zname, "1" if default else "0", desc]))
     with open(os.path.join(files, "mods.txt"), "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
 
@@ -154,6 +153,12 @@ def main():
         shutil.copy2(os.path.join(REPO, f), os.path.join(files, "server", f))
 
     get_python(files)
+
+    # The Nine Lives Editor goes with the mods (it edits their packs).
+    if mods:
+        os.makedirs(os.path.join(files, "editor"))
+        for f in EDITOR_FILES:
+            shutil.copy2(os.path.join(REPO, "editor", f), os.path.join(files, "editor", f))
 
     # Setup.exe
     run(["dotnet", "build", "-c", "Release", "-v", "q", "-nologo", setup_proj])

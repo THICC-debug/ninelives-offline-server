@@ -40,7 +40,7 @@ namespace NPCLoader
         public bool sit;
     }
 
-    [ModInfo("npcloader", "NPCLoader", "1.0.2", Author = "Nine Lives offline project",
+    [ModInfo("npcloader", "NPCLoader", "1.1.0", Author = "Nine Lives offline project",
         Description = "Adds custom NPCs (quest givers, vendors, alchemists) from JSON NPC packs in Mods\\NPCs.")]
     public class NPCLoader : Mod
     {

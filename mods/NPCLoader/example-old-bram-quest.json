@@ -1,0 +1,39 @@
+{
+  "name": "example-old-bram",
+  "description": "Old Bram's quest (NPCLoader example): bring him 3 Heartberries. Needs QuestLoader and the example NPC pack.",
+  "quests": [
+    {
+      "id": 900000101,
+      "title": "Bram's Berries",
+      "objective": "Bring Old Bram 3 Heartberries.",
+      "types": [
+        "Normal",
+        "Collect"
+      ],
+      "giver": 90001,
+      "ender": 90001,
+      "description": "Ah, a new face! I'm Old Bram. I wasn't standing here yesterday, was I? Never mind that.\nMy knees won't take me to the Herb Vendor anymore. Would you fetch me 3 Heartberries?",
+      "descriptionForEnder": "Lovely, lovely. These will make a fine tea. Here, for your trouble.",
+      "targets": [
+        {
+          "kind": "item",
+          "item": 600000001,
+          "count": 3,
+          "includeBank": true
+        }
+      ],
+      "rewards": [
+        {
+          "kind": "exp",
+          "amount": 80
+        },
+        {
+          "kind": "gold",
+          "amount": 120
+        }
+      ],
+      "clearFlag": 9100
+    }
+  ],
+  "author": "Nine Lives offline project"
+}

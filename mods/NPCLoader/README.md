@@ -1,6 +1,6 @@
 # NPCLoader for Nine Lives
 
-**Version 1.0.2** · a mod for *Ninelives* 0.24.3 (offline)
+**Version 1.1.0** · a mod for *Ninelives* 0.24.3 (offline)
 
 > [!NOTE]
 > This mod was made with AI (Anthropic's Claude, in Claude Code) and tested by a human player.
@@ -13,16 +13,26 @@ model, clothes and animations) with its own id, name, position and role.
 
 - *Ninelives* 0.24.3 patched with the
   [Nine Lives offline server](https://github.com/THICC-debug/ninelives-offline-server)'s
-  `Patch Game.bat` (mod loader 2.1 or newer).
+  Setup.exe (or `Patch Game.bat` from source), mod loader 2.1 or newer.
 - [DevTools](../DevTools) for the in-game commands (optional; you can also write packs by hand).
 
 ## Install
 
-Unzip into your game folder (the one with `Ninelives.exe`). You get `Mods\NPCLoader.dll` and
-`Mods\NPCs\example-npcs.json` (Old Bram, next to Crimson Crest's binding stone). Delete the
-example if you don't want him.
+Tick NPCLoader in Setup.exe, or unzip the release into your game folder (the one with `Ninelives.exe`).
+You get `Mods\NPCLoader.dll` and two examples, both switched off:
 
-## Placing NPCs in game
+- `Mods\NPCs\example-npcs.json.disabled`: Old Bram, next to Crimson Crest's binding stone
+- `Mods\Quests\example-old-bram.json.disabled`: his quest, "Bram's Berries" (needs [QuestLoader](../QuestLoader))
+
+Switch them on in the Nine Lives Editor (**Overview**), or remove `.disabled` from the names.
+
+## Placing NPCs with the editor
+
+The Nine Lives Editor's **NPCs** tab: pick who the NPC looks like (any NPC in the same zone), put it
+next to an NPC or type a position, choose its job, and give it quests (**New quest for …**) or
+shop stock (**Edit the stock**).
+
+## Placing NPCs in game (DevTools)
 
 Open the DevTools command box (**F7**):
 
@@ -57,7 +67,7 @@ With [QuestLoader](../QuestLoader), use the NPC's id as `giver` and `ender`:
   "rewards": [ { "kind": "gold", "amount": 120 } ], "clearFlag": 9100 }
 ```
 
-Custom NPCs show up in the quest editor's NPC picker, marked "(custom)".
+Custom NPCs show up in the editor's NPC picker, marked "(custom)".
 
 ## NPC pack format
 

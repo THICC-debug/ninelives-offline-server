@@ -6,7 +6,7 @@
   <PropertyGroup>
     <TargetFramework>net35</TargetFramework>
     <AssemblyName>NPCLoader</AssemblyName>
-    <Version>1.0.2</Version>
+    <Version>1.1.0</Version>
     <LangVersion>latest</LangVersion>
     <GameDir Condition="'$(GameDir)' == ''">$(MSBuildThisFileDirectory)..\..\..\Ninelives</GameDir>
     <Managed>$(GameDir)\Ninelives_Data\Managed</Managed>
@@ -46,7 +46,9 @@
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(Stage)Mods" />
     <Copy SourceFiles="$(OutDir)0Harmony.dll" DestinationFolder="$(Stage)Mods\lib" />
     <Copy SourceFiles="README.md" DestinationFiles="$(Stage)Mods\$(AssemblyName)-README.md" />
-    <Copy SourceFiles="example-npcs.json" DestinationFolder="$(Stage)Mods\NPCs" Condition="Exists('example-npcs.json')" />
+    <!-- Examples ship switched off: turn them on in the Nine Lives Editor (Overview). Old Bram's quest needs QuestLoader. -->
+    <Copy SourceFiles="example-npcs.json" DestinationFiles="$(Stage)Mods\NPCs\example-npcs.json.disabled" Condition="Exists('example-npcs.json')" />
+    <Copy SourceFiles="example-old-bram-quest.json" DestinationFiles="$(Stage)Mods\Quests\example-old-bram.json.disabled" Condition="Exists('example-old-bram-quest.json')" />
     <MakeDir Directories="$(ReleaseDir)" />
     <ZipDirectory SourceDirectory="$(Stage)" DestinationFile="$(ReleaseDir)$(AssemblyName)-$(Version).zip" Overwrite="true" />
     <Message Importance="high" Text="Release: $(ReleaseDir)$(AssemblyName)-$(Version).zip" />

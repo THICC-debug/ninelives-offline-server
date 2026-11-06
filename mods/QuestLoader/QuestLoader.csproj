@@ -1,13 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!-- QuestLoader: load custom quests from Mods\Quests, and export the game's quests, items and NPCs
-       for the quest editor.
+       for the Nine Lives Editor.
        Build:    dotnet build -c Release            (also installs into the game)
        Release:  dotnet build -c Release -t:Package  (makes release\QuestLoader-<version>.zip) -->
   <PropertyGroup>
     <TargetFramework>net35</TargetFramework>
     <AssemblyName>QuestLoader</AssemblyName>
-    <Version>1.1.0</Version>
+    <Version>1.2.0</Version>
     <LangVersion>latest</LangVersion>
     <GameDir Condition="'$(GameDir)' == ''">$(MSBuildThisFileDirectory)..\..\..\Ninelives</GameDir>
     <Managed>$(GameDir)\Ninelives_Data\Managed</Managed>
@@ -29,16 +29,10 @@
     <Reference Include="Assembly-CSharp-firstpass"><HintPath>$(GameCode)\Assembly-CSharp-firstpass.dll</HintPath><Private>false</Private></Reference>
   </ItemGroup>
 
-  <ItemGroup>
-    <None Remove="editor\**" />
-  </ItemGroup>
-
-  <!-- Install into the game: the mod in Mods\, the editor in Mods\QuestLoader\editor\. -->
+  <!-- Install into the game: the mod in Mods\, Harmony in Mods\lib\. -->
   <Target Name="InstallMod" AfterTargets="Build" Condition="Exists('$(GameDir)\Mods') and '$(NoInstall)' != 'true'">
-    <ItemGroup><EditorFiles Include="editor\*.py;editor\*.html" /></ItemGroup>
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(GameDir)\Mods" ContinueOnError="WarnAndContinue" />
     <Copy SourceFiles="$(OutDir)0Harmony.dll" DestinationFolder="$(GameDir)\Mods\lib" ContinueOnError="WarnAndContinue" />
-    <Copy SourceFiles="@(EditorFiles)" DestinationFolder="$(GameDir)\Mods\QuestLoader\editor" ContinueOnError="WarnAndContinue" />
   </Target>
 
   <!-- Release zip, laid out to unzip straight into the game folder. -->
@@ -47,13 +41,12 @@
       <Stage>$(BaseIntermediateOutputPath)package\</Stage>
       <ReleaseDir>$(MSBuildThisFileDirectory)release\</ReleaseDir>
     </PropertyGroup>
-    <ItemGroup><EditorFiles Include="editor\*.py;editor\*.html" /></ItemGroup>
     <RemoveDir Directories="$(Stage)" />
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(Stage)Mods" />
     <Copy SourceFiles="$(OutDir)0Harmony.dll" DestinationFolder="$(Stage)Mods\lib" />
     <Copy SourceFiles="README.md" DestinationFiles="$(Stage)Mods\$(AssemblyName)-README.md" />
-    <Copy SourceFiles="@(EditorFiles)" DestinationFolder="$(Stage)Mods\QuestLoader\editor" />
-    <Copy SourceFiles="example-pack.json" DestinationFolder="$(Stage)Mods\Quests" Condition="Exists('example-pack.json')" />
+    <!-- Examples ship switched off: turn them on in the Nine Lives Editor (Overview). -->
+    <Copy SourceFiles="example-pack.json" DestinationFiles="$(Stage)Mods\Quests\example-pack.json.disabled" Condition="Exists('example-pack.json')" />
     <MakeDir Directories="$(ReleaseDir)" />
     <ZipDirectory SourceDirectory="$(Stage)" DestinationFile="$(ReleaseDir)$(AssemblyName)-$(Version).zip" Overwrite="true" />
     <Message Importance="high" Text="Release: $(ReleaseDir)$(AssemblyName)-$(Version).zip" />

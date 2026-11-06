@@ -3,64 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Nine Lives Quest Editor</title>
-<style>
-  :root {
-    --bg: #f5f3ef; --panel: #ffffff; --ink: #24211d; --muted: #6f6a62; --line: #e1ddd5;
-    --accent: #8a4b2a; --accent-ink: #fff; --warn: #a15c00; --bad: #b3261e; --ok: #2e7d32; --chip: #efe9df;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root { --bg: #1b1a18; --panel: #252321; --ink: #ece8e1; --muted: #a39d93; --line: #3a3733;
-            --accent: #d08a5c; --accent-ink: #1b1a18; --warn: #e0a24a; --bad: #ef7f76; --ok: #7cc47f; --chip: #34312d; }
-  }
-  * { box-sizing: border-box; }
-  body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); }
-  header { display: flex; gap: 10px; align-items: center; padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
-  header h1 { font-size: 16px; margin: 0 12px 0 0; }
-  button, select, input, textarea { font: inherit; color: inherit; }
-  button { background: var(--chip); border: 1px solid var(--line); border-radius: 6px; padding: 5px 11px; cursor: pointer; }
-  button:hover { border-color: var(--accent); }
-  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
-  button.danger { color: var(--bad); }
-  input, select, textarea { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; }
-  textarea { width: 100%; min-height: 90px; resize: vertical; }
-  #status { color: var(--muted); margin-left: auto; }
-  #status.bad { color: var(--bad); } #status.ok { color: var(--ok); }
-  main { display: grid; grid-template-columns: 320px 1fr; height: calc(100vh - 54px); }
-  aside { border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; background: var(--panel); }
-  .tabs { display: flex; border-bottom: 1px solid var(--line); }
-  .tabs button { flex: 1; border: 0; border-radius: 0; background: none; padding: 9px; border-bottom: 2px solid transparent; }
-  .tabs button.on { border-bottom-color: var(--accent); font-weight: 600; }
-  #search { margin: 8px; }
-  #list { overflow: auto; flex: 1; }
-  .item { padding: 7px 12px; border-bottom: 1px solid var(--line); cursor: pointer; }
-  .item:hover { background: var(--chip); }
-  .item.sel { background: var(--chip); box-shadow: inset 3px 0 var(--accent); }
-  .item small { display: block; color: var(--muted); }
-  .badge { display: inline-block; font-size: 11px; padding: 0 6px; border-radius: 9px; background: var(--chip); color: var(--muted); margin-left: 4px; }
-  .badge.warn { color: var(--warn); }
-  #editor { overflow: auto; padding: 18px 24px 60px; }
-  .empty { color: var(--muted); max-width: 560px; margin: 60px auto; text-align: center; }
-  fieldset { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; margin: 0 0 14px; background: var(--panel); }
-  legend { padding: 0 6px; font-weight: 600; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px 14px; }
-  label { display: block; font-size: 12px; color: var(--muted); }
-  label > input, label > select { display: block; width: 100%; margin-top: 2px; color: var(--ink); }
-  .checks { display: flex; flex-wrap: wrap; gap: 4px 14px; }
-  .checks label { display: flex; gap: 5px; align-items: center; color: var(--ink); font-size: 13px; }
-  .row { display: flex; gap: 8px; align-items: center; margin: 6px 0; flex-wrap: wrap; }
-  .row input.item-pick { min-width: 260px; flex: 1; }
-  .row input.num { width: 90px; }
-  .hint { color: var(--muted); font-size: 12px; margin: 4px 0 0; }
-  .actions { display: flex; gap: 8px; margin: 0 0 14px; flex-wrap: wrap; align-items: center; }
-  .title { font-size: 20px; font-weight: 600; margin: 0 0 4px; }
-  .problems { color: var(--bad); margin: 0 0 12px; }
-  @media (max-width: 760px) { main { grid-template-columns: 1fr; height: auto; } aside { max-height: 45vh; } }
-</style>
+<title>Quests</title>
+<link rel="stylesheet" href="/style.css">
 </head>
 <body>
 <header>
-  <h1>Nine Lives Quest Editor</h1>
   <label style="color:var(--ink)">Pack <select id="packSel"></select></label>
   <button id="newPack">New pack</button>
   <button id="save" class="primary" title="Ctrl+S">Save pack</button>
@@ -96,16 +43,41 @@ async function api(path, opts) {
 }
 
 async function boot() {
-  D = await api("/api/data");
+  D = await api("/api/quests/data");
   D.items.forEach(i => itemName[i.id] = i.name);
   $("#itemList").innerHTML = D.items.map(i => `<option value="${i.id} · ${esc(i.name)}">`).join("");
   buildNpcs();
   buildFlags();
   const packs = D.packs.length ? D.packs : ["my-quests"];
-  $("#packSel").innerHTML = packs.map(p => `<option>${esc(p)}</option>`).join("");
-  await openPack(packs[0]);
+  fillPacks(packs);
+  await openPack(packs.find(p => !(D.packsOff || []).includes(p)) || packs[0]);
   if (!D.originals.length) status("No exported quests yet: play once with QuestLoader installed, then reload.", "bad");
 }
+
+// Pack picker; packs switched off on the Overview tab are marked.
+function fillPacks(names) {
+  const off = new Set(D.packsOff || []);
+  $("#packSel").innerHTML = names.map(p => `<option value="${esc(p)}">${esc(p)}${off.has(p) ? " (off)" : ""}</option>`).join("");
+  if (packName) $("#packSel").value = packName;
+}
+function ensurePack(n) { if (![...$("#packSel").options].some(o => o.value === n)) $("#packSel").insertAdjacentHTML("beforeend", `<option value="${esc(n)}">${esc(n)}</option>`); $("#packSel").value = n; }
+
+// Messages from the other tabs.
+window.addEventListener("message", async e => {
+  const m = e.data || {};
+  if (m.cmd === "openPack") { ensurePack(m.name); await openPack(m.name); }
+  if (m.cmd === "newQuest") {
+    newQuest();
+    const q = pack.quests[pack.quests.length - 1];
+    if (m.giver) { q.giver = q.ender = m.giver; const who = D.npcs.find(n => n.cid === m.giver); q.title = "New quest from " + (who ? who.name.replace(" (custom)", "") : m.giver); }
+    renderList(); renderEditor();
+  }
+  if (m.cmd === "packsChanged" || m.cmd === "npcsChanged") {
+    const fresh = await api("/api/quests/data");
+    D.packs = fresh.packs; D.packsOff = fresh.packsOff; D.npcs = fresh.npcs;
+    buildNpcs(); fillPacks(D.packs.length ? D.packs : [packName]);
+  }
+});
 
 function buildNpcs() {
   const uses = {};
@@ -148,7 +120,7 @@ function flagLabel(f) {
 
 async function openPack(name) {
   if (dirty && !confirm("Discard unsaved changes?")) { $("#packSel").value = packName; return; }
-  pack = await api("/api/pack?name=" + encodeURIComponent(name));
+  pack = await api("/api/quests/pack?name=" + encodeURIComponent(name));
   pack.quests = pack.quests || []; packName = name; sel = null; dirty = false;
   buildFlags();
   status(`Pack "${name}": ${pack.quests.length} quest(s)`);
@@ -229,7 +201,7 @@ function renderEditor() {
       <label>Handed in to NPC<input list="npcList" data-k="ender" data-pick="npc" value="${esc(pickVal(q.ender, npcName))}" ${dis}></label>
       <label>Priority (higher shows first)<input type="number" data-k="priority" value="${q.priority || 0}" ${dis}></label>
     </div>
-    <p class="hint">Type part of an NPC's name or id. NPCs appear here once QuestLoader has seen them in a zone you've visited.</p>
+    <p class="hint">Type part of an NPC's name or id. NPCs appear here once QuestLoader has seen them in a zone you've visited, plus your own from the NPCs tab.</p>
     <div class="checks" style="margin-top:8px">
       ${["enabled","autoAccept","autoReopen","repeatable"].map(k => `<label><input type="checkbox" data-k="${k}" ${q[k] ? "checked" : ""} ${dis}>${k}</label>`).join("")}
     </div>
@@ -445,8 +417,9 @@ async function save() {
   pack.quests.forEach(tidy);
   buildFlags();
   try {
-    const r = await api("/api/pack?name=" + encodeURIComponent(packName), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(pack) });
-    setDirty(false); status(`Saved ${r.quests} quest(s) to ${r.saved}. Restart the game to load them.`, "ok");
+    const r = await api("/api/quests/pack?name=" + encodeURIComponent(packName), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(pack) });
+    setDirty(false); status(`Saved ${r.count} quest(s)${r.enabled ? "" : " (pack is off)"}. In game: reloadquests (F7), or restart.`, "ok");
+    parent.postMessage({ broadcast: { cmd: "packsChanged", kind: "quests" } }, "*");
   } catch (e) { status("Save failed: " + e.message, "bad"); }
 }
 
@@ -456,14 +429,14 @@ $("#newPack").onclick = () => {
   const n = prompt("Name for the new pack (letters, numbers, spaces, - and _):", "my-quests");
   if (!n) return;
   if (![...$("#packSel").options].some(o => o.value === n)) $("#packSel").insertAdjacentHTML("beforeend", `<option>${esc(n)}</option>`);
-  $("#packSel").value = n; openPack(n);
+  ensurePack(n); openPack(n);
 };
 $("#tabPack").onclick = () => { tab = "pack"; renderList(); };
 $("#tabOrig").onclick = () => { tab = "orig"; renderList(); };
 $("#search").oninput = renderList;
 document.addEventListener("keydown", e => { if ((e.ctrlKey || e.metaKey) && e.key === "s") { e.preventDefault(); save(); } });
 window.addEventListener("beforeunload", e => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
-boot().catch(e => status("Couldn't load: " + e.message, "bad"));
+boot().then(() => parent.postMessage({ ready: true }, "*")).catch(e => status("Couldn't load: " + e.message, "bad"));
 </script>
 </body>
 </html>

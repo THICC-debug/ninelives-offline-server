@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Overview</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+  body { overflow: auto; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 22px 24px 60px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 14px; }
+  fieldset { margin: 0; }
+  .line { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line); }
+  .line:last-child { border-bottom: 0; }
+  .line .name { flex: 1; min-width: 0; }
+  .line .name small { display: block; color: var(--muted); }
+  .note { background: var(--chip); border-radius: 8px; padding: 10px 14px; margin: 0 0 16px; }
+  .note.warn { color: var(--warn); }
+  h2 { font-size: 15px; margin: 22px 0 10px; }
+  .foot { color: var(--muted); font-size: 12px; margin-top: 26px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="title">Overview</p>
+  <p class="hint" id="game"></p>
+  <div id="notes"></div>
+
+  <h2>Packs</h2>
+  <p class="hint" style="margin-top:-6px">Packs are your changes. A pack that's switched off stays on disk (as <code>.json.disabled</code>) and the game ignores it.
+    Changes load when the game starts (or in game with <code>reloadquests</code>, <code>reloadcontent</code>, <code>npcreload</code> in the F7 box).</p>
+  <div class="cards" id="packs"></div>
+
+  <h2>Mods</h2>
+  <p class="hint" style="margin-top:-6px">Switching a mod off takes effect the next time the game starts. Install or remove mods with Setup.exe.</p>
+  <fieldset id="mods"></fieldset>
+
+  <p class="foot">Made with AI (Anthropic's Claude) and tested by a human player. A fan project, not affiliated with SmokymonkeyS.</p>
+</div>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const KIND = {
+  quests: { title: "Quest packs", tab: "quests", mod: "QuestLoader", unit: "quest", folder: "Mods\\Quests" },
+  content: { title: "Content packs", tab: "items", mod: "ContentLoader", unit: "change", folder: "Mods\\Content" },
+  npcs: { title: "NPC packs", tab: "npcs", mod: "NPCLoader", unit: "NPC", folder: "Mods\\NPCs" },
+};
+const MOD_INFO = {
+  TravelMod: "F10 places, F9 spawn points, remembers where you were",
+  QuestLoader: "quests from quest packs",
+  ContentLoader: "item prices and stats, loot and shops from content packs",
+  NPCLoader: "your own NPCs from NPC packs",
+  DevTools: "F7 command box (cheats and testing)",
+};
+let D;
+
+async function api(path, opts) { const r = await fetch(path, opts); const j = await r.json(); if (!r.ok) throw new Error(j.error || r.statusText); return j; }
+
+async function load() {
+  D = await api("/api/overview");
+  $("#game").innerHTML = "Game folder: <code>" + esc(D.game) + "</code>";
+  const installed = Object.fromEntries(D.mods.map(m => [m.id, m]));
+  const notes = [];
+  if (!Object.values(installed).some(m => m.installed))
+    notes.push(["warn", "No mods are installed. Run Setup.exe and tick the mods you want, then come back here."]);
+  if (installed.QuestLoader.installed && !D.exported.quests)
+    notes.push(["warn", "QuestLoader hasn't exported the game's quests yet: play once (enter the world), then reload this page."]);
+  if (installed.ContentLoader.installed && !D.exported.content)
+    notes.push(["warn", "ContentLoader hasn't exported items and loot yet: play once (enter the world, wait a few seconds), then reload."]);
+  $("#notes").innerHTML = notes.map(([c, t]) => `<p class="note ${c}">${esc(t)}</p>`).join("");
+
+  $("#packs").innerHTML = Object.entries(KIND).map(([k, K]) => {
+    const list = D.packs[k] || [], mod = installed[K.mod];
+    return `<fieldset><legend>${K.title}</legend>
+      ${mod.installed ? "" : `<p class="hint">${K.mod} isn't installed, so these do nothing in game.</p>`}
+      ${list.map(p => `<div class="line">
+          <label class="switch" title="${p.enabled ? "On: the game loads it" : "Off: the game ignores it"}"><input type="checkbox" data-kind="${k}" data-name="${esc(p.name)}" ${p.enabled ? "checked" : ""}></label>
+          <div class="name"><b>${esc(p.name)}</b>${p.enabled ? "" : ' <span class="badge off">off</span>'}<small>${p.size} ${K.unit}${p.size === 1 ? "" : "s"}</small></div>
+          <button data-open="${k}|${esc(p.name)}">Edit</button></div>`).join("") || '<p class="hint">No packs yet.</p>'}
+      <div class="actions" style="margin:10px 0 0"><button data-new="${k}">New pack</button><span class="hint">${esc(K.folder)}</span></div>
+    </fieldset>`;
+  }).join("");
+
+  $("#mods").innerHTML = D.mods.map(m => `<div class="line">
+      <label class="switch"><input type="checkbox" data-mod="${m.id}" ${m.installed && m.enabled ? "checked" : ""} ${m.installed ? "" : "disabled"}></label>
+      <div class="name"><b>${m.id}</b>${m.installed ? (m.enabled ? "" : ' <span class="badge off">off</span>') : ' <span class="badge">not installed</span>'}<small>${esc(MOD_INFO[m.id] || "")}</small></div></div>`).join("");
+
+  document.querySelectorAll("[data-kind]").forEach(el => el.onchange = async () => {
+    try {
+      await api(`/api/packs/toggle?kind=${el.dataset.kind}&name=${encodeURIComponent(el.dataset.name)}&on=${el.checked ? 1 : 0}`, { method: "POST" });
+      parent.postMessage({ broadcast: { cmd: "packsChanged", kind: el.dataset.kind } }, "*");
+      load();
+    } catch (e) { alert(e.message); load(); }
+  });
+  document.querySelectorAll("[data-mod]").forEach(el => el.onchange = async () => {
+    try { await api(`/api/mods/toggle?id=${el.dataset.mod}&on=${el.checked ? 1 : 0}`, { method: "POST" }); load(); }
+    catch (e) { alert(e.message); load(); }
+  });
+  document.querySelectorAll("[data-open]").forEach(b => b.onclick = () => {
+    const [k, name] = b.dataset.open.split("|");
+    parent.postMessage({ nav: KIND[k].tab, msg: { cmd: "openPack", name } }, "*");
+  });
+  document.querySelectorAll("[data-new]").forEach(b => b.onclick = () => {
+    const k = b.dataset.new;
+    const n = prompt("Name for the new pack (letters, numbers, spaces, - and _):", "my-" + (k === "content" ? "content" : k));
+    if (n) parent.postMessage({ nav: KIND[k].tab, msg: { cmd: "openPack", name: n } }, "*");
+  });
+}
+
+window.addEventListener("message", e => { if ((e.data || {}).cmd === "packsChanged") load(); });
+load().then(() => parent.postMessage({ ready: true }, "*")).catch(e => { document.body.textContent = "Couldn't load: " + e.message; });
+</script>
+</body>
+</html>

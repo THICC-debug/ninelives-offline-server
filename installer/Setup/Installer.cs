@@ -12,11 +12,10 @@ namespace NineLivesSetup
     /// <summary>One mod in the release (a line of files\mods.txt).</summary>
     public class ModEntry
     {
-        public string Id, Version, Zip, Description, EditorName, EditorScript;
+        public string Id, Version, Zip, Description;
         public bool Default;
         public string Dll { get { return Path.Combine("Mods", Id + ".dll"); } }
         public bool InstalledIn(string game) { return File.Exists(Path.Combine(game, Dll)); }
-        public string EditorLauncher { get { return EditorName == null ? null : Path.Combine("Mods", "Open " + EditorName + ".bat"); } }
     }
 
     /// <summary>
@@ -27,12 +26,14 @@ namespace NineLivesSetup
     ///   files\server\   ninelives_server.py, aes.py, recipes.json, docs
     ///   files\python\   the official Python embeddable package (runs the server and editors)
     ///   files\mods\     one release zip per mod, laid out to unzip into the game folder
-    ///   files\mods.txt  id | version | zip | default | description | editor name | editor script
+    ///   files\editor\   the Nine Lives Editor (with the mods)
+    ///   files\mods.txt  id | version | zip | default | description
     ///
     /// Installed into the game folder:
     ///   Ninelives_Data\Managed\*   patched (originals backed up to Ninelives_Data\OfflineBackup)
     ///   OfflineServer\             server, its Python, and the save (save.json)
-    ///   Mods\                      mod loader's folder, the chosen mods, editor launchers
+    ///   Mods\                      mod loader's folder and the chosen mods
+    ///   Editor\                    the Nine Lives Editor, with "Open Nine Lives Editor.bat"
     ///   Play Nine Lives Offline.bat
     /// </summary>
     public static class Installer
@@ -40,6 +41,11 @@ namespace NineLivesSetup
         public const string ServerFolder = "OfflineServer";
         public const string PlayLauncher = "Play Nine Lives Offline.bat";
         public const string ShortcutName = "Nine Lives (Offline).lnk";
+        public const string EditorFolder = "Editor";
+        public const string EditorLauncher = "Open Nine Lives Editor.bat";
+        // Launchers and folders from before the all-in-one editor (1.0.x installs).
+        static readonly string[] OldEditorLaunchers = { "Mods\\Open Quest Editor.bat", "Mods\\Open Content Editor.bat" };
+        static readonly string[] OldEditorFolders = { "Mods\\QuestLoader\\editor", "Mods\\ContentLoader\\editor" };
         static readonly string[] SaveFiles = { "save.json" };
 
         public static string Version
@@ -71,8 +77,6 @@ namespace NineLivesSetup
                 list.Add(new ModEntry
                 {
                     Id = f[0], Version = f[1], Zip = f[2], Default = f[3] == "1", Description = f[4],
-                    EditorName = f.Length > 6 && f[5].Length > 0 ? f[5] : null,
-                    EditorScript = f.Length > 6 && f[6].Length > 0 ? f[6] : null,
                 });
             }
             return list;
@@ -206,7 +210,6 @@ namespace NineLivesSetup
                 {
                     bool update = m.InstalledIn(game);
                     Unzip(Path.Combine(Payload, "mods", m.Zip), game, update);
-                    if (m.EditorLauncher != null) WriteEditorLauncher(game, m);
                     log((update ? "Updated " : "Installed ") + m.Id + " " + m.Version);
                 }
                 else if (m.InstalledIn(game))
@@ -216,7 +219,20 @@ namespace NineLivesSetup
                 }
             }
 
-            // 4) Launcher, shortcut, remember the folder.
+            // 4) The Nine Lives Editor (shipped with the mods), replacing the old per-mod editors.
+            foreach (var old in OldEditorLaunchers) { var f = Path.Combine(game, old); if (File.Exists(f)) File.Delete(f); }
+            foreach (var old in OldEditorFolders) { var d = Path.Combine(game, old); if (Directory.Exists(d)) Directory.Delete(d, true); }
+            var editorSrc = Path.Combine(Payload, "editor");
+            if (Directory.Exists(editorSrc))
+            {
+                var editorDir = Path.Combine(game, EditorFolder);
+                if (Directory.Exists(editorDir)) Directory.Delete(editorDir, true);
+                CopyDir(editorSrc, editorDir);
+                WriteEditorLauncher(game);
+                log("Nine Lives Editor installed: \"" + EditorLauncher + "\" in the game folder");
+            }
+
+            // 5) Launcher, shortcut, remember the folder.
             WritePlayLauncher(game);
             log("Made \"" + PlayLauncher + "\" in the game folder");
             if (shortcut)
@@ -239,21 +255,14 @@ namespace NineLivesSetup
             if (File.Exists(dll)) File.Delete(dll);
             var readme = Path.Combine(game, "Mods", m.Id + "-README.md");
             if (File.Exists(readme)) File.Delete(readme);
-            var editor = Path.Combine(game, "Mods", m.Id, "editor");
-            if (Directory.Exists(editor)) Directory.Delete(editor, true);
             var modDir = Path.Combine(game, "Mods", m.Id);   // only exports are left in it; those are regenerated
             if (Directory.Exists(modDir) && !Directory.EnumerateFiles(modDir, "*", SearchOption.AllDirectories).Any(f => !f.Contains("\\export\\")))
                 Directory.Delete(modDir, true);
-            if (m.EditorLauncher != null)
-            {
-                var bat = Path.Combine(game, m.EditorLauncher);
-                if (File.Exists(bat)) File.Delete(bat);
-            }
         }
 
         /// <summary>
         /// Unzip a mod into the game folder. On an update, data files the player may have changed or
-        /// deleted on purpose (example packs: *.json outside lib\ and editor\) are left alone.
+        /// deleted on purpose (example packs: *.json and *.json.disabled outside lib\) are left alone.
         /// </summary>
         static void Unzip(string zip, string game, bool update)
         {
@@ -265,8 +274,10 @@ namespace NineLivesSetup
                     var dest = Path.GetFullPath(Path.Combine(game, e.FullName.Replace('/', '\\')));
                     if (!dest.StartsWith(root, StringComparison.OrdinalIgnoreCase)) continue;   // never write outside the game folder
                     var rel = dest.Substring(root.Length).ToLowerInvariant();
-                    bool isData = rel.EndsWith(".json") && !rel.Contains("\\editor\\") && !rel.StartsWith("mods\\lib\\");
+                    bool isData = (rel.EndsWith(".json") || rel.EndsWith(".json.disabled")) && !rel.StartsWith("mods\\lib\\");
                     if (update && isData) continue;
+                    // A switched-off example: skip it if the player already has it, switched on or off.
+                    if (rel.EndsWith(".json.disabled") && (File.Exists(dest) || File.Exists(dest.Substring(0, dest.Length - ".disabled".Length)))) continue;
                     Directory.CreateDirectory(Path.GetDirectoryName(dest));
                     e.ExtractToFile(dest, true);
                 }
@@ -304,14 +315,14 @@ start """" ""%~dp0Ninelives.exe""
 ");
         }
 
-        static void WriteEditorLauncher(string game, ModEntry m)
+        static void WriteEditorLauncher(string game)
         {
-            WriteBat(Path.Combine(game, m.EditorLauncher),
+            WriteBat(Path.Combine(game, EditorLauncher),
 @"@echo off
-rem Opens the " + m.EditorName + @" in your browser. Close this window to stop it.
-cd /d ""%~dp0..""
-""OfflineServer\python\python.exe"" """ + m.EditorScript + @""" --game ""%CD%""
-pause
+rem Opens the Nine Lives Editor in your browser. Keep this window open while you edit; close it to stop the editor.
+cd /d ""%~dp0""
+""OfflineServer\python\python.exe"" ""Editor\ninelives_editor.py"" --game ""%CD%""
+if errorlevel 1 pause
 ");
         }
 
@@ -390,6 +401,11 @@ pause
                     log("Removed the mods (your packs and settings in Mods\\ are kept)");
                 }
             }
+
+            var editorFolder = Path.Combine(game, EditorFolder);
+            if (Directory.Exists(editorFolder)) Directory.Delete(editorFolder, true);
+            foreach (var f in new[] { EditorLauncher }.Concat(OldEditorLaunchers).Select(x => Path.Combine(game, x)))
+                if (File.Exists(f)) File.Delete(f);
 
             var play = Path.Combine(game, PlayLauncher);
             if (File.Exists(play)) File.Delete(play);

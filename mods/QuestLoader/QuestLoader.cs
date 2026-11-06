@@ -9,7 +9,7 @@ using UnityEngine;
 
 namespace QuestLoader
 {
-    [ModInfo("questloader", "QuestLoader", "1.1.0", Author = "Nine Lives offline project",
+    [ModInfo("questloader", "QuestLoader", "1.2.0", Author = "Nine Lives offline project",
         Description = "Loads custom quests from Mods\\Quests and exports the game's quests, items and NPCs for the quest editor.")]
     public class QuestLoader : Mod
     {

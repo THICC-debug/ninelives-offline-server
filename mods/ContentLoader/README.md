@@ -1,6 +1,6 @@
 # ContentLoader for Nine Lives
 
-**Version 1.2.1** · a mod for *Ninelives* 0.24.3 (offline) · includes a content editor
+**Version 1.3.0** · a mod for *Ninelives* 0.24.3 (offline) · edit content in the [Nine Lives Editor](../../editor)
 
 > [!NOTE]
 > This mod was made with AI (Anthropic's Claude, in Claude Code) and tested by a human player.
@@ -11,30 +11,25 @@ Change the game's content with JSON **content packs**, with no code:
 - **Loot:** what monsters and chests drop, and how often
 - **Shops:** what each vendor sells
 
-Edit packs by hand, or with the **content editor**, a simple page in your browser.
+Edit packs by hand, or in the [Nine Lives Editor](../../editor)'s **Items**, **Loot** and **Shops** tabs.
 
 ## Requirements
 
 - *Ninelives* 0.24.3 patched with the
   [Nine Lives offline server](https://github.com/THICC-debug/ninelives-offline-server)'s
-  `Patch Game.bat` (mod loader 2.1 or newer).
+  Setup.exe (or `Patch Game.bat` from source), mod loader 2.1 or newer.
 
 ## Install
 
-Unzip into your game folder (the one with `Ninelives.exe`). You get `Mods\ContentLoader.dll`,
-the editor in `Mods\ContentLoader\editor\`, and `Mods\Content\example-content.json`. The example makes alchemy herbs cheaper and Gnolls drop more.
-Delete the example if you don't want it.
+Tick ContentLoader in Setup.exe, or unzip the release into your game folder (the one with `Ninelives.exe`).
+You get `Mods\ContentLoader.dll` and `Mods\Content\example-content.json.disabled`, an example that makes
+alchemy herbs cheaper and Gnolls drop more. It's switched off: turn it on in the Nine Lives Editor
+(**Overview**), or rename it to `example-content.json`.
 
-## The content editor
+## Editing content
 
-You need [Python 3.8+](https://www.python.org/downloads/). Play once with ContentLoader installed
-(enter the world) so it can export the game's data, then run:
-
-```
-python Mods\ContentLoader\editor\content_editor.py
-```
-
-It opens in your browser (`http://127.0.0.1:8096`).
+Play once with ContentLoader installed (enter the world and wait a few seconds) so it can export the
+game's data, then open the Nine Lives Editor (`Open Nine Lives Editor.bat` in the game folder).
 
 - **Items:** every item's original price and stats, filterable by category (weapons, armor, herbs,
   potions…). **Change this item**, then set a new price, markup, stats (with plain names like

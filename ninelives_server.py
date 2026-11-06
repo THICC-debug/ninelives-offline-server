@@ -13,6 +13,7 @@ import hashlib
 import json
 import os
 import secrets
+import socket
 import sys
 import threading
 import time
@@ -596,6 +597,19 @@ class Handler(BaseHTTPRequestHandler):
         self._handle(self.rfile.read(n) if n else b"")
 
 
+
+class Server(ThreadingHTTPServer):
+    # Python turns on address reuse, which on Windows lets a second copy listen on the same port
+    # (requests then go to either one). Off, a second copy fails and says the port is in use.
+    allow_reuse_address = False
+    daemon_threads = True
+
+    def server_bind(self):
+        if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):    # Windows: no other program may share the port either
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
+
+
 def game_running():
     """Is Ninelives.exe running? (Windows only; used by --exit-with-game.)"""
     import subprocess
@@ -624,7 +638,7 @@ def watch_game(srv):
 
 def main():
     try:
-        srv = ThreadingHTTPServer((HOST, PORT), Handler)
+        srv = Server((HOST, PORT), Handler)
     except OSError:
         log("Port %d is already in use - is the server already running in another window?" % PORT)
         sys.exit(2)

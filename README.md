@@ -131,7 +131,8 @@ who wants to write their own server (in Rust, Go, anything) has a complete spec.
 | `patcher/` | The patcher (C#, .NET 8, Mono.Cecil). `PatchCore.cs` is shared with Setup.exe |
 | `installer/` | Setup.exe (C#, .NET Framework 4.8) and the release build script |
 | `modloader/` | The mod loader the patcher installs (C#, .NET 3.5) |
-| `mods/ExampleMod/` | A starter mod to copy |
+| `mods/` | The mods, each released on its own (and `ExampleMod`, a starter to copy) |
+| `editor/` | The Nine Lives Editor: quests, items, loot, shops and NPCs in your browser |
 | `Patch Game.bat` | Patches the game and installs the mod loader (or `restore` to undo) |
 | `Start Nine Lives.bat` | Starts the server, then the game |
 | `PROTOCOL.md` | Every server request and reply the game uses |
@@ -152,10 +153,19 @@ Each mod is self-contained and released on its own:
 | Mod | What it does |
 |---|---|
 | [TravelMod](mods/TravelMod) | Remembers your position across logins, and teleports between spawn points (F9/F10) |
-| [QuestLoader](mods/QuestLoader) | Custom quests from JSON quest packs, plus a browser-based quest editor |
+| [QuestLoader](mods/QuestLoader) | Custom quests from JSON quest packs |
 | [DevTools](mods/DevTools) | In-game command box (F7): give items, gold, exp, teleport, flags |
-| [NPCLoader](mods/NPCLoader) | Custom NPCs (quest givers, vendors, alchemists), placed in game with F7 commands |
-| [ContentLoader](mods/ContentLoader) | Change item prices and stats, loot tables and shop stock with JSON content packs, plus a browser-based content editor |
+| [NPCLoader](mods/NPCLoader) | Custom NPCs (quest givers, vendors, alchemists) from NPC packs |
+| [ContentLoader](mods/ContentLoader) | Change item prices and stats, loot tables and shop stock with JSON content packs |
+
+### 🛠️ Nine Lives Editor
+
+One page in your browser for everything the mods can change: **Quests**, **Items**, **Loot**, **Shops** and **NPCs**,
+plus an **Overview** to switch mods and packs on and off. The tabs work together: on an NPC, *New quest for …*
+opens the quest editor with that NPC as the giver. It comes with Setup.exe (`Open Nine Lives Editor.bat` in the
+game folder) and runs on your PC only. See **[editor/README.md](editor/README.md)**.
+
+The examples that come with the mods start switched off; turn them on in the editor's Overview.
 
 ## ⚗️ Alchemy recipes
 

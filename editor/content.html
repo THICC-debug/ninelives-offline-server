@@ -3,76 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Nine Lives Content Editor</title>
-<style>
-  :root {
-    --bg: #f5f3ef; --panel: #ffffff; --ink: #24211d; --muted: #6f6a62; --line: #e1ddd5;
-    --accent: #2f6f6a; --accent-ink: #fff; --warn: #a15c00; --bad: #b3261e; --ok: #2e7d32; --chip: #e9efed;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root { --bg: #1a1c1b; --panel: #232625; --ink: #e8ece9; --muted: #9aa3a0; --line: #36403d;
-            --accent: #6cc0b6; --accent-ink: #10201e; --warn: #e0a24a; --bad: #ef7f76; --ok: #7cc47f; --chip: #2e3533; }
-  }
-  * { box-sizing: border-box; }
-  body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); }
-  header { display: flex; gap: 10px; align-items: center; padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
-  header h1 { font-size: 16px; margin: 0 12px 0 0; }
-  button, select, input, textarea { font: inherit; color: inherit; }
-  button { background: var(--chip); border: 1px solid var(--line); border-radius: 6px; padding: 5px 11px; cursor: pointer; }
-  button:hover { border-color: var(--accent); }
-  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
-  button.danger { color: var(--bad); }
-  button.link { background: none; border: 0; padding: 0; color: var(--accent); text-decoration: underline; cursor: pointer; }
-  input, select, textarea { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; }
-  textarea { width: 100%; min-height: 60px; resize: vertical; }
-  #status { color: var(--muted); margin-left: auto; }
-  #status.bad { color: var(--bad); } #status.ok { color: var(--ok); }
-  main { display: grid; grid-template-columns: 340px 1fr; height: calc(100vh - 54px); }
-  aside { border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; background: var(--panel); }
-  .tabs { display: flex; border-bottom: 1px solid var(--line); }
-  .tabs button { flex: 1; border: 0; border-radius: 0; background: none; padding: 9px 4px; border-bottom: 2px solid transparent; }
-  .tabs button.on { border-bottom-color: var(--accent); font-weight: 600; }
-  .filters { display: flex; gap: 6px; padding: 8px; flex-wrap: wrap; }
-  .filters input[type=search] { flex: 1; min-width: 140px; }
-  #list { overflow: auto; flex: 1; }
-  .item { padding: 7px 12px; border-bottom: 1px solid var(--line); cursor: pointer; }
-  .item:hover { background: var(--chip); }
-  .item.sel { background: var(--chip); box-shadow: inset 3px 0 var(--accent); }
-  .item small { display: block; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .badge { display: inline-block; font-size: 11px; padding: 0 6px; border-radius: 9px; background: var(--chip); color: var(--muted); margin-left: 4px; }
-  .badge.on { color: var(--accent); border: 1px solid var(--accent); }
-  .section { padding: 6px 12px; font-size: 12px; color: var(--muted); background: var(--bg); border-bottom: 1px solid var(--line); }
-  #editor { overflow: auto; padding: 18px 24px 60px; }
-  .empty { color: var(--muted); max-width: 600px; margin: 40px auto; text-align: center; }
-  fieldset { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; margin: 0 0 14px; background: var(--panel); }
-  legend { padding: 0 6px; font-weight: 600; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px 14px; }
-  label { display: block; font-size: 12px; color: var(--muted); }
-  label > input, label > select, label > textarea { display: block; width: 100%; margin-top: 2px; color: var(--ink); }
-  .row { display: flex; gap: 8px; align-items: center; margin: 6px 0; flex-wrap: wrap; }
-  .row input.pick { min-width: 240px; flex: 1; }
-  .row input.num { width: 84px; }
-  .hint { color: var(--muted); font-size: 12px; margin: 4px 0 0; }
-  .actions { display: flex; gap: 8px; margin: 0 0 14px; flex-wrap: wrap; align-items: center; }
-  .title { font-size: 20px; font-weight: 600; margin: 0 0 2px; }
-  table.kv { border-collapse: collapse; width: 100%; font-size: 13px; }
-  table.kv td { padding: 4px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
-  table.kv td.k { width: 34%; } table.kv td.k small { display: block; color: var(--muted); }
-  table.kv td.orig { color: var(--muted); width: 22%; }
-  table.kv td.changed input { border-color: var(--accent); }
-  .group { border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; margin: 8px 0; }
-  .group .head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  .pct { color: var(--accent); font-weight: 600; min-width: 48px; }
-  .names { color: var(--muted); font-size: 12px; margin-top: 4px; }
-  .rolls { font-size: 13px; margin: 8px 0 0; padding-left: 20px; }
-  .rolls li { margin: 3px 0; } .rolls .none { color: var(--muted); }
-  ul.plain { margin: 4px 0; padding-left: 18px; } ul.plain li { margin: 3px 0; }
-  @media (max-width: 760px) { main { grid-template-columns: 1fr; height: auto; } aside { max-height: 45vh; } }
-</style>
+<title>Items, loot and shops</title>
+<link rel="stylesheet" href="/style.css">
+<style>.embedded aside .tabs { display: none; }</style>
 </head>
 <body>
 <header>
-  <h1>Nine Lives Content Editor</h1>
   <label style="color:var(--ink)">Pack <select id="packSel"></select></label>
   <button id="newPack">New pack</button>
   <button id="packInfo">Pack info &amp; changes</button>
@@ -135,7 +71,9 @@ const STATS = {
 };
 const statLabel = s => (STATS[s] || [s])[0];
 
-let D = {}, pack = null, packName = null, tab = "items", sel = null, dirty = false;
+let D = {}, pack = null, packName = null, tab = new URLSearchParams(location.search).get("tab") || "items", sel = null, dirty = false;
+if (!["items", "loot", "shops"].includes(tab)) tab = "items";
+if (window.parent !== window) document.documentElement.classList.add("embedded");
 const names = {}, baseOf = {}, variantsOf = {}, monstersByDrop = {}, npcNames = {};
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -154,7 +92,7 @@ function setDirty(v = true) { dirty = v; status(v ? "Unsaved changes" : "Saved",
 async function api(path, opts) { const r = await fetch(path, opts); const j = await r.json(); if (!r.ok) throw new Error(j.error || r.statusText); return j; }
 
 async function boot() {
-  D = await api("/api/data");
+  D = await api("/api/content/data");
   (D.itemNames || []).forEach(i => names[i.id] = i.name);
   Object.entries(D.items || {}).forEach(([id, it]) => { if (it.name) names[id] = it.name; });
   const take = s => { if (s && s.name && !names[s.id]) names[s.id] = s.name; };
@@ -170,14 +108,35 @@ async function boot() {
   (D.npcs || []).forEach(n => { if (n.name) npcNames[n.cid] = n.name; });
   $("#cat").innerHTML = CATS.map(([k, label]) => `<option value="${k}">${label}</option>`).join("");
   const packs = D.packs.length ? D.packs : ["my-content"];
-  $("#packSel").innerHTML = packs.map(p => `<option>${esc(p)}</option>`).join("");
-  await openPack(packs[0]);
+  fillPacks(packs);
+  await openPack(packs.find(p => !(D.packsOff || []).includes(p)) || packs[0]);
   if (!D.loot || !D.loot.drops) status("No exported data yet: play once with ContentLoader installed (enter the world), then reload.", "bad");
 }
 
+function fillPacks(names) {
+  const off = new Set(D.packsOff || []);
+  $("#packSel").innerHTML = names.map(p => `<option value="${esc(p)}">${esc(p)}${off.has(p) ? " (off)" : ""}</option>`).join("");
+  if (packName) $("#packSel").value = packName;
+}
+function ensurePack(n) { if (![...$("#packSel").options].some(o => o.value === n)) $("#packSel").insertAdjacentHTML("beforeend", `<option value="${esc(n)}">${esc(n)}</option>`); $("#packSel").value = n; }
+
+// Messages from the main window and the other tabs.
+window.addEventListener("message", async e => {
+  const m = e.data || {};
+  if (m.contentTab && m.contentTab !== tab) { tab = m.contentTab; if (sel && sel.tab !== "info") sel = { tab: "info", key: "info" }; renderList(); renderEditor(); }
+  if (m.cmd === "openPack") { ensurePack(m.name); await openPack(m.name); }
+  if (m.cmd === "openShop") { tab = "shops"; go("shops", "d:" + m.id); }
+  if (m.cmd === "packsChanged" || m.cmd === "npcsChanged") {
+    const fresh = await api("/api/content/data");
+    D.packs = fresh.packs; D.packsOff = fresh.packsOff; D.npcs = fresh.npcs;
+    (D.npcs || []).forEach(n => { if (n.name) npcNames[n.cid] = n.name; });
+    fillPacks(D.packs.length ? D.packs : [packName]); renderList();
+  }
+});
+
 async function openPack(name) {
   if (dirty && !confirm("Discard unsaved changes?")) { $("#packSel").value = packName; return; }
-  pack = await api("/api/pack?name=" + encodeURIComponent(name));
+  pack = await api("/api/content/pack?name=" + encodeURIComponent(name));
   packName = name; sel = { tab: "info", key: "info" }; dirty = false;
   status(`Pack "${name}" loaded`);
   renderList(); renderEditor();
@@ -468,8 +427,9 @@ async function save() {
   if (p.length && !confirm(`Check: ${p.slice(0, 3).join("; ")}. Save anyway?`)) return;
   pack.name = pack.name || packName; tidy();
   try {
-    const r = await api("/api/pack?name=" + encodeURIComponent(packName), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(pack) });
-    setDirty(false); status(`Saved. In game: reloadcontent (F7).`, "ok"); renderList(); if (sel && sel.tab === "info") renderEditor();
+    const r = await api("/api/content/pack?name=" + encodeURIComponent(packName), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(pack) });
+    setDirty(false); status(`Saved. In game: reloadcontent (F7).`, "ok");
+    parent.postMessage({ broadcast: { cmd: "packsChanged", kind: "content" } }, "*"); renderList(); if (sel && sel.tab === "info") renderEditor();
   } catch (e) { status("Save failed: " + e.message, "bad"); }
 }
 
@@ -479,7 +439,7 @@ $("#packSel").onchange = e => openPack(e.target.value);
 $("#newPack").onclick = () => {
   const n = prompt("Name for the new pack (letters, numbers, spaces, - and _):", "my-content"); if (!n) return;
   if (![...$("#packSel").options].some(o => o.value === n)) $("#packSel").insertAdjacentHTML("beforeend", `<option>${esc(n)}</option>`);
-  $("#packSel").value = n; openPack(n);
+  ensurePack(n); openPack(n);
 };
 document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => { tab = b.dataset.tab; renderList(); });
 $("#search").oninput = renderList; $("#onlyChanged").onchange = renderList; $("#cat").onchange = renderList;
@@ -488,7 +448,7 @@ document.addEventListener("keydown", e => {
   if (e.key === "/" && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) { e.preventDefault(); $("#search").focus(); }
 });
 window.addEventListener("beforeunload", e => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
-boot().catch(e => status("Couldn't load: " + e.message, "bad"));
+boot().then(() => parent.postMessage({ ready: true }, "*")).catch(e => status("Couldn't load: " + e.message, "bad"));
 </script>
 </body>
 </html>
