@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scripts</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+  #live { margin-left: 6px; font-size: 12px; padding: 2px 9px; }
+  #live.on { color: var(--ok); border: 1px solid var(--ok); }
+  .step { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin: 8px 0; background: var(--bg); }
+  .step .head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .step .head b { min-width: 0; }
+  .step .head .sp { flex: 1; }
+  .step .head button { padding: 2px 8px; font-size: 12px; }
+  .step .grid { margin-top: 8px; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+  .when { border-color: var(--accent); }
+  .kw { font-weight: 700; color: var(--accent); letter-spacing: .04em; font-size: 12px; text-transform: uppercase; }
+  textarea.code { font: 13px/1.5 Consolas, "Cascadia Mono", monospace; min-height: 280px; tab-size: 2; white-space: pre; }
+  textarea.snippet { font: 12px/1.45 Consolas, monospace; min-height: 70px; }
+  #console { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font: 12px/1.5 Consolas, monospace;
+             min-height: 60px; max-height: 220px; overflow: auto; white-space: pre-wrap; }
+  #console .err { color: var(--bad); }
+  .ref { font-size: 12px; } .ref code { font-size: 12px; }
+  .ref td { padding: 3px 8px 3px 0; vertical-align: top; }
+</style>
+</head>
+<body>
+<header>
+  <label>Pack <select id="packSel"></select></label>
+  <button id="newPack">New pack</button>
+  <button id="newRule">New rule</button>
+  <button id="newLua">New Lua script</button>
+  <button id="save" class="primary" title="Ctrl+S">Save pack</button>
+  <button id="delPack" class="danger" title="Delete this pack (to the Recycle Bin)">Delete pack</button>
+  <span id="status">Loading…</span>
+  <span id="live" class="badge off">○ Game not running</span>
+</header>
+<main>
+  <aside>
+    <input id="search" type="search" placeholder="Search rules and scripts…">
+    <div id="list"></div>
+  </aside>
+  <section id="editor"></section>
+</main>
+<datalist id="npcList"></datalist><datalist id="itemList"></datalist><datalist id="questList"></datalist>
+<datalist id="monsterList"></datalist><datalist id="zoneList"></datalist><datalist id="keyList"></datalist>
+<script>
+// ---------------------------------------------------------------- what rules can do
+const WHEN = {
+  zone: ["Entering a zone", "Every time you arrive in the zone (or any zone)."],
+  enterArea: ["Walking into an area", "A circle around a spot. Stand there in game and use “Use where I'm standing”."],
+  leaveArea: ["Walking out of an area", ""],
+  talk: ["Talking to an NPC", "Clicking the NPC when close enough to talk."],
+  questAccepted: ["Accepting a quest", ""],
+  questDone: ["Finishing a quest", ""],
+  kill: ["Defeating a monster", "By name (or any monster)."],
+  flag: ["A flag turns on or off", "Flags are the game's progress markers. Quests set them when finished."],
+  item: ["Having enough of an item", "When the bag reaches that many."],
+  timer: ["Every few seconds", "While you're in the world (and in that zone, if you pick one)."],
+  key: ["Pressing a key", ""],
+};
+const IF = { flag: "A flag is on / off", item: "Has an item", zone: "Is in a zone", gold: "Has gold", quest: "Has a quest in progress" };
+const THEN = {
+  message: "Show a message", wait: "Wait", giveItem: "Give an item", takeItem: "Take an item", gold: "Give or take gold",
+  exp: "Give experience", setFlag: "Set a flag", startQuest: "Start a quest", teleport: "Teleport the player",
+  showNpc: "Show or hide one of your NPCs", showThing: "Show or hide a placed thing", hidePath: "Hide part of the game's world", lua: "Run Lua",
+};
+// [field, label, kind] kinds: text, num, npc, item, quest, zone, monster, bool, key, thing, code, flag
+const FIELDS = {
+  zone: [["zone", "Zone (blank = any)", "zone"]],
+  enterArea: [["zone", "Zone", "zone"], ["x", "X", "num"], ["y", "Y", "num"], ["z", "Z", "num"], ["radius", "Radius (m)", "num"]],
+  leaveArea: [["zone", "Zone", "zone"], ["x", "X", "num"], ["y", "Y", "num"], ["z", "Z", "num"], ["radius", "Radius (m)", "num"]],
+  talk: [["npc", "NPC (blank = any)", "npc"]],
+  questAccepted: [["quest", "Quest (blank = any)", "quest"]],
+  questDone: [["quest", "Quest (blank = any)", "quest"]],
+  kill: [["monster", "Monster name (blank = any)", "monster"]],
+  flag: [["flag", "Flag", "flag"], ["on", "Turns on (untick: off)", "bool"]],
+  item: [["item", "Item", "item"], ["count", "How many", "num"]],
+  timer: [["seconds", "Every (seconds)", "num"], ["zone", "Only in zone (blank = any)", "zone"]],
+  key: [["key", "Key", "key"]],
+  // conditions
+  "if:flag": [["flag", "Flag", "flag"], ["on", "is on (untick: off)", "bool"]],
+  "if:item": [["item", "Item", "item"], ["count", "At least", "num"]],
+  "if:zone": [["zone", "Zone", "zone"]],
+  "if:gold": [["amount", "At least", "num"]],
+  "if:quest": [["quest", "Quest", "quest"]],
+  // actions
+  message: [["text", "Text ({name} = player's name)", "text"], ["seconds", "Seconds on screen", "num"]],
+  wait: [["seconds", "Seconds", "num"]],
+  giveItem: [["item", "Item", "item"], ["count", "How many", "num"]],
+  takeItem: [["item", "Item", "item"], ["count", "How many", "num"]],
+  gold: [["amount", "Amount (minus to take)", "num"]],
+  exp: [["amount", "Amount", "num"]],
+  setFlag: [["flag", "Flag", "flag"], ["on", "On (untick: off)", "bool"]],
+  startQuest: [["quest", "Quest", "quest"]],
+  teleport: [["x", "X", "num"], ["y", "Y", "num"], ["z", "Z", "num"]],
+  showNpc: [["npc", "NPC (one of yours)", "npc"], ["show", "Show (untick: hide)", "bool"]],
+  showThing: [["thing", "Placed thing (World tab)", "thing"], ["show", "Show (untick: hide)", "bool"]],
+  hidePath: [["path", "Path (from the World tab's Pick)", "text"], ["hide", "Hide (untick: show again)", "bool"]],
+  lua: [["code", "Lua (event = what happened)", "code"]],
+};
+const DEFAULTS = { radius: 5, count: 1, seconds: 4, on: true, show: true, hide: true, amount: 100 };
+const KEYS = ["F1","F2","F3","F4","F5","F6","F7","F8","F9","F10","F11","F12", ..."ABCDEFGHIJKLMNOPQRSTUVWXYZ".split(""), ..."0123456789".split("").map(d => "Alpha" + d), "Space", "Return", "Tab"];
+
+let D = {}, pack = null, packName = null, sel = null, dirty = false, G = { connected: false }, consoleLines = [];
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const parseId = v => { const m = String(v).match(/^\s*(-?\d+)/); return m ? +m[1] : 0; };
+const zoneName = z => String(z || "").replace(/^Zone_/, "").replace(/([a-z])([A-Z])/g, "$1 $2");
+const names = { npc: {}, item: {}, quest: {} };
+const pick = (kind, id) => id ? `${id} · ${names[kind][id] || "?"}` : "";
+
+function status(msg, cls) { const s = $("#status"); s.textContent = msg; s.className = cls || ""; }
+function setDirty(v = true) { dirty = v; status(v ? "Unsaved changes" : "Saved", v ? "" : "ok"); parent.postMessage({ dirty: v }, "*"); }
+async function api(path, opts) { const r = await fetch(path, opts); const j = await r.json(); if (!r.ok) throw new Error(j.error || r.statusText); return j; }
+async function liveGet(p) { try { return await (await fetch("/api/live" + p)).json(); } catch (e) { return { connected: false }; } }
+async function livePost(p, body) { try { return await (await fetch("/api/live" + p, { method: "POST", body: typeof body === "string" ? body : JSON.stringify(body || {}) })).json(); } catch (e) { return { connected: false, error: e.message }; } }
+
+async function boot() {
+  D = await api("/api/scripts/data");
+  D.npcs.forEach(n => { if (!names.npc[n.cid]) names.npc[n.cid] = n.name + (n.custom ? " (yours)" : ""); });
+  D.items.forEach(i => names.item[i.id] = i.name);
+  D.quests.forEach(q => names.quest[q.id] = q.title + (q.pack ? " (yours)" : ""));
+  $("#npcList").innerHTML = Object.keys(names.npc).map(id => `<option value="${id} · ${esc(names.npc[id])}">`).join("");
+  $("#itemList").innerHTML = D.items.map(i => `<option value="${i.id} · ${esc(i.name)}">`).join("");
+  $("#questList").innerHTML = D.quests.map(q => `<option value="${q.id} · ${esc(names.quest[q.id])}">`).join("");
+  $("#monsterList").innerHTML = [...new Set((D.monsters || []).map(m => m.name))].sort().map(n => `<option value="${esc(n)}">`).join("");
+  $("#zoneList").innerHTML = [...new Set(D.npcs.map(n => n.zone).filter(Boolean))].sort().map(z => `<option value="${esc(z)}">`).join("");
+  $("#keyList").innerHTML = KEYS.map(k => `<option value="${k}">`).join("");
+  const packs = D.packs.length ? D.packs : ["my-scripts"];
+  fillPacks(packs);
+  await openPack(packs.find(p => !(D.packsOff || []).includes(p)) || packs[0]);
+}
+function fillPacks(list) {
+  const off = new Set(D.packsOff || []);
+  $("#packSel").innerHTML = list.map(p => `<option value="${esc(p)}">${esc(p)}${off.has(p) ? " (off)" : ""}</option>`).join("");
+  if (packName) $("#packSel").value = packName;
+}
+function ensurePack(n) { if (![...$("#packSel").options].some(o => o.value === n)) $("#packSel").insertAdjacentHTML("beforeend", `<option value="${esc(n)}">${esc(n)}</option>`); $("#packSel").value = n; }
+async function openPack(name) {
+  if (dirty && !confirm("Discard unsaved changes?")) { $("#packSel").value = packName; return; }
+  pack = await api("/api/scripts/pack?name=" + encodeURIComponent(name));
+  pack.rules = pack.rules || []; pack.scripts = pack.scripts || [];
+  packName = name; sel = pack.rules.length ? { k: "rule", i: 0 } : (pack.scripts.length ? { k: "lua", i: 0 } : null);
+  dirty = false; parent.postMessage({ dirty: false }, "*");
+  status(`Pack "${name}": ${pack.rules.length} rule(s), ${pack.scripts.length} Lua script(s)`);
+  renderList(); renderEditor();
+}
+const uid = (list, base) => { for (let i = 1; ; i++) if (!list.some(x => x.id === base + i)) return base + i; };
+
+// ---------------------------------------------------------------- list
+function summary(r) {
+  const w = r.when || {}, t = WHEN[w.type] ? WHEN[w.type][0] : "?";
+  const what = w.npc ? names.npc[w.npc] : w.quest ? names.quest[w.quest] : w.monster || w.key || (w.zone ? zoneName(w.zone) : "");
+  return t + (what ? ": " + what : "") + " → " + (r.then || []).length + " action(s)";
+}
+function renderList() {
+  const term = $("#search").value.trim().toLowerCase(), html = [];
+  html.push(`<div class="section">Rules: when … then …</div>`);
+  pack.rules.forEach((r, i) => {
+    if (term && !`${r.id} ${r.name} ${summary(r)}`.toLowerCase().includes(term)) return;
+    html.push(`<div class="item${sel && sel.k === "rule" && sel.i === i ? " sel" : ""}" data-k="rule" data-i="${i}"><b>${esc(r.name || r.id)}</b>${r.enabled === false ? '<span class="badge off">off</span>' : ""}${r.once ? '<span class="badge">once</span>' : ""}<small>${esc(summary(r))}</small></div>`);
+  });
+  if (!pack.rules.length) html.push('<div class="empty" style="margin:14px">No rules yet. Click “New rule”.</div>');
+  html.push(`<div class="section">Lua scripts</div>`);
+  pack.scripts.forEach((s, i) => {
+    if (term && !`${s.id} ${s.name} ${s.code}`.toLowerCase().includes(term)) return;
+    html.push(`<div class="item${sel && sel.k === "lua" && sel.i === i ? " sel" : ""}" data-k="lua" data-i="${i}"><b>${esc(s.name || s.id)}</b>${s.enabled === false ? '<span class="badge off">off</span>' : ""}<small>${(s.code || "").split("\n").length} line(s)</small></div>`);
+  });
+  if (!pack.scripts.length) html.push('<div class="empty" style="margin:14px">No Lua scripts. Rules can do most things without code.</div>');
+  $("#list").innerHTML = html.join("");
+  $("#list").querySelectorAll(".item").forEach(el => el.onclick = () => { sel = { k: el.dataset.k, i: +el.dataset.i }; renderList(); renderEditor(); });
+}
+
+// ---------------------------------------------------------------- fields
+function field(obj, f) {
+  const [k, label, kind] = f, v = obj[k];
+  const common = `data-f="${k}" data-kind="${kind}"`;
+  if (kind === "bool") return `<label class="checks" style="display:flex;align-items:end"><label><input type="checkbox" ${common} ${v !== false ? "checked" : ""}>${esc(label)}</label></label>`;
+  if (kind === "code") return `<label style="grid-column:1/-1">${esc(label)}<textarea class="snippet" ${common}>${esc(v || "")}</textarea></label>`;
+  if (kind === "num") return `<label>${esc(label)}<input type="number" step="any" ${common} value="${v ?? ""}"></label>`;
+  if (kind === "thing") return `<label>${esc(label)}<select ${common}><option value=""></option>${(D.things || []).map(t => `<option value="${esc(t.id)}" ${t.id === v ? "selected" : ""}>${esc(t.name || t.id)} (${esc(zoneName(t.zone))})</option>`).join("")}</select></label>`;
+  const list = { npc: "npcList", item: "itemList", quest: "questList", monster: "monsterList", zone: "zoneList", key: "keyList" }[kind];
+  const shown = ["npc", "item", "quest"].includes(kind) ? pick(kind, v) : (v ?? "");
+  return `<label ${kind === "text" ? 'style="grid-column:1/-1"' : ""}>${esc(label)}<input ${list ? `list="${list}"` : ""} ${common} value="${esc(shown)}" ${kind === "flag" ? 'type="number"' : ""}></label>`;
+}
+function readField(obj, el) {
+  const k = el.dataset.f, kind = el.dataset.kind;
+  if (kind === "bool") obj[k] = el.checked;
+  else if (kind === "num" || kind === "flag") { if (el.value === "") delete obj[k]; else obj[k] = +el.value; }
+  else if (["npc", "item", "quest"].includes(kind)) { const id = parseId(el.value); if (id) obj[k] = id; else delete obj[k]; }
+  else { if (el.value === "") delete obj[k]; else obj[k] = el.value; }
+}
+function stepBox(obj, i, list, title, fields, cls, kind) {
+  return `<div class="step ${cls || ""}" data-list="${kind}" data-i="${i}"><div class="head">
+      ${kind === "when" ? '<span class="kw">When</span>' : ""}<b>${esc(title)}</b><span class="sp"></span>
+      ${kind !== "when" ? `<button data-up="${i}" title="Move up">▲</button><button data-down="${i}" title="Move down">▼</button><button class="danger" data-rm="${i}">✕</button>` : ""}
+      ${(obj.type === "enterArea" || obj.type === "leaveArea" || obj.type === "teleport") ? '<button data-here="1">Use where I\'m standing</button>' : ""}
+    </div>
+    ${kind === "if" ? `<label class="checks" style="margin-top:6px"><label><input type="checkbox" data-not ${obj.not ? "checked" : ""}>NOT (the opposite)</label></label>` : ""}
+    <div class="grid">${fields.map(f => field(obj, f)).join("")}</div></div>`;
+}
+
+// ---------------------------------------------------------------- editor
+function renderEditor() {
+  const ed = $("#editor");
+  if (!sel) {
+    ed.innerHTML = `<div class="empty"><p class="title">Make things happen</p>
+      <p><b>Rules</b>: when something happens in the game (you walk somewhere, talk to someone, finish a quest, defeat a monster…),
+      check a few things, then do something (a message, an item, a flag, a teleport, show or hide an NPC or a thing…). No code.</p>
+      <p><b>Lua scripts</b>: for anything rules can't do.</p>
+      <p><button class="primary" id="mkRule">New rule</button> <button id="mkLua">New Lua script</button></p>
+      <p class="hint">Saved in <code>Mods\\Scripts</code>. Needs the ScriptLoader mod.</p></div>`;
+    $("#mkRule").onclick = newRule; $("#mkLua").onclick = newLua; return;
+  }
+  if (sel.k === "lua") return luaEditor(ed, pack.scripts[sel.i]);
+  const r = pack.rules[sel.i]; r.when = r.when || { type: "zone" }; r.if = r.if || []; r.then = r.then || [];
+  const live = G.connected && G.inWorld;
+  ed.innerHTML = `
+    <div class="actions"><button class="primary" id="runNow" ${live ? "" : "disabled"} title="${live ? "Do the actions now in the game" : "Start the game to test"}">▶ Run now in the game</button>
+      <button id="dup">Duplicate</button><button class="danger" id="del">Delete</button><span class="hint" id="runNote"></span></div>
+    <fieldset><legend>Rule</legend><div class="grid">
+      <label>Name<input id="rName" value="${esc(r.name || "")}"></label>
+      <label>Id<input id="rId" value="${esc(r.id)}"></label>
+      <label>Wait between runs (seconds)<input type="number" id="rCool" value="${r.cooldown || ""}" placeholder="0"></label>
+    </div><div class="checks" style="margin-top:8px">
+      <label><input type="checkbox" id="rOn" ${r.enabled === false ? "" : "checked"}>on</label>
+      <label><input type="checkbox" id="rOnce" ${r.once ? "checked" : ""}>only once per character</label>
+    </div></fieldset>
+    <fieldset><legend>When this happens</legend>
+      <select id="whenType">${Object.entries(WHEN).map(([k, v]) => `<option value="${k}" ${k === r.when.type ? "selected" : ""}>${v[0]}</option>`).join("")}</select>
+      <p class="hint">${esc(WHEN[r.when.type] ? WHEN[r.when.type][1] : "")}</p>
+      ${stepBox(r.when, 0, null, WHEN[r.when.type] ? WHEN[r.when.type][0] : "", FIELDS[r.when.type] || [], "when", "when")}
+    </fieldset>
+    <fieldset><legend>Only if (all of these)</legend>
+      ${r.if.map((c, i) => stepBox(c, i, r.if, IF[c.type] || c.type, FIELDS["if:" + c.type] || [], "", "if")).join("") || '<p class="hint">No conditions: it always runs.</p>'}
+      <select id="addIf"><option value="">+ Add a condition…</option>${Object.entries(IF).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select>
+    </fieldset>
+    <fieldset><legend>Then do (in order)</legend>
+      ${r.then.map((a, i) => stepBox(a, i, r.then, THEN[a.type] || a.type, FIELDS[a.type] || [], "", "then")).join("") || '<p class="hint">Nothing yet.</p>'}
+      <select id="addThen"><option value="">+ Add an action…</option>${Object.entries(THEN).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select>
+    </fieldset>`;
+  const changed = (re = true) => { setDirty(); renderList(); if (re) renderEditor(); };
+  $("#rName").onchange = e => { r.name = e.target.value; changed(false); };
+  $("#rId").onchange = e => { r.id = e.target.value.trim() || r.id; changed(false); };
+  $("#rCool").onchange = e => { const v = +e.target.value; if (v > 0) r.cooldown = v; else delete r.cooldown; changed(false); };
+  $("#rOn").onchange = e => { if (e.target.checked) delete r.enabled; else r.enabled = false; changed(false); };
+  $("#rOnce").onchange = e => { if (e.target.checked) r.once = true; else delete r.once; changed(false); };
+  $("#whenType").onchange = e => { r.when = { type: e.target.value }; (FIELDS[r.when.type] || []).forEach(([k]) => { if (k in DEFAULTS) r.when[k] = DEFAULTS[k]; }); changed(); };
+  $("#addIf").onchange = e => { if (!e.target.value) return; const c = { type: e.target.value }; (FIELDS["if:" + c.type] || []).forEach(([k]) => { if (k in DEFAULTS) c[k] = DEFAULTS[k]; }); r.if.push(c); changed(); };
+  $("#addThen").onchange = e => { if (!e.target.value) return; const a = { type: e.target.value }; (FIELDS[a.type] || []).forEach(([k]) => { if (k in DEFAULTS) a[k] = DEFAULTS[k]; }); r.then.push(a); changed(); };
+  ed.querySelectorAll(".step").forEach(box => {
+    const kind = box.dataset.list, i = +box.dataset.i, list = kind === "when" ? null : r[kind], obj = kind === "when" ? r.when : list[i];
+    box.querySelectorAll("[data-f]").forEach(el => el.onchange = () => { readField(obj, el); changed(false); });
+    const not = box.querySelector("[data-not]"); if (not) not.onchange = () => { if (not.checked) obj.not = true; else delete obj.not; changed(false); };
+    const b = s => box.querySelector(s);
+    if (b("[data-rm]")) b("[data-rm]").onclick = () => { list.splice(i, 1); changed(); };
+    if (b("[data-up]")) b("[data-up]").onclick = () => { if (i > 0) { [list[i - 1], list[i]] = [list[i], list[i - 1]]; changed(); } };
+    if (b("[data-down]")) b("[data-down]").onclick = () => { if (i < list.length - 1) { [list[i + 1], list[i]] = [list[i], list[i + 1]]; changed(); } };
+    if (b("[data-here]")) b("[data-here]").onclick = async () => {
+      const s = await liveGet("/status");
+      if (!s.connected || !s.inWorld) return alert("Start the game and enter the world first.");
+      obj.x = s.x; obj.y = s.y; obj.z = s.z; if ("zone" in obj || kind === "when") obj.zone = s.zone; changed();
+    };
+  });
+  $("#runNow").onclick = async () => {
+    const res = await livePost("/scripts/run?pack=" + encodeURIComponent(packName), r);
+    $("#runNote").textContent = res.error ? res.error : "Ran the actions in the game. Conditions: " + res.conditions + ".";
+  };
+  $("#dup").onclick = () => { const c = JSON.parse(JSON.stringify(r)); c.id = uid(pack.rules, "rule-"); c.name = (r.name || "") + " (copy)"; pack.rules.push(c); sel = { k: "rule", i: pack.rules.length - 1 }; changed(); };
+  $("#del").onclick = () => { if (confirm(`Delete the rule "${r.name || r.id}"?`)) { pack.rules.splice(sel.i, 1); sel = pack.rules.length ? { k: "rule", i: 0 } : null; changed(); } };
+}
+
+const LUA_EXAMPLE = `-- Runs when you enter the world. Hook events with on(...), timers with after/every.
+on("talk", function(e)
+  if e.npc == 90001 then
+    game.message("Old Bram waves at " .. game.player().name)
+  end
+end)
+
+onKey("F5", function()
+  local p = game.player()
+  log("I'm at", p.x, p.y, p.z, "in", p.zone)
+end)
+`;
+
+function luaEditor(ed, s) {
+  const live = G.connected && G.inWorld;
+  ed.innerHTML = `
+    <div class="actions"><button class="primary" id="saveRun" title="Save the pack, then reload scripts in the game">Save and run in the game</button>
+      <button class="danger" id="del">Delete</button><span class="hint" id="runNote"></span></div>
+    <fieldset><legend>Lua script</legend><div class="grid">
+      <label>Name<input id="sName" value="${esc(s.name || "")}"></label>
+      <label>Id<input id="sId" value="${esc(s.id)}"></label>
+    </div><div class="checks" style="margin-top:8px"><label><input type="checkbox" id="sOn" ${s.enabled === false ? "" : "checked"}>on</label></div>
+    <label style="margin-top:10px">Code<textarea class="code" id="code" spellcheck="false">${esc(s.code || "")}</textarea></label></fieldset>
+    <fieldset><legend>Console ${live ? "· runs in the game now" : "· start the game to use it"}</legend>
+      <div id="console">${consoleLines.map(l => `<div class="${l.err ? "err" : ""}">${esc(l.t)}</div>`).join("") || '<span class="hint">Type Lua and press Enter, e.g. game.player().zone  or  game.give(600000001, 3)</span>'}</div>
+      <div class="row"><input id="cIn" style="flex:1;font-family:Consolas,monospace" placeholder="Lua…" ${live ? "" : "disabled"}><button id="cRun" ${live ? "" : "disabled"}>Run</button><button id="cClear">Clear</button></div>
+    </fieldset>
+    <fieldset class="ref"><legend>What Lua can use</legend><table>
+      <tr><td><code>on(event, function(e) … end)</code></td><td>events: zone, talk (e.npc, e.name), questAccepted / questDone (e.quest), kill (e.monster, e.monsterId)</td></tr>
+      <tr><td><code>onKey("F5", fn)</code></td><td>a key press</td></tr>
+      <tr><td><code>after(seconds, fn)</code> · <code>every(seconds, fn)</code> · <code>stop(id)</code></td><td>timers (every/after return an id)</td></tr>
+      <tr><td><code>game.message(text, seconds)</code></td><td>a message on screen</td></tr>
+      <tr><td><code>game.give(item, n)</code> · <code>game.take(item, n)</code> · <code>game.count(item)</code></td><td>items in the bag</td></tr>
+      <tr><td><code>game.gold(n)</code> · <code>game.exp(n)</code></td><td>give (or take, with minus) gold and experience</td></tr>
+      <tr><td><code>game.flag(n)</code> · <code>game.setFlag(n, true/false)</code></td><td>progress flags (mods: 9000–9999)</td></tr>
+      <tr><td><code>game.player()</code></td><td>{x, y, z, facing, zone, name, gold}</td></tr>
+      <tr><td><code>game.teleport(x, y, z)</code> · <code>game.zone()</code> · <code>game.time()</code></td><td></td></tr>
+      <tr><td><code>game.npc(id, true/false)</code> · <code>game.thing(id, true/false)</code></td><td>show or hide your NPCs and placed things</td></tr>
+      <tr><td><code>game.startQuest(id)</code> · <code>log(…)</code> / <code>print(…)</code></td><td>log goes to the console and Mods\\ModLoader.log</td></tr>
+    </table><p class="hint">Lua runs inside the game: an endless loop freezes it. Use every() instead of loops that wait.</p></fieldset>`;
+  const changed = () => { setDirty(); renderList(); };
+  $("#sName").onchange = e => { s.name = e.target.value; changed(); };
+  $("#sId").onchange = e => { s.id = e.target.value.trim() || s.id; changed(); };
+  $("#sOn").onchange = e => { if (e.target.checked) delete s.enabled; else s.enabled = false; changed(); };
+  const code = $("#code");
+  code.oninput = () => { s.code = code.value; if (!dirty) changed(); };
+  code.onkeydown = e => {   // Tab indents instead of leaving the box
+    if (e.key === "Tab") { e.preventDefault(); const a = code.selectionStart; code.setRangeText("  ", a, code.selectionEnd, "end"); s.code = code.value; if (!dirty) changed(); }
+  };
+  $("#saveRun").onclick = async () => { await save(); const r = await livePost("/scripts/reload"); $("#runNote").textContent = r.error ? r.error : (r.message || "Reloaded."); };
+  $("#del").onclick = () => { if (confirm(`Delete the script "${s.name || s.id}"?`)) { pack.scripts.splice(sel.i, 1); sel = pack.scripts.length ? { k: "lua", i: 0 } : (pack.rules.length ? { k: "rule", i: 0 } : null); setDirty(); renderList(); renderEditor(); } };
+  const run = async () => {
+    const c = $("#cIn").value.trim(); if (!c) return;
+    consoleLines.push({ t: "> " + c });
+    const r = await livePost("/scripts/lua?pack=" + encodeURIComponent(packName), c);
+    if (r.error) consoleLines.push({ t: r.error, err: true });
+    (r.output || []).forEach(t => consoleLines.push({ t, err: /^error/.test(t) }));
+    $("#console").innerHTML = consoleLines.map(l => `<div class="${l.err ? "err" : ""}">${esc(l.t)}</div>`).join("");
+    $("#console").scrollTop = 1e9; $("#cIn").value = "";
+  };
+  $("#cRun").onclick = run;
+  $("#cIn").onkeydown = e => { if (e.key === "Enter") run(); };
+  $("#cClear").onclick = () => { consoleLines = []; $("#console").innerHTML = ""; };
+}
+
+function newRule() {
+  pack.rules.push({ id: uid(pack.rules, "rule-"), name: "New rule", when: { type: "zone" }, if: [], then: [{ type: "message", text: "Hello, {name}!", seconds: 4 }] });
+  sel = { k: "rule", i: pack.rules.length - 1 }; setDirty(); renderList(); renderEditor();
+}
+function newLua() {
+  pack.scripts.push({ id: uid(pack.scripts, "script-"), name: "New script", code: LUA_EXAMPLE });
+  sel = { k: "lua", i: pack.scripts.length - 1 }; setDirty(); renderList(); renderEditor();
+}
+
+// ---------------------------------------------------------------- live, save, delete
+async function pollGame() {
+  G = await liveGet("/status");
+  const b = $("#live");
+  if (G.connected && G.inWorld) { b.className = "badge on"; b.textContent = "● In game: " + zoneName(G.zone); }
+  else if (G.connected) { b.className = "badge"; b.textContent = "● Game running, not in the world yet"; }
+  else { b.className = "badge off"; b.textContent = "○ Game not running"; }
+  const st = (G.connected ? "c" : "") + (G.inWorld ? "w" : "");
+  const typing = document.activeElement && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName);
+  if (st !== pollGame.last && !typing && pack) { pollGame.last = st; renderEditor(); }
+}
+async function save() {
+  pack.name = pack.name || packName;
+  if (!pack.scripts.length) delete pack.scripts;
+  try {
+    const r = await api("/api/scripts/pack?name=" + encodeURIComponent(packName), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(pack) });
+    pack.scripts = pack.scripts || [];
+    setDirty(false);
+    let note = "";
+    if (G.connected && G.inWorld) { const l = await livePost("/scripts/reload"); note = l.error ? " (game: " + l.error + ")" : " and reloaded in the game"; }
+    status(`Saved${r.enabled ? "" : " (pack is off)"}${note}.`, "ok");
+    parent.postMessage({ broadcast: { cmd: "packsChanged", kind: "scripts" } }, "*");
+  } catch (e) { pack.scripts = pack.scripts || []; status("Save failed: " + e.message, "bad"); }
+}
+async function deletePack() {
+  const exists = ((await api("/api/overview")).packs.scripts || []).some(p => p.name === packName);
+  if (!confirm(exists ? `Delete the pack "${packName}"?\n\nIt goes to the Recycle Bin, so you can get it back from there.` : `"${packName}" was never saved. Throw it away?`)) return;
+  if (exists) { try { await api(`/api/packs/delete?kind=scripts&name=${encodeURIComponent(packName)}`, { method: "POST" }); } catch (e) { return status("Couldn't delete: " + e.message, "bad"); } }
+  const left = ((await api("/api/overview")).packs.scripts || []).map(p => p.name);
+  dirty = false; parent.postMessage({ dirty: false }, "*");
+  D.packs = left; packName = null; fillPacks(left.length ? left : ["my-scripts"]);
+  await openPack(left[0] || "my-scripts");
+  if (G.connected && G.inWorld) await livePost("/scripts/reload");
+  parent.postMessage({ broadcast: { cmd: "packsChanged", kind: "scripts" } }, "*");
+}
+$("#save").onclick = save; $("#delPack").onclick = deletePack; $("#newRule").onclick = newRule; $("#newLua").onclick = newLua;
+$("#packSel").onchange = e => openPack(e.target.value);
+$("#newPack").onclick = () => { const n = prompt("Name for the new pack (letters, numbers, spaces, - and _):", "my-scripts"); if (n) { ensurePack(n); openPack(n); } };
+$("#search").oninput = renderList;
+window.addEventListener("message", async e => {
+  const m = e.data || {};
+  if (m.cmd === "packsChanged" && m.kind === "scripts" && m.deleted === packName) {
+    const left = ((await api("/api/overview")).packs.scripts || []).map(p => p.name);
+    dirty = false; D.packs = left; packName = null; fillPacks(left.length ? left : ["my-scripts"]); await openPack(left[0] || "my-scripts"); return;
+  }
+  if (m.cmd === "openPack") { ensurePack(m.name); await openPack(m.name); }
+  if (m.cmd === "newRule") newRule();
+  if (m.cmd === "select") { const i = pack.rules.findIndex(r => r.id === m.id); if (i >= 0) { sel = { k: "rule", i }; renderList(); renderEditor(); } }
+});
+document.addEventListener("keydown", e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === "s") { e.preventDefault(); save(); }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); parent.postMessage({ key: "ctrl-k" }, "*"); }
+});
+window.addEventListener("beforeunload", e => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
+setInterval(pollGame, 2500);
+boot().then(() => { parent.postMessage({ ready: true }, "*"); pollGame(); }).catch(e => status("Couldn't load: " + e.message, "bad"));
+</script>
+</body>
+</html>

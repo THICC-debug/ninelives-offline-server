@@ -1,0 +1,70 @@
+{
+  "name": "example-scripts",
+  "author": "Nine Lives offline project",
+  "description": "ScriptLoader examples: a welcome message, a reward spot, and a Lua key. Switch it on in the editor (Packs & mods).",
+  "rules": [
+    {
+      "id": "welcome",
+      "name": "Welcome to Crimson Crest",
+      "once": true,
+      "when": {
+        "type": "enterArea",
+        "zone": "Zone_CrimsonIsles",
+        "x": 1282.5,
+        "y": 145,
+        "z": 1121.1,
+        "radius": 8
+      },
+      "if": [],
+      "then": [
+        {
+          "type": "message",
+          "text": "Welcome to Crimson Crest, {name}!",
+          "seconds": 5
+        },
+        {
+          "type": "wait",
+          "seconds": 2
+        },
+        {
+          "type": "message",
+          "text": "Here's something for the road.",
+          "seconds": 4
+        },
+        {
+          "type": "giveItem",
+          "item": 600000001,
+          "count": 2
+        }
+      ]
+    },
+    {
+      "id": "gnoll-bounty",
+      "name": "Gnoll bounty",
+      "cooldown": 1,
+      "when": {
+        "type": "kill",
+        "monster": "Gnoll"
+      },
+      "if": [],
+      "then": [
+        {
+          "type": "gold",
+          "amount": 5
+        },
+        {
+          "type": "message",
+          "text": "Gnoll bounty: +5 gold",
+          "seconds": 2
+        }
+      ]
+    }
+  ],
+  "scripts": [
+    {
+      "id": "where-am-i",
+      "name": "F5: where am I?",
+      "code": "-- Press F5 in game to see where you are (handy for rules with areas).\nonKey(\"F5\", function()\n  local p = game.player()\n  game.message(string.format(\"%s  x %.1f  y %.1f  z %.1f\", p.zone, p.x, p.y, p.z), 6)\nend)\n"
+    }
+  ]
+}

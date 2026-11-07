@@ -264,6 +264,11 @@ namespace NineLivesSetup
         {
             var dll = Path.Combine(game, m.Dll);
             if (File.Exists(dll)) File.Delete(dll);
+            if (m.Id == "ScriptLoader")   // its Lua engine
+            {
+                var moon = Path.Combine(game, "Mods", "lib", "MoonSharp.Interpreter.dll");
+                if (File.Exists(moon)) File.Delete(moon);
+            }
             var readme = Path.Combine(game, "Mods", m.Id + "-README.md");
             if (File.Exists(readme)) File.Delete(readme);
             var modDir = Path.Combine(game, "Mods", m.Id);   // only exports are left in it; those are regenerated
@@ -405,8 +410,12 @@ start """" ""%~dp0Ninelives.exe""
                         var ed = Path.Combine(modsDir, m.Id, "editor");
                         if (Directory.Exists(ed)) Directory.Delete(ed, true);
                     }
+                    foreach (var libDll in new[] { "0Harmony.dll", "MoonSharp.Interpreter.dll" })
+                    {
+                        var f = Path.Combine(modsDir, "lib", libDll);
+                        if (File.Exists(f)) File.Delete(f);
+                    }
                     var harmony = Path.Combine(modsDir, "lib", "0Harmony.dll");
-                    if (File.Exists(harmony)) File.Delete(harmony);
                     var lib = Path.GetDirectoryName(harmony);
                     if (Directory.Exists(lib) && !Directory.EnumerateFileSystemEntries(lib).Any()) Directory.Delete(lib);
                     log("Removed the mods (your packs and settings in Mods\\ are kept)");

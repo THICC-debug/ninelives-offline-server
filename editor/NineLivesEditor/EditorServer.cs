@@ -19,7 +19,7 @@ namespace NineLivesEditor
     {
         const string Off = ".disabled";
         static readonly Regex PackName = new Regex(@"^[A-Za-z0-9 _\-]{1,60}$");
-        static readonly string[] Mods = { "TravelMod", "QuestLoader", "ContentLoader", "NPCLoader", "WorldLoader", "DevTools" };
+        static readonly string[] Mods = { "TravelMod", "QuestLoader", "ContentLoader", "NPCLoader", "WorldLoader", "ScriptLoader", "DevTools" };
 
         // kind -> (folder under Mods, list key in a pack, or null)
         static readonly Dictionary<string, string[]> Kinds = new Dictionary<string, string[]>
@@ -28,12 +28,13 @@ namespace NineLivesEditor
             { "content", new[] { "Content", null } },
             { "npcs", new[] { "NPCs", "npcs" } },
             { "world", new[] { "World", "objects" } },
+            { "scripts", new[] { "Scripts", "rules" } },
         };
 
         static readonly Dictionary<string, string> Pages = new Dictionary<string, string>
         {
             { "/", "index.html" }, { "/index.html", "index.html" }, { "/home", "home.html" }, { "/overview", "overview.html" },
-            { "/quests", "quests.html" }, { "/content", "content.html" }, { "/npcs", "npcs.html" }, { "/world", "world.html" }, { "/style.css", "style.css" },
+            { "/quests", "quests.html" }, { "/content", "content.html" }, { "/npcs", "npcs.html" }, { "/world", "world.html" }, { "/scripts", "scripts.html" }, { "/style.css", "style.css" },
         };
 
         readonly string game;
@@ -328,6 +329,21 @@ namespace NineLivesEditor
                     raw("npcs", Json.Write(GameNpcs().Concat(CustomNpcs()).ToList()));
                     raw("itemNames", ExportRaw("QuestLoader", "items.json", "[]"));
                 }
+                else if (kind == "scripts")
+                {
+                    // Everything a rule can point at.
+                    raw("npcs", Json.Write(GameNpcs().Concat(CustomNpcs()).ToList()));
+                    raw("items", ExportRaw("QuestLoader", "items.json", "[]"));
+                    var orig = Json.List(Json.Load(ExportPath("QuestLoader", "quests.json")));
+                    raw("quests", Json.Write((orig == null ? new List<object>() : orig.Cast<object>().Select(o => (object)new Dictionary<string, object> {
+                        { "id", Json.Get(o, "id") }, { "title", Json.Str(o, "title") }, { "clearFlag", Json.Get(o, "clearFlag") } }).ToList())
+                        .Concat(PackQuests().Select(q => (object)new Dictionary<string, object> { { "id", q["id"] }, { "title", q["title"] }, { "pack", q["pack"] } })).ToList()));
+                    raw("monsters", ExportRaw("ContentLoader", "monsters.json", "[]"));
+                    var things = new List<object>();
+                    foreach (var p in Packs("world")) foreach (var o in PackItems("world", p.Key))
+                        things.Add(new Dictionary<string, object> { { "id", Json.Str(o, "id") }, { "name", Json.Str(o, "name") }, { "zone", Json.Str(o, "zone") } });
+                    raw("things", Json.Write(things));
+                }
                 else if (kind == "world")
                 {
                     // Ids already used in every world pack (ids must be unique).
@@ -410,6 +426,9 @@ namespace NineLivesEditor
             if (shops != null)
                 foreach (var k in shops.Keys) { long id; long.TryParse(k, out id); add("shop", k, who(id) ?? "Shop " + k, "Shop " + k); }
             foreach (var n in custom) add("npc", n["cid"], (string)n["name"], "Your NPC · pack " + n["pack"]);
+            foreach (var p in Packs("scripts"))
+                foreach (var o in PackItems("scripts", p.Key))
+                    add("rule", Json.Str(o, "id"), Json.Str(o, "name") ?? Json.Str(o, "id"), "Script rule · pack " + p.Key);
             foreach (var p in Packs("world"))
                 foreach (var o in PackItems("world", p.Key))
                     add("obj", Json.Str(o, "id"), Json.Str(o, "name") ?? Json.Str(o, "id"), (true.Equals(Json.Get(o, "hide")) ? "Hidden thing" : "Placed thing") + " · pack " + p.Key + " · " + (Json.Str(o, "zone") ?? "").Replace("Zone_", ""));
