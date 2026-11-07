@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using NineLivesModLoader;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -78,8 +79,8 @@ namespace WorldLoader
         public static bool IsCharacter(Transform t) { return t.GetComponentInParent<CommonStats>() != null; }
 
         // ------------------------------------------------------------ copies
-        public class Report { public int renderers, batched, viaCollider, extracted, missing; public string Text()
-            { return renderers + " part(s)" + (batched > 0 ? ", " + batched + " pre-baked (" + viaCollider + " rebuilt from collision, " + extracted + " cut out, " + missing + " missing)" : ""); } }
+        public class Report { public int renderers, batched, viaCollider, extracted, twins, drawn, anchored, missing; public bool boxed; public string Text()
+            { return renderers + " part(s)" + (batched > 0 ? ", " + batched + " pre-baked (" + viaCollider + " rebuilt from collision, " + extracted + " cut out, " + twins + " found loaded, " + drawn + " drawn from the index, " + anchored + " moved with their baked piece, " + missing + " missing)" : ""); } }
 
         static readonly PropertyInfo StaticBatchIndex = typeof(Renderer).GetProperty("staticBatchIndex", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
         static readonly PropertyInfo StaticBatchRoot = typeof(Renderer).GetProperty("staticBatchRootTransform", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
@@ -93,6 +94,8 @@ namespace WorldLoader
         public static GameObject MakeCopy(Transform src, bool keepScripts, out Report rep)
         {
             rep = new Report();
+            var anchors = new Dictionary<Transform, Transform>();
+            var draws = new List<KeyValuePair<GameObject, BakedDraw.Setup>>();
             var go = (GameObject)UnityEngine.Object.Instantiate(src.gameObject);
             var srcR = src.GetComponentsInChildren<MeshRenderer>(true);
             var cpyR = go.GetComponentsInChildren<MeshRenderer>(true);
@@ -103,14 +106,49 @@ namespace WorldLoader
                 rep.batched++;
                 bool fromCollider;
                 var mesh = OriginalMesh(srcR[i], out fromCollider);
+                bool twin = false;
+                if (mesh == null) { mesh = LoadedTwin(srcR[i]); twin = mesh != null; }
                 var holder = cpyR[i].gameObject;
+                if (mesh == null)
+                {
+                    // Best: we know this part's own pieces of the baked mesh (from the scene file index):
+                    // draw just those, from where the copy stands, as an ordinary object.
+                    var pieces = BakedIndex.Pieces(srcR[i]);
+                    var srcMf = srcR[i].GetComponent<MeshFilter>();
+                    var combined = srcMf != null ? srcMf.sharedMesh : null;
+                    if (pieces != null && combined != null)
+                    {
+                        var origRoot0 = StaticBatchRoot != null ? StaticBatchRoot.GetValue(srcR[i], null) as Transform : null;
+                        var setup = new BakedDraw.Setup {
+                            mesh = combined, pieces = pieces, materials = cpyR[i].sharedMaterials, layer = srcR[i].gameObject.layer,
+                            fromBatch = srcR[i].transform.worldToLocalMatrix * (origRoot0 != null ? origRoot0.localToWorldMatrix : Matrix4x4.identity),
+                            shadows = cpyR[i].shadowCastingMode != UnityEngine.Rendering.ShadowCastingMode.Off, receive = cpyR[i].receiveShadows };
+                        UnityEngine.Object.DestroyImmediate(cpyR[i]);
+                        var cmf = holder.GetComponent<MeshFilter>();
+                        if (cmf != null) UnityEngine.Object.DestroyImmediate(cmf);
+                        draws.Add(new KeyValuePair<GameObject, BakedDraw.Setup>(holder, setup));
+                        rep.drawn++;
+                        continue;
+                    }
+                }
+                if (mesh == null && StaticBatchRoot != null && cpyR[i].isPartOfStaticBatch)
+                {
+                    // Can't get the model on its own. The copy still knows its piece of the baked mesh; it
+                    // just draws it where the original stands. Unity draws baked pieces relative to a
+                    // "batch root": give the copy one that sits (and moves) with it, so the piece shows here.
+                    var origRoot = StaticBatchRoot.GetValue(srcR[i], null) as Transform;
+                    var anchor = AnchorFor(go.transform, src, origRoot, anchors);
+                    StaticBatchRoot.SetValue(cpyR[i], anchor, null);
+                    rep.anchored++;
+                    continue;
+                }
                 var mats = cpyR[i].sharedMaterials;
                 var shadows = cpyR[i].shadowCastingMode; var receive = cpyR[i].receiveShadows;
                 UnityEngine.Object.DestroyImmediate(cpyR[i]);
                 var mf = holder.GetComponent<MeshFilter>();
                 if (mf != null) UnityEngine.Object.DestroyImmediate(mf);
                 if (mesh == null) { rep.missing++; continue; }
-                if (fromCollider) rep.viaCollider++; else rep.extracted++;
+                if (fromCollider) rep.viaCollider++; else if (twin) rep.twins++; else rep.extracted++;
                 holder.AddComponent<MeshFilter>().sharedMesh = mesh;
                 var mr = holder.AddComponent<MeshRenderer>();
                 mr.sharedMaterials = mesh.subMeshCount < mats.Length ? mats.Take(Math.Max(1, mesh.subMeshCount)).ToArray() : mats;
@@ -122,9 +160,72 @@ namespace WorldLoader
                 foreach (var mb in go.GetComponentsInChildren<MonoBehaviour>(true)) UnityEngine.Object.DestroyImmediate(mb);
                 foreach (var c in go.GetComponentsInChildren<Collider>(true)) if (c.isTrigger) UnityEngine.Object.DestroyImmediate(c);
             }
+            foreach (var d in draws) d.Key.AddComponent<BakedDraw>().Init(d.Value);   // after the clean-up above
+            // Copies of small props often have no collision of their own (the zone's shared collision has it):
+            // give them a box that fits their look, so you can't walk through them.
+            if (!go.GetComponentsInChildren<Collider>(true).Any(c => !c.isTrigger))
+            {
+                var box = LocalBox(src);
+                if (box.size.sqrMagnitude > 0.0001f) { var bc = go.AddComponent<BoxCollider>(); bc.center = box.center; bc.size = box.size; rep.boxed = true; }
+            }
             go.SetActive(true);
             return go;
         }
+
+        /// <summary>
+        /// Where Unity should draw a copied baked piece from. The piece's points are where the original
+        /// stands; the anchor's matrix must be copy x original⁻¹ (x the original's batch root, if any).
+        /// One Transform can't hold that when the original is scaled unevenly and turned, so it's a chain
+        /// under the copy: undo the original's size, then its turn and place, then add the old batch root.
+        /// It moves with the copy.
+        /// </summary>
+        static Transform AnchorFor(Transform copy, Transform src, Transform origRoot, Dictionary<Transform, Transform> made)
+        {
+            Transform end;
+            var key = origRoot != null ? origRoot : copy;
+            if (made.TryGetValue(key, out end)) return end;
+            var ls = src.lossyScale;
+            var unscale = new GameObject("baked-anchor").transform;
+            unscale.SetParent(copy, false);
+            unscale.localScale = new Vector3(Inv(ls.x), Inv(ls.y), Inv(ls.z));
+            var unplace = new GameObject("baked-anchor-turn").transform;
+            unplace.SetParent(unscale, false);
+            var back = Quaternion.Inverse(src.rotation);
+            unplace.localRotation = back;
+            unplace.localPosition = back * -src.position;
+            end = unplace;
+            if (origRoot != null)
+            {
+                var r = new GameObject("baked-anchor-root").transform;
+                r.SetParent(unplace, false);
+                r.localPosition = origRoot.position; r.localRotation = origRoot.rotation; r.localScale = origRoot.lossyScale;
+                end = r;
+            }
+            made[key] = end;
+            return end;
+        }
+
+        /// <summary>The box around everything t shows, in t's own space.</summary>
+        static Bounds LocalBox(Transform t)
+        {
+            var rs = t.GetComponentsInChildren<Renderer>(true);
+            bool any = false; var b = new Bounds();
+            foreach (var r in rs)
+            {
+                if (r is ParticleRenderer || r is ParticleSystemRenderer) continue;
+                var w = r.bounds; var c = w.center; var e = w.extents;
+                for (int i = 0; i < 8; i++)
+                {
+                    var p = t.InverseTransformPoint(c + new Vector3((i & 1) == 0 ? -e.x : e.x, (i & 2) == 0 ? -e.y : e.y, (i & 4) == 0 ? -e.z : e.z));
+                    if (!any) { b = new Bounds(p, Vector3.zero); any = true; } else b.Encapsulate(p);
+                }
+            }
+            return b;
+        }
+
+        public static bool HasMovedBakedParts(GameObject g) { return g.GetComponentsInChildren<Transform>(true).Any(x => x.name == "baked-anchor"); }
+
+        static float Inv(float v) { return Mathf.Abs(v) < 1e-6f ? 1f : 1f / v; }
 
         /// <summary>The model a pre-baked renderer had before baking.</summary>
         static Mesh OriginalMesh(MeshRenderer r, out bool fromCollider)
@@ -189,6 +290,151 @@ namespace WorldLoader
                 return m;
             }
             catch { return null; }   // not readable: nothing we can do for this part
+        }
+
+        /// <summary>
+        /// The same model somewhere else in memory, in one piece: another copy of the prop the game didn't
+        /// bake, or the model itself if another scene or prefab keeps it loaded. We only hand it to the
+        /// copy (no reading), so it works even when the game's meshes aren't readable. A candidate has to
+        /// fit exactly where the baked part is (same box in the world) to be used.
+        /// </summary>
+        static Mesh LoadedTwin(MeshRenderer r)
+        {
+            string name = Clean(r.gameObject.name);
+            string key = name + "|" + r.bounds.size.ToString("F2");
+            Mesh hit;
+            if (twinCache.TryGetValue(key, out hit)) return hit;
+            hit = null;
+            var want = r.bounds.size;
+            Func<Mesh, bool> fits = m =>
+            {
+                if (m == null || m.name.StartsWith("Combined Mesh")) return false;
+                var got = WorldBox(m.bounds, r.transform.localToWorldMatrix).size;
+                return Close(got.x, want.x) && Close(got.y, want.y) && Close(got.z, want.z);
+            };
+            // 1) a not-baked object with the same name
+            foreach (var o in Resources.FindObjectsOfTypeAll(typeof(MeshFilter)))
+            {
+                var mf = (MeshFilter)o;
+                if (mf == null || Clean(mf.gameObject.name) != name) continue;
+                var mr = mf.GetComponent<MeshRenderer>();
+                if (mr != null && mr.isPartOfStaticBatch) continue;
+                if (fits(mf.sharedMesh)) { hit = mf.sharedMesh; break; }
+            }
+            // 2) a loaded model with a matching name
+            if (hit == null)
+            {
+                string bare = name.EndsWith("_prefab") ? name.Substring(0, name.Length - 7) : name;
+                foreach (var o in Resources.FindObjectsOfTypeAll(typeof(Mesh)))
+                {
+                    var m = (Mesh)o;
+                    var mn = Clean(m.name);
+                    if (mn != name && mn != bare && !mn.StartsWith(bare)) continue;
+                    if (fits(m)) { hit = m; break; }
+                }
+            }
+            twinCache[key] = hit;
+            return hit;
+        }
+
+        static readonly Dictionary<string, Mesh> twinCache = new Dictionary<string, Mesh>();
+
+        static string Clean(string n)
+        {
+            if (n == null) return "";
+            n = n.Replace("(Clone)", "").Trim();
+            int i = n.IndexOf(" Instance", StringComparison.Ordinal); if (i > 0) n = n.Substring(0, i);
+            return n.ToLowerInvariant();
+        }
+
+        static bool Close(float a, float b) { return Mathf.Abs(a - b) <= Mathf.Max(0.02f, 0.03f * Mathf.Max(a, b)); }
+
+        public static string BatchRootOf(Renderer r)
+        {
+            var t = StaticBatchRoot != null ? StaticBatchRoot.GetValue(r, null) as Transform : null;
+            return t == null ? null : t.name + " at " + t.position;
+        }
+
+        public static Bounds WorldBoxOf(Bounds local, Matrix4x4 m) { return WorldBox(local, m); }
+
+        static Bounds WorldBox(Bounds local, Matrix4x4 m)
+        {
+            var c = local.center; var e = local.extents;
+            var b = new Bounds(m.MultiplyPoint3x4(c), Vector3.zero);
+            for (int i = 0; i < 8; i++)
+                b.Encapsulate(m.MultiplyPoint3x4(c + new Vector3((i & 1) == 0 ? -e.x : e.x, (i & 2) == 0 ? -e.y : e.y, (i & 4) == 0 ? -e.z : e.z)));
+            return b;
+        }
+    }
+
+    /// <summary>
+    /// Which pieces of its baked mesh each baked part owns, per scene, from Mods\WorldLoader\batches\
+    /// (made by tools\batch_index.py from the game's scene files). Looked up by name and place.
+    /// </summary>
+    public static class BakedIndex
+    {
+        static string zone;
+        static readonly Dictionary<string, List<KeyValuePair<Vector3, int[]>>> byName = new Dictionary<string, List<KeyValuePair<Vector3, int[]>>>();
+
+        public static int[] Pieces(Renderer r)
+        {
+            Load();
+            List<KeyValuePair<Vector3, int[]>> list;
+            if (!byName.TryGetValue(r.gameObject.name, out list)) return null;
+            var p = r.transform.position;
+            foreach (var kv in list) if ((kv.Key - p).sqrMagnitude < 0.05f * 0.05f) return kv.Value;
+            return null;
+        }
+
+        static void Load()
+        {
+            var z = Game.Zone;
+            if (z == zone) return;
+            zone = z; byName.Clear();
+            var f = System.IO.Path.Combine(System.IO.Path.Combine(System.IO.Path.Combine(ModLoader.ModsDir, "WorldLoader"), "batches"), z + ".json");
+            if (!System.IO.File.Exists(f)) { ModLoader.Log("WorldLoader: no baked index for " + z + " (" + f + ")"); return; }
+            try
+            {
+                var o = Newtonsoft.Json.Linq.JObject.Parse(System.IO.File.ReadAllText(f));
+                foreach (var kv in o)
+                {
+                    var parts = kv.Key.Split('|');
+                    if (parts.Length != 4) continue;
+                    var pos = new Vector3(F(parts[1]), F(parts[2]), F(parts[3]));
+                    var pieces = ((Newtonsoft.Json.Linq.JArray)kv.Value).Select(x => (int)x).ToArray();
+                    List<KeyValuePair<Vector3, int[]>> list;
+                    if (!byName.TryGetValue(parts[0], out list)) byName[parts[0]] = list = new List<KeyValuePair<Vector3, int[]>>();
+                    list.Add(new KeyValuePair<Vector3, int[]>(pos, pieces));
+                }
+            }
+            catch (Exception e) { ModLoader.Log("WorldLoader: reading " + f + " failed: " + e.Message); }
+        }
+
+        static float F(string s) { return float.Parse(s, System.Globalization.CultureInfo.InvariantCulture); }
+    }
+
+    /// <summary>
+    /// Draws a copied baked part's own pieces of the game's baked mesh, at the copy, every frame. The
+    /// baked mesh can't be read, but it can be drawn; this way the copy is an ordinary object (it isn't
+    /// hidden or shown along with the original).
+    /// </summary>
+    public class BakedDraw : MonoBehaviour
+    {
+        public class Setup { public Mesh mesh; public int[] pieces; public Material[] materials; public Matrix4x4 fromBatch;
+                             public bool shadows, receive; public int layer; }
+        Setup s;
+        public void Init(Setup setup) { s = setup; }
+
+        void LateUpdate()
+        {
+            if (s == null || s.mesh == null) return;
+            var m = transform.localToWorldMatrix * s.fromBatch;
+            for (int i = 0; i < s.pieces.Length && i < s.materials.Length; i++)
+            {
+                int sub = s.pieces[i];
+                if (sub < 0 || sub >= s.mesh.subMeshCount || s.materials[i] == null) continue;
+                Graphics.DrawMesh(s.mesh, m, s.materials[i], s.layer, null, sub, null, s.shadows, s.receive);
+            }
         }
     }
 }

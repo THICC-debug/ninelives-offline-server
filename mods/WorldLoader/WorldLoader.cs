@@ -39,7 +39,7 @@ namespace WorldLoader
         public bool enabled = true;
     }
 
-    [ModInfo("worldloader", "WorldLoader", "1.0.0", Author = "Nine Lives offline project",
+    [ModInfo("worldloader", "WorldLoader", "1.0.1", Author = "Nine Lives offline project",
         Description = "Place copies of houses, fences, trees and props, or hide things, from world packs in Mods\\World.")]
     public class WorldLoader : Mod
     {
@@ -68,7 +68,21 @@ namespace WorldLoader
             if (spawnAt > 0 && now >= spawnAt) { spawnAt = -1; try { Log(Reload()); } catch (Exception e) { Log("loading world packs failed: " + e); } }
             for (int i = glows.Count - 1; i >= 0; i--)
                 if (now > glows[i].Key) { try { EffectController.clearForcusEffect(glows[i].Value); } catch { } glows.RemoveAt(i); }
+            // A copy of baked scenery still uses the original's "hidden behind something" data, so it would
+            // fade in and out as you turn. While this zone has such copies, the cameras skip that check.
+            if (now >= nextBakedCheck) { nextBakedCheck = now + 1f; anyMovedBaked = copies.Values.Any(g => g != null && Copier.HasMovedBakedParts(g)); }
+            bool want = occlusionMode == 1 || (occlusionMode == 0 && anyMovedBaked);
+            foreach (var cam in Camera.allCameras)
+            {
+                if (want && cam.useOcclusionCulling) { cam.useOcclusionCulling = false; occlusionOff.Add(cam); }
+                else if (!want && occlusionOff.Contains(cam)) { cam.useOcclusionCulling = true; occlusionOff.Remove(cam); }
+            }
+            occlusionOff.RemoveWhere(c => c == null);
         }
+
+        float nextBakedCheck; bool anyMovedBaked;
+        int occlusionMode;   // 0 = automatic, 1 = always off, 2 = leave the game's setting
+        readonly HashSet<Camera> occlusionOff = new HashSet<Camera>();
 
         // ------------------------------------------------------------ packs
         IEnumerable<WorldObject> Objects(List<string> problems)
@@ -131,6 +145,7 @@ namespace WorldLoader
             go.name = "WorldObj_" + o.id;
             Place(go, o);
             copies[o.id] = go; copySource[o.id] = key;
+            if (rep.missing > 0) Log(o.id + ": " + rep.Text());
             if (rep.missing > 0 && rep.missing == rep.batched && rep.batched == rep.renderers)
                 return "the game's pre-baked look of this can't be copied (try a bigger or smaller part, or keepScripts)";
             return null;
@@ -249,6 +264,17 @@ namespace WorldLoader
                     if (!o.enabled || o.zone != Game.Zone) { Remove(o.id); return "{\"ok\":true,\"shown\":false}"; }
                     var why = Show(o);
                     return why == null ? "{\"ok\":true,\"shown\":true}" : "{\"ok\":false,\"error\":" + LiveLink.Quote(why) + "}";
+                }
+                case "/world/drawdebug":   // copied baked parts: where Unity is told to draw them
+                    return JsonConvert.SerializeObject(copies.Values.Where(g => g != null).SelectMany(g => g.GetComponentsInChildren<MeshRenderer>(true))
+                        .Where(r => r.isPartOfStaticBatch).Select(r => new Dictionary<string, object> {
+                            { "object", r.name }, { "copy", r.transform.root.name }, { "visible", r.isVisible }, { "enabled", r.enabled },
+                            { "anchor", Copier.BatchRootOf(r) }, { "bounds", r.bounds.center + " " + r.bounds.size }, { "copyAt", r.transform.position.ToString() } }).ToList());
+                case "/world/occlusion":   // test switch: auto | off | game
+                {
+                    var m = r.Get("mode") ?? "auto";
+                    occlusionMode = m == "off" ? 1 : m == "game" ? 2 : 0;
+                    return "{\"ok\":true,\"mode\":" + LiveLink.Quote(m) + ",\"cameras\":" + Camera.allCameras.Length + "}";
                 }
                 case "/world/remove": Remove(r.Get("id") ?? ""); return "{\"ok\":true}";
                 case "/world/reload": return "{\"ok\":true,\"message\":" + LiveLink.Quote(Reload()) + "}";

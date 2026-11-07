@@ -271,8 +271,8 @@ namespace NineLivesSetup
             }
             var readme = Path.Combine(game, "Mods", m.Id + "-README.md");
             if (File.Exists(readme)) File.Delete(readme);
-            var modDir = Path.Combine(game, "Mods", m.Id);   // only exports are left in it; those are regenerated
-            if (Directory.Exists(modDir) && !Directory.EnumerateFiles(modDir, "*", SearchOption.AllDirectories).Any(f => !f.Contains("\\export\\")))
+            var modDir = Path.Combine(game, "Mods", m.Id);   // only exports and shipped indexes left in it: safe to remove
+            if (Directory.Exists(modDir) && !Directory.EnumerateFiles(modDir, "*", SearchOption.AllDirectories).Any(f => !f.Contains("\\export\\") && !f.Contains("\\batches\\")))
                 Directory.Delete(modDir, true);
         }
 

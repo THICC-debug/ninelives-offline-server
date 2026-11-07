@@ -7,7 +7,7 @@
   <PropertyGroup>
     <TargetFramework>net35</TargetFramework>
     <AssemblyName>WorldLoader</AssemblyName>
-    <Version>1.0.0</Version>
+    <Version>1.0.1</Version>
     <LangVersion>latest</LangVersion>
     <GameDir Condition="'$(GameDir)' == ''">$(MSBuildThisFileDirectory)..\..\..\Ninelives</GameDir>
     <Managed>$(GameDir)\Ninelives_Data\Managed</Managed>
@@ -33,7 +33,13 @@
   <Target Name="InstallMod" AfterTargets="Build" Condition="Exists('$(GameDir)\Mods') and '$(NoInstall)' != 'true'">
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(GameDir)\Mods" ContinueOnError="WarnAndContinue" />
     <Copy SourceFiles="$(OutDir)0Harmony.dll" DestinationFolder="$(GameDir)\Mods\lib" ContinueOnError="WarnAndContinue" />
+    <Copy SourceFiles="@(BakedIndex)" DestinationFolder="$(GameDir)\Mods\WorldLoader\batches" ContinueOnError="WarnAndContinue" />
   </Target>
+
+  <!-- Which pieces of the baked scenery belong to which part, per scene (made by tools\batch_index.py). -->
+  <ItemGroup>
+    <BakedIndex Include="batches\*.json" />
+  </ItemGroup>
 
   <!-- Release zip, laid out to unzip straight into the game folder. -->
   <Target Name="Package" DependsOnTargets="Build">
@@ -45,6 +51,7 @@
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(Stage)Mods" />
     <Copy SourceFiles="$(OutDir)0Harmony.dll" DestinationFolder="$(Stage)Mods\lib" />
     <Copy SourceFiles="README.md" DestinationFiles="$(Stage)Mods\$(AssemblyName)-README.md" />
+    <Copy SourceFiles="@(BakedIndex)" DestinationFolder="$(Stage)Mods\WorldLoader\batches" />
     <MakeDir Directories="$(ReleaseDir)" />
     <ZipDirectory SourceDirectory="$(Stage)" DestinationFile="$(ReleaseDir)$(AssemblyName)-$(Version).zip" Overwrite="true" />
     <Message Importance="high" Text="Release: $(ReleaseDir)$(AssemblyName)-$(Version).zip" />

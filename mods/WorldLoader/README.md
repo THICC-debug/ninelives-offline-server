@@ -1,6 +1,6 @@
 # WorldLoader for Nine Lives
 
-**Version 1.0.0** · a mod for *Ninelives* 0.24.3 (offline) · build in the [Nine Lives Editor](../../editor)
+**Version 1.0.1** · a mod for *Ninelives* 0.24.3 (offline) · build in the [Nine Lives Editor](../../editor)
 
 > [!NOTE]
 > This mod was made with AI (Anthropic's Claude, in Claude Code) and tested by a human player.
@@ -56,10 +56,32 @@ Start the game, enter the world, and open the editor's **World** tab (the badge 
 
 ## How copies work
 
-Much of the game's scenery is "pre-baked" (combined into big meshes when the game was built), and a
-plain copy of a pre-baked part would still draw at the original's place. WorldLoader rebuilds those
-parts: from the part's collision model when it has one, or by cutting the part out of the baked mesh.
+Much of the game's scenery is "pre-baked": combined into big meshes when the game was built. Those
+meshes can't be read by mods, and a plain copy of a pre-baked part still draws at the original's
+place (and is shown or hidden along with it). WorldLoader handles each pre-baked part of a copy, in
+this order:
+
+1. **Collision model:** buildings usually collide with their own model; the copy uses that.
+2. **Baked index:** the copy draws its own pieces of the baked mesh, at the copy, as an ordinary
+   object. Which pieces belong to which part is stored in the game's scene files but not available
+   while the game runs, so it ships as `Mods\WorldLoader\batches\<scene>.json` (names, positions and
+   piece numbers only), made by [`tools/batch_index.py`](tools/batch_index.py).
+3. **Same model in memory:** a not-baked copy of the same prop, checked to fit exactly.
+4. **Anchor (last resort):** the copy keeps its baked piece and Unity draws it from an anchor that
+   moves with the copy. It can fade in and out as you turn, so while a zone has these, WorldLoader
+   switches off the cameras' "hidden behind something" check.
+
+Copies with no collision of their own get a box that fits their look, so you can't walk through them.
 The editor's Pick shows how many parts are pre-baked. If a part can't be rebuilt, the copy says so.
+
+### Remaking the baked index
+
+Only needed for a different game version:
+
+```
+pip install UnityPy
+python tools/batch_index.py "<game folder>"     # writes batches\<scene>.json
+```
 
 ## Known limits
 
