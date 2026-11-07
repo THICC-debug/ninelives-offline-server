@@ -1,45 +1,36 @@
-"""Draw the editor's icon: "9E" in white on burnt orange (made for this project, not taken from the game).
+"""Build editor.ico from icon-source.png (the "9E" pixel-art icon).
 
-    python editor/NineLivesEditor/make_icon.py      -> editor/NineLivesEditor/editor.ico
+    python editor/NineLivesEditor/make_icon.py
 
-Each size is drawn on its own so small sizes stay sharp. Needs Pillow.
+icon-source.png is a 32x32 pixel-art icon shown big (each pixel is a block). The 32 px icon uses
+the exact pixels; bigger sizes come from the big picture, smaller ones from the 32 px version.
+Needs Pillow.
 """
 import os
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-BG = (167, 58, 0)
-FG = (246, 244, 240)
-FONT = os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts", "segoeuib.ttf")
-SIZES = [16, 20, 24, 32, 40, 48, 64, 128, 256]
-
-
-def draw(size):
-    scale = 4                                   # draw big, shrink: smooth edges
-    s = size * scale
-    img = Image.new("RGBA", (s, s), BG + (255,))
-    d = ImageDraw.Draw(img)
-    text = "9E"
-    # Largest font that fits with a small margin.
-    margin = s * (0.08 if size >= 32 else 0.04)
-    pt = s
-    while pt > 4:
-        font = ImageFont.truetype(FONT, int(pt))
-        l, t, r, b = d.textbbox((0, 0), text, font=font)
-        if r - l <= s - 2 * margin and b - t <= s - 2 * margin:
-            break
-        pt -= s / 64
-    l, t, r, b = d.textbbox((0, 0), text, font=font)
-    d.text(((s - (r - l)) / 2 - l, (s - (b - t)) / 2 - t), text, font=font, fill=FG + (255,))
-    return img.resize((size, size), Image.LANCZOS)
+GRID = 32
 
 
 def main():
-    imgs = [draw(n) for n in SIZES]
+    src = Image.open(os.path.join(HERE, "icon-source.png")).convert("RGBA")
+    w = src.size[0]
+    cell = w / GRID
+    # The original pixels: sample the middle of each block.
+    px = Image.new("RGBA", (GRID, GRID))
+    for y in range(GRID):
+        for x in range(GRID):
+            px.putpixel((x, y), src.getpixel((int((x + 0.5) * cell), int((y + 0.5) * cell))))
+    sizes = {32: px}
+    for n in (16, 20, 24):
+        sizes[n] = px.resize((n, n), Image.LANCZOS)
+    for n in (40, 48, 64, 128, 256):
+        sizes[n] = src.resize((n, n), Image.LANCZOS)
+    order = sorted(sizes)
     out = os.path.join(HERE, "editor.ico")
-    imgs[-1].save(out, format="ICO", sizes=[(n, n) for n in SIZES], append_images=imgs[:-1])
-    imgs[-1].save(os.path.join(HERE, "editor-icon.png"))
-    print("wrote", out)
+    sizes[256].save(out, format="ICO", sizes=[(n, n) for n in order], append_images=[sizes[n] for n in order if n != 256])
+    print("wrote", out, order)
 
 
 if __name__ == "__main__":
