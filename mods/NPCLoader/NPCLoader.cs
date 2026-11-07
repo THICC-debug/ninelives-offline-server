@@ -40,7 +40,7 @@ namespace NPCLoader
         public bool sit;
     }
 
-    [ModInfo("npcloader", "NPCLoader", "1.2.1", Author = "Nine Lives offline project",
+    [ModInfo("npcloader", "NPCLoader", "1.2.2", Author = "Nine Lives offline project",
         Description = "Adds custom NPCs (quest givers, vendors, alchemists) from JSON NPC packs in Mods\\NPCs.")]
     public class NPCLoader : Mod
     {
@@ -55,7 +55,7 @@ namespace NPCLoader
         // Re-apply id/name/role for a few seconds after spawning: the game's own start-up code runs on
         // the copy after we create it and could reset them.
         readonly List<KeyValuePair<CommonStats, NpcDef>> settle = new List<KeyValuePair<CommonStats, NpcDef>>();
-        float spawnAt = -1, giveUpAt = -1, settleUntil = -1;
+        float spawnAt = -1, giveUpAt = -1, settleUntil = -1, nextReadyCheck;
 
         public override void Load()
         {
@@ -69,7 +69,7 @@ namespace NPCLoader
             Commands.Register("npcreload", "npcreload", "reload NPC packs from Mods\\NPCs", a => Respawn());
             Commands.Register("npcnear", "npcnear", "list nearby NPCs you can use as a template", a => NpcNear());
             // The Nine Lives Editor's live link (run by the mod loader): show NPC changes in the world as they're made.
-            foreach (var path in new[] { "/npcs", "/npc", "/remove", "/reload" })
+            foreach (var path in new[] { "/npcs", "/npc", "/remove", "/reload", "/npcdebug" })
                 LiveLink.Route(path, r => HandleLive(r.Method, r.Path, r.Query, r.Body));
             Log("ready - NPC packs go in Mods\\NPCs");
         }
@@ -109,10 +109,19 @@ namespace NPCLoader
                 if (Game.InWorld && !TemplatesReady() && now < giveUpAt) spawnAt = now + 1f;   // try again in a second
                 else { spawnAt = -1; try { Log(Respawn()); } catch (Exception e) { Log("spawning failed: " + e); } }
             }
+            if (now >= nextReadyCheck)
+            {
+                nextReadyCheck = now + 1f;
+                foreach (var go in spawned)
+                {
+                    var st = go != null ? go.GetComponent<CommonStats>() : null;
+                    if (st != null && st.initialized) ReadySelectors(st);
+                }
+            }
             if (settle.Count > 0)
             {
                 foreach (var kv in settle) if (kv.Key != null) { Apply(kv.Key, kv.Value); FixModel(kv.Key); }
-                if (now > settleUntil) settle.Clear();
+                if (now > settleUntil) { foreach (var kv in settle) if (kv.Key != null) LogDebug(kv.Key); settle.Clear(); }
             }
         }
 
@@ -246,6 +255,11 @@ namespace NPCLoader
                     { "facing", R(t.eulerAngles.y) }, { "custom", spawned.Where(g => g != null).Count() } });
             }
             if (!Game.InWorld) return "{\"error\":\"Not in the world yet.\"}";
+
+            if (path == "/npcdebug")   // why can't I click my NPC? every link in the chain, plus what the mouse is over
+                return JsonConvert.SerializeObject(new Dictionary<string, object> {
+                    { "npcs", spawned.Where(g => g != null).Select(g => Debug(g.GetComponent<CommonStats>())).ToList() },
+                    { "mouseOver", MouseOver() } });
 
             if (path == "/npcs")   // everyone in this zone, nearest first
             {
@@ -385,27 +399,104 @@ namespace NPCLoader
 
         static readonly FieldInfo SelectorReady = AccessTools.Field(typeof(CharacterSelector), "initPortrait");
         static readonly FieldInfo SelectorStats = AccessTools.Field(typeof(CharacterSelector), "statsSet");
+        static readonly FieldInfo SelectorRoot = AccessTools.Field(typeof(SelectorBase), "charRoot");
         static readonly HashSet<int> selectorTold = new HashSet<int>();
 
         static void FixModel(CommonStats s)
         {
             if (s == null || !s.initialized) return;
+            ReadySelectors(s);
+            if (!s.initializedCharacterModel || s.controllTarget == null) return;
+            var keep0 = s.controllTarget;
+            if (keep0.parent == s.transform && keep0.localPosition.sqrMagnitude > 1000f * 1000f) keep0.localPosition = Vector3.zero;
+            var spares = new List<Transform>();
+            foreach (Transform c in s.transform) if (c != keep0 && c.name == keep0.name) spares.Add(c);
+            foreach (var c in spares) UnityEngine.Object.Destroy(c.gameObject);
+        }
+
+
+        static string MouseOver()
+        {
+            try
+            {
+                var cam = Camera.main; if (cam == null) return "no camera";
+                RaycastHit hit;
+                int mask = 1 << LayerMask.NameToLayer("interaction");
+                if (!Physics.Raycast(cam.ScreenPointToRay(Input.mousePosition), out hit, 500f, mask)) return "nothing on the interaction layer";
+                var d = hit.collider.GetComponent<MouseEventDispatcher>();
+                var st = hit.collider.GetComponentInParent<CommonStats>();
+                return hit.collider.name + (st != null ? " (" + st.dispName + " " + st.getCID() + ")" : "") + " at " + hit.distance.ToString("0.0") + " m"
+                    + (d == null ? ", no dispatcher" : ", dispatcher with " + d.dispatchList.Count + " listener(s)");
+            }
+            catch (Exception e) { return "error: " + e.Message; }
+        }
+
+        static Dictionary<string, object> Debug(CommonStats s)
+        {
+            var o = new Dictionary<string, object>();
+            if (s == null) { o["error"] = "no stats"; return o; }
+            o["name"] = s.dispName; o["cid"] = s.getCID(); o["initialized"] = s.initialized; o["active"] = s.gameObject.activeInHierarchy;
+            o["body"] = s.controllTarget != null ? s.controllTarget.name : null;
+            o["talkRange"] = s.talkRange != null ? s.talkRange.mathTotal() : -1f;
+            o["guiLink"] = s.selectedGUILink.ToString();
+            o["selectors"] = s.GetComponentsInChildren<CharacterSelector>(true).Select(sel =>
+            {
+                var c = sel.GetComponent<Collider>();
+                var d = sel.GetComponent<MouseEventDispatcher>();
+                return new Dictionary<string, object> {
+                    { "object", sel.name }, { "active", sel.gameObject.activeInHierarchy }, { "enabled", sel.enabled },
+                    { "layer", LayerMask.LayerToName(sel.gameObject.layer) }, { "linked", sel.isEventLinked },
+                    { "ready", SelectorReady != null && (bool)SelectorReady.GetValue(sel) },
+                    { "hasStats", SelectorStats != null && SelectorStats.GetValue(sel) != null },
+                    { "statsIsThis", SelectorStats != null && ReferenceEquals(SelectorStats.GetValue(sel), s) },
+                    { "collider", c == null ? "none" : c.GetType().Name + (c.enabled ? "" : " (off)") + (c.isTrigger ? " trigger" : "") + " size " + c.bounds.size },
+                    { "dispatcher", d == null ? "none" : d.dispatchList.Count + " listener(s)" + (d.enabled ? "" : " (off)") } };
+            }).ToList();
+            return o;
+        }
+
+        static void LogDebug(CommonStats s)
+        {
+            try { ModLoader.Log("NPCLoader: debug: " + JsonConvert.SerializeObject(Debug(s))); } catch (Exception e) { ModLoader.Log("NPCLoader: debug failed: " + e.Message); }
+        }
+
+        /// <summary>Make the NPC clickable and targetable. Returns true once it is.</summary>
+        static bool ReadySelectors(CommonStats s)
+        {
+            bool all = true;
             // Clicking an NPC only works once its selector heard "stats initialized". A copy's selector
             // can start before that's possible and never hears it, so tell it ourselves - once the
             // selector itself has started (it knows its NPC) and the NPC has its body.
             foreach (var sel in s.GetComponentsInChildren<CharacterSelector>(true))
             {
+                // The template's selector may have been switched off when we copied it (the game turns
+                // them off at times): then the mouse never finds the copy. Switch it on and hook it up.
+                if (!sel.gameObject.activeSelf && s.gameObject.activeInHierarchy && s.controllTarget != null)
+                {
+                    sel.gameObject.SetActive(true);
+                    ModLoader.Log("NPCLoader: " + s.dispName + ": switched its selector on");
+                }
+                if (sel.gameObject.activeInHierarchy && !sel.isEventLinked)
+                {
+                    try { sel.doEventLinke(); } catch (Exception e) { if (selectorTold.Add(sel.GetInstanceID())) ModLoader.Log("NPCLoader: " + s.dispName + ": selector link: " + e.Message); }
+                }
+                if (!sel.gameObject.activeInHierarchy || !sel.isEventLinked) all = false;
                 if (SelectorReady == null || (bool)SelectorReady.GetValue(sel)) continue;
-                if (SelectorStats == null || SelectorStats.GetValue(sel) == null || s.controllTarget == null) continue;   // not yet: next frame
-                try { sel.onCommonStatsInitialized(s); }
+                all = false;
+                if (s.controllTarget == null) continue;   // no body yet: next frame
+                // Do what the selector's own set-up does (Start + portraitInit), but without the steps
+                // that can fail on a copy: a missing root, stats or face camera.
+                try
+                {
+                    if (SelectorRoot != null && SelectorRoot.GetValue(sel) == null) SelectorRoot.SetValue(sel, sel.characterRoot != null ? sel.characterRoot : s.transform);
+                    if (SelectorStats != null && SelectorStats.GetValue(sel) == null) SelectorStats.SetValue(sel, s);
+                    sel.portraitTarget = s.controllTarget;
+                    if (sel.faceCamera != null) { sel.faceCamera.parent = s.controllTarget; sel.faceCamera.localScale = Vector3.one; }
+                    SelectorReady.SetValue(sel, true);
+                }
                 catch (Exception e) { if (selectorTold.Add(sel.GetInstanceID())) ModLoader.Log("NPCLoader: " + s.dispName + ": selector: " + e.Message); }
             }
-            if (!s.initializedCharacterModel || s.controllTarget == null) return;
-            var keep = s.controllTarget;
-            if (keep.parent == s.transform && keep.localPosition.sqrMagnitude > 1000f * 1000f) keep.localPosition = Vector3.zero;
-            var spares = new List<Transform>();
-            foreach (Transform c in s.transform) if (c != keep && c.name == keep.name) spares.Add(c);
-            foreach (var c in spares) UnityEngine.Object.Destroy(c.gameObject);
+            return all;
         }
 
         static void Apply(CommonStats s, NpcDef d)

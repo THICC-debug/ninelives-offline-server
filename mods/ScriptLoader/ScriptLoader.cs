@@ -16,7 +16,7 @@ namespace ScriptLoader
     /// Event rules ("when … only if … then …") and Lua scripts from script packs in Mods\Scripts.
     /// A pack: { "name", "rules": [ {id, name, enabled, once, cooldown, when, if, then} ], "scripts": [ {id, name, code, enabled} ] }
     /// </summary>
-    [ModInfo("scriptloader", "ScriptLoader", "1.1.0", Author = "Nine Lives offline project",
+    [ModInfo("scriptloader", "ScriptLoader", "1.1.1", Author = "Nine Lives offline project",
         Description = "Event rules, dialogues and Lua scripts from script packs in Mods\\Scripts (Scripts and Dialogue tabs in the editor).")]
     public partial class ScriptLoader : Mod
     {
@@ -44,6 +44,7 @@ namespace ScriptLoader
         Dictionary<string, Dictionary<string, bool>> state;   // character -> rule key -> done (for "once")
         float nextPoll, loadAt = -1;
         bool loaded;
+        internal string lastTalk;
 
         public override void Load()
         {
@@ -287,7 +288,7 @@ namespace ScriptLoader
             if (string.IsNullOrEmpty(text)) return "";
             var s = Game.Stats;
             text = text.Replace("{name}", s != null ? s.dispName : "").Replace("{zone}", Game.Zone);
-            foreach (var kv in e) text = text.Replace("{" + kv.Key + "}", Convert.ToString(kv.Value, CultureInfo.InvariantCulture));
+            if (e != null) foreach (var kv in e) text = text.Replace("{" + kv.Key + "}", Convert.ToString(kv.Value, CultureInfo.InvariantCulture));
             return text;
         }
 
@@ -364,7 +365,8 @@ namespace ScriptLoader
                 case "/scripts/status":
                     return JsonConvert.SerializeObject(new Dictionary<string, object> {
                         { "loaded", loaded }, { "rules", rules.Select(x => x.Key).ToList() }, { "lua", lua.Keys.ToList() }, { "problems", problems },
-                        { "running", running.Count } });
+                        { "running", running.Count }, { "dialogs", dialogs.Keys.ToList() }, { "dialogOpen", open == null ? null : open.Id },
+                        { "lastTalk", lastTalk }, { "drawError", drawError } });
                 case "/scripts/run":   // run a rule's actions now (body: the rule)
                 {
                     if (!Game.InWorld) return "{\"error\":\"Not in the world yet.\"}";
@@ -409,10 +411,15 @@ namespace ScriptLoader
         {
             var me = ScriptLoader.Instance; if (me == null) return;
             var st = Stats.GetValue(__instance) as CommonStats;
-            if (st == null || st == Game.Stats || st.getCID() <= 0) return;
-            if (Vector3.Distance(st.transform.position, Game.PlayerPosition) > 6f) return;
+            if (st == null) { me.lastTalk = "clicked something with no stats"; return; }
+            if (st == Game.Stats || st.getCID() <= 0) return;
+            var dist = Vector3.Distance(st.transform.position, Game.PlayerPosition);
+            me.lastTalk = st.dispName + " (" + st.getCID() + ") at " + dist.ToString("0.0") + " m";
+            if (dist > 6f) { me.lastTalk += ": too far to talk"; return; }
             me.Fire("talk", new Dictionary<string, object> { { "npc", st.getCID() }, { "name", st.dispName } });
-            me.OpenForNpc(st.getCID());
+            bool opened = me.OpenForNpc(st.getCID());
+            me.lastTalk += opened ? ": dialogue opened" : ": no dialogue for this NPC";
+            if (opened) ModLoader.Log("ScriptLoader: talked to " + me.lastTalk);
         }
     }
 

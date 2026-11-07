@@ -11,7 +11,7 @@ namespace ScriptLoader
     /// Dialogues: conversations with choices, from the "dialogs" list in script packs.
     /// { id, name, npc (opens when you talk to this NPC), start, nodes: [ { id, speaker, text, do: [actions],
     ///   choices: [ { text, if: [conditions], do: [actions], goto: node id (none = end) } ] } ] }
-    /// Shown in a box at the bottom of the screen; keys 1-9 pick a choice, Esc closes.
+    /// Shown in a window drawn like the game's own quest window; keys 1-9 pick a choice, Esc closes.
     /// </summary>
     public partial class ScriptLoader
     {
@@ -99,7 +99,7 @@ namespace ScriptLoader
             if (n == null) Close(); else Show(n);
         }
 
-        void Close() { open = null; node = null; shown.Clear(); }
+        void Close() { open = null; node = null; shown.Clear(); if (mouseHeld) { try { ReleaseMouse(); } catch { } } }
 
         /// <summary>Keys, and closing when the player walks away. Called every frame.</summary>
         void DialogUpdate()
@@ -112,9 +112,101 @@ namespace ScriptLoader
             if (shown.Count == 0 && (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.Space))) Close();
         }
 
+        internal string drawError;
+        string speakerName; Dialog speakerFor; int speakerNpc;
+
         public override void OnGUI()
         {
             if (open == null || node == null) return;
+            try { DrawDialog(); }
+            catch (Exception e)
+            {
+                var msg = e.GetType().Name + ": " + e.Message;
+                if (msg != drawError) { drawError = msg; Log("dialogue box failed to draw: " + e); }
+            }
+        }
+
+        // ------------------------------------------------ the game's own window look (like its quest and talk window)
+        const int MouseKey = 0x4E4C5301;      // our key in the game's "mouse is over a window" bookkeeping
+        int windowId = -1; bool mouseHeld; Vector2 scroll; JObject scrollFor;
+        Texture talkIcon;
+
+        void DrawDialog()
+        {
+            GUI.depth = -1000;   // on top of the game's own windows
+            var root = Universe.GetGUIRootCtrl();
+            var qp = GUI_QuestPanel.getGUIInstance();
+            if (root == null || root.CommonSkin == null || qp == null || qp.transitionButtonStyle == null) { DrawPlain(); return; }
+            if (root.forceDisableGUIs) return;   // the game's UI is hidden (F11)
+            if (windowId < 0) windowId = root.GetNextWindowID();
+
+            var oldMatrix = GUI.matrix; var oldSkin = GUI.skin;
+            root.setCommonGUIScaling();
+            // Exactly where the game puts its talk/quest window (beside the stats panel's spot);
+            // one window further right when the NPC's own quest window is open too.
+            var sp = qp.parentCtrl;
+            var r = sp != null ? CommonHelper.rateOfScreenToPoint(sp.windowRect) : new Rect(0f, 0f, 270f, 313f);
+            r.x = sp != null && sp.Opened ? r.x + sp.windowRect.width : 0f;
+            if (qp.isShowingQuest()) r.x = qp.detailPanelRect.xMax;
+            bool over = GUIRoot.AreaTest(r);
+            if (!Universe.isLockUI)
+            {
+                Universe.GUIDragUsing(MouseKey, over);
+                if (over) mouseHeld = Universe.GUIOnMouseEnter(MouseKey, mouseHeld);
+                else if (mouseHeld) ReleaseMouse();
+            }
+            GUI.Window(windowId, r, id => DrawGameWindow(root.CommonSkin, qp, r), string.Empty, root.CommonSkin.window);
+            GUI.BringWindowToFront(windowId);
+            GUI.matrix = oldMatrix; GUI.skin = oldSkin;
+        }
+
+        void ReleaseMouse()
+        {
+            mouseHeld = Universe.GUIOnMouseOut(MouseKey);
+            Universe.GUIForceClearDragUsing(MouseKey);
+        }
+
+        void DrawGameWindow(GUISkin skin, GUI_QuestPanel qp, Rect r)
+        {
+            if (open == null || node == null) return;
+            // close button, top right
+            GUILayout.BeginArea(new Rect(0f, 0f, r.width, r.height));
+            GUILayout.BeginHorizontal(); GUILayout.FlexibleSpace();
+            bool closed = GUILayout.Button(string.Empty, skin.GetStyle("buttonClose"));
+            GUILayout.EndHorizontal(); GUILayout.EndArea();
+            if (closed) { Close(); ReleaseMouse(); return; }
+
+            int who = openedNpc > 0 ? openedNpc : open.Npc;
+            if (speakerFor != open || speakerNpc != who) { speakerFor = open; speakerNpc = who; speakerName = who > 0 ? NpcName(who) : ""; }
+            var speaker = Fill(node.Value<string>("speaker") ?? speakerName ?? "", null);
+            var text = Fill(node.Value<string>("text") ?? "", null);
+            if (scrollFor != node) { scrollFor = node; scroll = Vector2.zero; }
+
+            var area = qp.areaRect;   // the game's inner area (6, 8, 240, 300)
+            GUILayout.BeginArea(new Rect(area.x, area.y, area.width, r.height - area.y));
+            if (talkIcon == null) talkIcon = GUI_MarkIconLoader.load(QuestController.GetQuestIconID(QuestType.Message));
+            GUILayout.Label(new GUIContent(speaker.Length > 0 ? speaker : (open.Name ?? ""), talkIcon), skin.GetStyle("tabPanelSelectionList"));
+            GUI.skin = skin;
+            scroll = GUILayout.BeginScrollView(scroll, GUILayout.Width(area.width));
+            GUILayout.Label(text, qp.detailDescriptionStyle);
+            GUILayout.FlexibleSpace();
+            GUILayout.EndScrollView();
+            GUILayout.Space(6f);
+            var bg = GUI.backgroundColor;
+            GUI.backgroundColor = qp.closeButtonBGColor;
+            int pick = -1;
+            if (shown.Count == 0) { if (GUILayout.Button(qp.closeButtonText, qp.transitionButtonStyle)) pick = 0; }
+            else for (int i = 0; i < shown.Count; i++)
+                if (GUILayout.Button(Fill(shown[i].Value<string>("text") ?? "…", null), qp.transitionButtonStyle)) pick = i;
+            GUI.backgroundColor = bg;
+            GUILayout.Space(qp.bottomSpace);
+            GUILayout.EndArea();
+            if (pick >= 0) { Choose(pick); if (open == null) ReleaseMouse(); }
+        }
+
+        // ------------------------------------------------ fallback: a plain box at the bottom (if the game's UI isn't there)
+        void DrawPlain()
+        {
             if (boxStyle == null)
             {
                 boxStyle = new GUIStyle(GUI.skin.box) { padding = new RectOffset(18, 18, 14, 14) };
@@ -125,7 +217,9 @@ namespace ScriptLoader
                 choiceStyle = new GUIStyle(GUI.skin.button) { fontSize = 15, alignment = TextAnchor.MiddleLeft, padding = new RectOffset(12, 12, 7, 7), wordWrap = true };
             }
             float w = Mathf.Min(760f, Screen.width - 40f);
-            var speaker = Fill(node.Value<string>("speaker") ?? (open.Npc > 0 || openedNpc > 0 ? NpcName(openedNpc > 0 ? openedNpc : open.Npc) : ""), null);
+            int who = openedNpc > 0 ? openedNpc : open.Npc;
+            if (speakerFor != open || speakerNpc != who) { speakerFor = open; speakerNpc = who; speakerName = who > 0 ? NpcName(who) : ""; }
+            var speaker = Fill(node.Value<string>("speaker") ?? speakerName ?? "", null);
             var text = Fill(node.Value<string>("text") ?? "", null);
             var labels = shown.Count > 0 ? shown.Select((c, i) => (i + 1) + ".  " + Fill(c.Value<string>("text") ?? "…", null)).ToList() : new List<string> { "Close" };
             float textH = textStyle.CalcHeight(new GUIContent(text), w - 36f);

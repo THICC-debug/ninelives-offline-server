@@ -1,6 +1,6 @@
 # ScriptLoader for Nine Lives
 
-**Version 1.1.0** · a mod for *Ninelives* 0.24.3 (offline) · build scripts in the [Nine Lives Editor](../../editor)
+**Version 1.1.1** · a mod for *Ninelives* 0.24.3 (offline) · build scripts in the [Nine Lives Editor](../../editor)
 
 > [!NOTE]
 > This mod was made with AI (Anthropic's Claude, in Claude Code) and tested by a human player.
@@ -56,7 +56,7 @@ In the editor's **Dialogue** tab: **New dialogue** (or **Give … a dialogue** o
   `game.dialog("id")`.
 - **▶ Preview here** walks through it in the editor; **Play in the game** shows it in the game.
 
-In the game it's a box at the bottom of the screen: click an answer or press 1–9; Esc or walking away closes it.
+In the game it opens in a window drawn like the game's own quest window (next to it when the NPC's quest window is open too): click an answer or press 1–9; the X, Esc or walking away closes it.
 
 ## Lua
 
