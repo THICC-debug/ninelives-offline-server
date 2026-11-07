@@ -18,7 +18,7 @@ namespace NineLivesEditor
         {
             this.url = url;
             Text = "Nine Lives Editor";
-            var icon = Program.GameIcon(game); if (icon != null) Icon = icon;
+            var icon = Program.AppIcon(); if (icon != null) Icon = icon;
             StartPosition = FormStartPosition.CenterScreen;
             var screen = Screen.PrimaryScreen.WorkingArea;
             Size = new Size(Math.Min(1400, screen.Width - 80), Math.Min(900, screen.Height - 60));

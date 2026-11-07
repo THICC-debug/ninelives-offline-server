@@ -119,9 +119,10 @@ namespace NineLivesEditor
             return null;
         }
 
-        public static Icon GameIcon(string game)
+        /// <summary>The editor's own "9E" icon (built into the exe).</summary>
+        public static Icon AppIcon()
         {
-            try { return Icon.ExtractAssociatedIcon(Path.Combine(game, "Ninelives.exe")); } catch { return null; }
+            try { return Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { return null; }
         }
 
         public static void OpenInBrowser(string url)
@@ -142,7 +143,7 @@ namespace NineLivesEditor
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             StartPosition = FormStartPosition.CenterScreen;
-            var icon = Program.GameIcon(game); if (icon != null) Icon = icon;
+            var icon = Program.AppIcon(); if (icon != null) Icon = icon;
             var text = new Label
             {
                 Text = (noWebView ? "Microsoft Edge WebView2 isn't installed, so the editor opens in your web browser.\n\n" : "The editor is open in your web browser.\n\n") +

@@ -14,6 +14,8 @@
     <LangVersion>latest</LangVersion>
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- "9E" on orange, drawn by make_icon.py -->
+    <ApplicationIcon>editor.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
