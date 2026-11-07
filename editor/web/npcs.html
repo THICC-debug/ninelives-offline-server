@@ -12,6 +12,7 @@
   <button id="newPack">New pack</button>
   <button id="newNpc">New NPC</button>
   <button id="save" class="primary" title="Ctrl+S">Save pack</button>
+  <button id="delPack" class="danger" title="Delete this pack (to the Recycle Bin)">Delete pack</button>
   <span id="status">Loading…</span>
 </header>
 <main>
@@ -208,6 +209,13 @@ async function save(quiet) {
 
 window.addEventListener("message", async e => {
   const m = e.data || {};
+  if (m.cmd === "packsChanged" && m.kind === "npcs" && m.deleted === packName) {   // deleted on Packs & mods
+    const left = ((await api("/api/overview")).packs.npcs || []).map(p => p.name);
+    dirty = false; parent.postMessage({ dirty: false }, "*");
+    D.packs = left; packName = null; fillPacks(left.length ? left : ["my-npcs"]);
+    await openPack(left[0] || "my-npcs");
+    return;
+  }
   if (m.cmd === "openPack") { ensurePack(m.name); await openPack(m.name); }
   if (m.cmd === "newNpc") newNpc();
   if (m.cmd === "select") {
@@ -224,6 +232,26 @@ window.addEventListener("message", async e => {
     fillPacks(fresh.packs.length ? fresh.packs : [packName]); renderEditor();
   }
 });
+
+// Delete the open pack (it goes to the Recycle Bin), then open another one.
+async function deletePack() {
+  const exists = ((await api("/api/overview")).packs.npcs || []).some(p => p.name === packName);
+  if (!confirm(exists ? `Delete the pack "${packName}"?\n\nIt goes to the Recycle Bin, so you can get it back from there.`
+                      : `"${packName}" was never saved. Throw it away?`)) return;
+  if (exists) {
+    try { await api(`/api/packs/delete?kind=npcs&name=${encodeURIComponent(packName)}`, { method: "POST" }); }
+    catch (e) { status("Couldn't delete: " + e.message, "bad"); return; }
+  }
+  const left = ((await api("/api/overview")).packs.npcs || []).map(p => p.name);
+  dirty = false; parent.postMessage({ dirty: false }, "*");
+  D.packs = left; D.packsOff = D.packsOff ? D.packsOff.filter(n => left.includes(n)) : [];
+  const next = left[0] || "my-npcs";
+  packName = null; fillPacks(left.length ? left : [next]);
+  await openPack(next);
+  status(exists ? "Deleted (it's in the Recycle Bin)" : "Thrown away", "ok");
+  parent.postMessage({ broadcast: { cmd: "packsChanged", kind: "npcs" } }, "*");
+}
+$("#delPack").onclick = deletePack;
 $("#save").onclick = () => save();
 $("#newNpc").onclick = () => newNpc(sel >= 0 ? null : null);
 $("#packSel").onchange = e => openPack(e.target.value);

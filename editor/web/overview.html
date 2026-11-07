@@ -76,7 +76,7 @@ async function load() {
       ${list.map(p => `<div class="line">
           <label class="switch" title="${p.enabled ? "On: the game loads it" : "Off: the game ignores it"}"><input type="checkbox" data-kind="${k}" data-name="${esc(p.name)}" ${p.enabled ? "checked" : ""}></label>
           <div class="name"><b>${esc(p.name)}</b>${p.enabled ? "" : ' <span class="badge off">off</span>'}<small>${p.size} ${K.unit}${p.size === 1 ? "" : "s"}</small></div>
-          <button data-open="${k}|${esc(p.name)}">Edit</button></div>`).join("") || '<p class="hint">No packs yet.</p>'}
+          <button data-open="${k}|${esc(p.name)}">Edit</button><button class="danger" data-del="${k}|${esc(p.name)}" title="Delete (to the Recycle Bin)">Delete</button></div>`).join("") || '<p class="hint">No packs yet.</p>'}
       <div class="actions" style="margin:10px 0 0"><button data-new="${k}">New pack</button><span class="hint">${esc(K.folder)}</span></div>
     </fieldset>`;
   }).join("");
@@ -99,6 +99,15 @@ async function load() {
   document.querySelectorAll("[data-open]").forEach(b => b.onclick = () => {
     const [k, name] = b.dataset.open.split("|");
     parent.postMessage({ nav: KIND[k].tab, msg: { cmd: "openPack", name } }, "*");
+  });
+  document.querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
+    const [k, name] = b.dataset.del.split("|");
+    if (!confirm(`Delete the pack "${name}"?\n\nIt goes to the Recycle Bin, so you can get it back from there.`)) return;
+    try {
+      await api(`/api/packs/delete?kind=${k}&name=${encodeURIComponent(name)}`, { method: "POST" });
+      parent.postMessage({ broadcast: { cmd: "packsChanged", kind: k, deleted: name } }, "*");
+      load();
+    } catch (e) { alert(e.message); }
   });
   document.querySelectorAll("[data-new]").forEach(b => b.onclick = () => {
     const k = b.dataset.new;

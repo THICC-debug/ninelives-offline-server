@@ -11,6 +11,7 @@
   <label style="color:var(--ink)">Pack <select id="packSel"></select></label>
   <button id="newPack">New pack</button>
   <button id="save" class="primary" title="Ctrl+S">Save pack</button>
+  <button id="delPack" class="danger" title="Delete this pack (to the Recycle Bin)">Delete pack</button>
   <span id="status">Loading…</span>
 </header>
 <main>
@@ -65,6 +66,13 @@ function ensurePack(n) { if (![...$("#packSel").options].some(o => o.value === n
 // Messages from the other tabs.
 window.addEventListener("message", async e => {
   const m = e.data || {};
+  if (m.cmd === "packsChanged" && m.kind === "quests" && m.deleted === packName) {   // deleted on Packs & mods
+    const left = ((await api("/api/overview")).packs.quests || []).map(p => p.name);
+    dirty = false; parent.postMessage({ dirty: false }, "*");
+    D.packs = left; packName = null; fillPacks(left.length ? left : ["my-quests"]);
+    await openPack(left[0] || "my-quests");
+    return;
+  }
   if (m.cmd === "openPack") { ensurePack(m.name); await openPack(m.name); }
   if (m.cmd === "browseOriginals") { tab = "orig"; sel = null; renderList(); renderEditor(); $("#search").focus(); }
   if (m.cmd === "search") { tab = "orig"; $("#search").value = m.q || ""; renderList(); }
@@ -432,6 +440,26 @@ async function save() {
   } catch (e) { status("Save failed: " + e.message, "bad"); }
 }
 
+
+// Delete the open pack (it goes to the Recycle Bin), then open another one.
+async function deletePack() {
+  const exists = ((await api("/api/overview")).packs.quests || []).some(p => p.name === packName);
+  if (!confirm(exists ? `Delete the pack "${packName}"?\n\nIt goes to the Recycle Bin, so you can get it back from there.`
+                      : `"${packName}" was never saved. Throw it away?`)) return;
+  if (exists) {
+    try { await api(`/api/packs/delete?kind=quests&name=${encodeURIComponent(packName)}`, { method: "POST" }); }
+    catch (e) { status("Couldn't delete: " + e.message, "bad"); return; }
+  }
+  const left = ((await api("/api/overview")).packs.quests || []).map(p => p.name);
+  dirty = false; parent.postMessage({ dirty: false }, "*");
+  D.packs = left; D.packsOff = D.packsOff ? D.packsOff.filter(n => left.includes(n)) : [];
+  const next = left[0] || "my-quests";
+  packName = null; fillPacks(left.length ? left : [next]);
+  await openPack(next);
+  status(exists ? "Deleted (it's in the Recycle Bin)" : "Thrown away", "ok");
+  parent.postMessage({ broadcast: { cmd: "packsChanged", kind: "quests" } }, "*");
+}
+$("#delPack").onclick = deletePack;
 $("#save").onclick = save;
 $("#packSel").onchange = e => openPack(e.target.value);
 $("#newPack").onclick = () => {

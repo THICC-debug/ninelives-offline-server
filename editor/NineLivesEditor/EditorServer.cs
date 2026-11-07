@@ -393,6 +393,19 @@ namespace NineLivesEditor
                 return JsonObj(new Dictionary<string, object> { { "ok", true }, { "enabled", on } });
             }
 
+            if (parts[1] == "packs" && parts[2] == "delete")
+            {
+                // To the Recycle Bin (with its .bak), so a mistake can be undone there.
+                string kind = Q(q, "kind"), name = Q(q, "name");
+                var file = PackFile(kind, name);
+                if (file == null || !File.Exists(file)) return Error(404, "no such pack");
+                foreach (var f in new[] { file, file + ".bak" })
+                    if (File.Exists(f))
+                        Microsoft.VisualBasic.FileIO.FileSystem.DeleteFile(f, Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs,
+                                                                         Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin);
+                return JsonObj(new Dictionary<string, object> { { "ok", true } });
+            }
+
             if (parts[1] == "mods" && parts[2] == "toggle")
             {
                 string mod = Q(q, "id"); bool on = Q(q, "on") == "1";
