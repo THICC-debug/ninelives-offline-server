@@ -94,7 +94,7 @@ NPCs show up in the editor's NPC picker once you've visited the zone they're in,
 
 ```
 dotnet build -c Release              # build and install into the game
-dotnet build -c Release -t:Package   # make release\QuestLoader-1.1.0.zip
+dotnet build -c Release -t:Package   # make release\QuestLoader-1.2.0.zip
 ```
 
 License: MIT (code only; the game belongs to SmokymonkeyS).

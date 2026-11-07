@@ -157,13 +157,17 @@ Each mod is self-contained and released on its own:
 | [DevTools](mods/DevTools) | In-game command box (F7): give items, gold, exp, teleport, flags |
 | [NPCLoader](mods/NPCLoader) | Custom NPCs (quest givers, vendors, alchemists) from NPC packs |
 | [ContentLoader](mods/ContentLoader) | Change item prices and stats, loot tables and shop stock with JSON content packs |
+| [WorldLoader](mods/WorldLoader) | Copy and place buildings, fences, trees and props, or hide things, with world packs |
+| [ScriptLoader](mods/ScriptLoader) | Dialogues with answers, event rules (when this happens, do that) and Lua scripts |
 
 ### 🛠️ Nine Lives Editor
 
-One app for everything the mods can change: **Quests**, **Items**, **Monster loot**, **Shops** and **NPCs**, with a
+One app for everything the mods can change: **Quests**, **Items**, **Monster loot**, **Shops**, **NPCs**,
+**World** (place buildings and props), **Dialogue** and **Scripts**, plus a **Map** of each zone from above and a
 **Home** page of tasks, a search box that finds anything by name (Ctrl+K), and **Packs & mods** to switch things on and off. The tabs work together: on an NPC, *New quest for …*
 opens the quest editor with that NPC as the giver. It comes with Setup.exe (`Nine Lives Editor.exe` in the
-game folder and on the desktop), runs on your PC only, and needs nothing else installed. See **[editor/README.md](editor/README.md)**.
+game folder and on the desktop), runs on your PC only, and needs nothing else installed. With the game
+running, the NPCs, World, Map and Scripts tabs work live: changes show in the world straight away. See **[editor/README.md](editor/README.md)**.
 
 The examples that come with the mods start switched off; turn them on in the editor's Packs & mods tab.
 
@@ -187,10 +191,10 @@ Settings at the top of `ninelives_server.py`:
 |---|---|---|
 | `START_GEMS` | `100000` | Scarab Gems for new accounts (the old real-money shop currency) |
 | `CHARACTER_LIMIT` | `6` | Character slots for new accounts (6 is the game's maximum) |
+| `PORT` | `8080` | Must stay 8080 unless you also change the patcher |
 
 Scarab Gem purchases (bag slots, bank pages, shared bank, character slots, skill reset, gem
 shop) use the same prices and limits as the original game, read from its code.
-| `PORT` | `8080` | Must stay 8080 unless you also change the patcher |
 
 Run `python ninelives_server.py -v` for a detailed log of every request. Passwords are never logged.
 

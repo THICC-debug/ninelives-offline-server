@@ -116,7 +116,7 @@ Custom NPCs show up in the editor's NPC picker, marked "(custom)".
 
 ```
 dotnet build -c Release              # build and install into the game
-dotnet build -c Release -t:Package   # make release\NPCLoader-1.0.2.zip
+dotnet build -c Release -t:Package   # make release\NPCLoader-1.2.2.zip
 ```
 
 License: MIT (code only; the game belongs to SmokymonkeyS).

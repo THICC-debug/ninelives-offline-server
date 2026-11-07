@@ -127,7 +127,7 @@ item is shown. Shops restock with the new list when they next refresh.
 
 ```
 dotnet build -c Release              # build and install into the game
-dotnet build -c Release -t:Package   # make release\ContentLoader-1.2.1.zip
+dotnet build -c Release -t:Package   # make release\ContentLoader-1.3.0.zip
 ```
 
 License: MIT (code only; the game belongs to SmokymonkeyS).
