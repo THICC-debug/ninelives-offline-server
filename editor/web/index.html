@@ -66,6 +66,7 @@
 </div>
 <nav id="side">
   <button data-tab="home"><svg viewBox="0 0 24 24"><path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/></svg>Home<span class="dot"></span></button>
+  <button data-tab="map"><svg viewBox="0 0 24 24"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2z"/><path d="M9 4v14M15 6v14"/></svg>Map<span class="dot"></span></button>
   <div class="navgroup">Make changes</div>
   <button data-tab="quests"><svg viewBox="0 0 24 24"><path d="M7 3h10a2 2 0 0 1 2 2v14l-3-2-3 2-3-2-3 2V5a2 2 0 0 1 2-2z"/><path d="M9 8h6M9 12h4"/></svg>Quests<span class="dot"></span></button>
   <button data-tab="items"><svg viewBox="0 0 24 24"><path d="M14.5 3.5 20.5 9.5 10 20H4v-6z"/><path d="m12 6 6 6"/></svg>Items<span class="dot"></span></button>
@@ -83,8 +84,8 @@
 <script>
 // Each tab is its own page in an iframe, made on first visit and kept, so unsaved work survives
 // switching tabs. Items, Monster loot and Shops share one page (content packs).
-const PAGE = { home: "/home", overview: "/overview", quests: "/quests", items: "/content", loot: "/content", shops: "/content", npcs: "/npcs", world: "/world", scripts: "/scripts" };
-const NAME = { home: "Home", overview: "Packs & mods", quests: "Quests", items: "Items", loot: "Monster loot", shops: "Shops", npcs: "NPCs", world: "World", scripts: "Scripts" };
+const PAGE = { home: "/home", overview: "/overview", quests: "/quests", items: "/content", loot: "/content", shops: "/content", npcs: "/npcs", world: "/world", scripts: "/scripts", map: "/map" };
+const NAME = { home: "Home", overview: "Packs & mods", quests: "Quests", items: "Items", loot: "Monster loot", shops: "Shops", npcs: "NPCs", world: "World", scripts: "Scripts", map: "Map" };
 const frames = {}, ready = {}, queue = {}, dirty = {};
 let current = null;
 const $ = s => document.querySelector(s);

@@ -62,10 +62,12 @@ const I = {
   npc: '<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/>',
   world: '<path d="M3 21h18"/><path d="M5 21V10l7-5 7 5v11"/><path d="M10 21v-6h4v6"/>',
   scripts: '<path d="m8 7-5 5 5 5"/><path d="m16 7 5 5-5 5"/><path d="m14 4-4 16"/>',
+  map: '<path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2z"/><path d="M9 4v14M15 6v14"/>',
   packs: '<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',
 };
 // [icon, title, text, needs mod, tab, message to that tab]
 const TASKS = [
+  ["map", "See the map", "Every zone from above: NPCs, your things and script areas. Drag to move, click to add.", null, "map", null],
   ["quest", "Make a new quest", "Who gives it, what to bring or defeat, and the reward.", "QuestLoader", "quests", { cmd: "newQuest" }],
   ["copy", "Change one of the game's quests", "Browse all 345 and copy or replace one.", "QuestLoader", "quests", { cmd: "browseOriginals" }],
   ["item", "Change an item", "Price, damage, armor, stack size, name…", "ContentLoader", "items", null],

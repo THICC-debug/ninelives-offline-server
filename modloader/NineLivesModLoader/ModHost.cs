@@ -29,6 +29,7 @@ namespace NineLivesModLoader
             instance = go.AddComponent<ModHost>();
             ModLoader.Log("Game started: events and the F11 mod list are running");
             LiveLink.Start();
+            MapCapture.Init();
             Events.FireGameStarted();
         }
 

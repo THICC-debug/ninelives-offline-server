@@ -391,8 +391,11 @@ window.addEventListener("message", async e => {
     const left = ((await api("/api/overview")).packs.scripts || []).map(p => p.name);
     dirty = false; D.packs = left; packName = null; fillPacks(left.length ? left : ["my-scripts"]); await openPack(left[0] || "my-scripts"); return;
   }
-  if (m.cmd === "openPack") { ensurePack(m.name); await openPack(m.name); }
-  if (m.cmd === "newRule") newRule();
+  if (m.cmd === "openPack") { ensurePack(m.name); await openPack(m.name); if (m.then) window.postMessage(m.then, "*"); }
+  if (m.cmd === "newRule") {
+    newRule();
+    if (m.area) { const r = pack.rules[pack.rules.length - 1]; r.when = m.area; r.name = "New area rule"; renderList(); renderEditor(); }
+  }
   if (m.cmd === "select") { const i = pack.rules.findIndex(r => r.id === m.id); if (i >= 0) { sel = { k: "rule", i }; renderList(); renderEditor(); } }
 });
 document.addEventListener("keydown", e => {

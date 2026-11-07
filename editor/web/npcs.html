@@ -93,13 +93,13 @@ function usedIds() {
 }
 const nextId = () => Math.max(FIRST_ID - 1, ...usedIds().filter(i => i >= FIRST_ID)) + 1;
 
-function newNpc(near) {
+function newNpc(near, keepSpot) {
   const z = near ? near.zone : (zones().includes("Zone_CrimsonIsles") ? "Zone_CrimsonIsles" : zones()[0] || "Zone_CrimsonIsles");
   const base = near || npcsIn(z)[0] || { x: 0, y: 0, z: 0, cid: 0 };
   const n = { id: nextId(), name: "New NPC", zone: z, x: r1(base.x + 1.5), y: r1(base.y), z: r1(base.z), rotation: 0,
               template: base.cid || 0, role: "quest" };
   pack.npcs.push(n); sel = pack.npcs.length - 1; setDirty(); renderList(); renderEditor();
-  if (!near && G.connected && G.inWorld && $("#lvHere")) $("#lvHere").click();   // start in front of the player
+  if (!near && !keepSpot && G.connected && G.inWorld && $("#lvHere")) $("#lvHere").click();   // start in front of the player
 }
 
 // ---------------------------------------------------------------- list
@@ -367,6 +367,14 @@ window.addEventListener("message", async e => {
   }
   if (m.cmd === "openPack") { ensurePack(m.name); await openPack(m.name); }
   if (m.cmd === "newNpc") newNpc();
+  if (m.cmd === "newNpcAt") {   // from the map
+    const near = m.template ? (gameNpc(m.template) || { cid: m.template, zone: m.zone, x: m.x, y: m.y, z: m.z }) : null;
+    newNpc(near, true);
+    const n = pack.npcs[pack.npcs.length - 1];
+    n.zone = m.zone; n.x = m.x; n.y = m.y; n.z = m.z;
+    if (!m.template && !npcsIn(n.zone).some(t => t.cid === n.template)) { const t = npcsIn(n.zone)[0]; if (t) n.template = t.cid; }
+    setDirty(); renderList(); renderEditor();
+  }
   if (m.cmd === "select") {
     let i = pack.npcs.findIndex(n => n.id == m.id);
     if (i < 0) {   // in another pack

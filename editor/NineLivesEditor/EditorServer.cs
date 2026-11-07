@@ -34,7 +34,7 @@ namespace NineLivesEditor
         static readonly Dictionary<string, string> Pages = new Dictionary<string, string>
         {
             { "/", "index.html" }, { "/index.html", "index.html" }, { "/home", "home.html" }, { "/overview", "overview.html" },
-            { "/quests", "quests.html" }, { "/content", "content.html" }, { "/npcs", "npcs.html" }, { "/world", "world.html" }, { "/scripts", "scripts.html" }, { "/style.css", "style.css" },
+            { "/quests", "quests.html" }, { "/content", "content.html" }, { "/npcs", "npcs.html" }, { "/world", "world.html" }, { "/scripts", "scripts.html" }, { "/map", "map.html" }, { "/style.css", "style.css" },
         };
 
         readonly string game;
@@ -300,6 +300,7 @@ namespace NineLivesEditor
                 });
             }
             if (parts[1] == "index") return JsonObj(SearchIndex());
+            if (parts[1] == "map") return Map(parts.Length > 2 ? parts[2] : "", q);
 
             var kind = parts[1];
             if (!Kinds.ContainsKey(kind)) return Error(404, "not found");
@@ -438,6 +439,73 @@ namespace NineLivesEditor
                 if (givers.ContainsKey(c)) add("giver", c, Json.Str(n, "name"), "NPC · gives " + givers[c] + " quest(s) · " + (Json.Str(n, "zone") ?? "").Replace("Zone_", ""));
             }
             return idx;
+        }
+
+        // ------------------------------------------------------------ map
+        Response Map(string what, Dictionary<string, string> q)
+        {
+            var dir = ModsDir("maps");
+            var zone = Q(q, "zone");
+            if (zone.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || zone.Contains("..")) return Error(400, "bad zone");
+            if (what == "zones")
+            {
+                var zones = new SortedDictionary<string, Dictionary<string, object>>();
+                Action<string> seen = z => { if (!string.IsNullOrEmpty(z) && !zones.ContainsKey(z)) zones[z] = new Dictionary<string, object> { { "zone", z }, { "map", false } }; };
+                if (Directory.Exists(dir))
+                    foreach (var f in Directory.GetFiles(dir, "*.json"))
+                    {
+                        var z = Path.GetFileNameWithoutExtension(f); seen(z);
+                        zones[z]["map"] = File.Exists(Path.Combine(dir, z + ".png"));
+                        zones[z]["taken"] = Json.Str(Json.Load(f), "taken");
+                    }
+                foreach (var n in GameNpcs()) seen(Json.Str(n, "zone"));
+                foreach (var n in CustomNpcs()) seen((string)n["zone"]);
+                return JsonObj(zones.Values.ToList());
+            }
+            if (what == "image")
+            {
+                var png = Path.Combine(dir, zone + ".png");
+                if (!File.Exists(png)) return Error(404, "no map yet");
+                return new Response { Body = File.ReadAllBytes(png), Type = "image/png" };
+            }
+            if (what == "data")
+            {
+                // Everything to draw on the map of one zone.
+                var givers = new Dictionary<long, int>();
+                var orig = Json.List(Json.Load(ExportPath("QuestLoader", "quests.json")));
+                if (orig != null) foreach (var o in orig) { long g = Json.Num(o, "giver"); givers[g] = (givers.ContainsKey(g) ? givers[g] : 0) + 1; }
+                foreach (var pq in PackQuests()) { long g = Json.Num(pq, "giver"); givers[g] = (givers.ContainsKey(g) ? givers[g] : 0) + 1; }
+                var things = new List<object>();
+                foreach (var p in Packs("world"))
+                    foreach (var o in PackItems("world", p.Key))
+                        if (Json.Str(o, "zone") == zone) things.Add(new Dictionary<string, object> {
+                            { "id", Json.Str(o, "id") }, { "name", Json.Str(o, "name") }, { "pack", p.Key }, { "on", p.Value && !false.Equals(Json.Get(o, "enabled")) },
+                            { "hide", true.Equals(Json.Get(o, "hide")) }, { "x", Json.Get(o, "x") ?? 0 }, { "z", Json.Get(o, "z") ?? 0 }, { "y", Json.Get(o, "y") ?? 0 }, { "ry", Json.Get(o, "ry") ?? 0 } });
+                var areas = new List<object>();
+                foreach (var p in Packs("scripts"))
+                    foreach (var r in PackItems("scripts", p.Key))
+                    {
+                        var w = Json.Get(r, "when"); var type = Json.Str(w, "type");
+                        if ((type == "enterArea" || type == "leaveArea") && Json.Str(w, "zone") == zone)
+                            areas.Add(new Dictionary<string, object> { { "kind", "area" }, { "rule", Json.Str(r, "id") }, { "name", Json.Str(r, "name") ?? Json.Str(r, "id") }, { "pack", p.Key },
+                                { "x", Json.Get(w, "x") ?? 0 }, { "z", Json.Get(w, "z") ?? 0 }, { "y", Json.Get(w, "y") ?? 0 }, { "radius", Json.Get(w, "radius") ?? 5 }, { "leave", type == "leaveArea" } });
+                        var steps = Json.List(Json.Get(r, "then"));
+                        if (steps != null)
+                            foreach (var a in steps)
+                                if (Json.Str(a, "type") == "teleport")
+                                    areas.Add(new Dictionary<string, object> { { "kind", "teleport" }, { "rule", Json.Str(r, "id") }, { "name", Json.Str(r, "name") ?? Json.Str(r, "id") }, { "pack", p.Key },
+                                        { "x", Json.Get(a, "x") ?? 0 }, { "z", Json.Get(a, "z") ?? 0 }, { "y", Json.Get(a, "y") ?? 0 } });
+                    }
+                return JsonObj(new Dictionary<string, object> {
+                    { "zone", zone }, { "bounds", Json.Load(Path.Combine(dir, zone + ".json")) },
+                    { "npcs", GameNpcs().Where(n => Json.Str(n, "zone") == zone).Select(n => (object)new Dictionary<string, object> {
+                        { "cid", Json.Get(n, "cid") }, { "name", Json.Str(n, "name") }, { "x", Json.Get(n, "x") }, { "z", Json.Get(n, "z") }, { "y", Json.Get(n, "y") },
+                        { "quests", givers.ContainsKey(Json.Num(n, "cid")) ? givers[Json.Num(n, "cid")] : 0 } }).ToList() },
+                    { "custom", CustomNpcs().Where(n => (string)n["zone"] == zone).ToList() },
+                    { "things", things }, { "areas", areas },
+                });
+            }
+            return Error(404, "not found");
         }
 
         // ------------------------------------------------------------ POST
