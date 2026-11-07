@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nine Lives Editor</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+  body { overflow: auto; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 30px 28px 60px; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  .lead { color: var(--muted); margin: 0 0 22px; }
+  .bigsearch { display: flex; gap: 10px; margin: 0 0 28px; }
+  .bigsearch button { flex: 1; text-align: left; padding: 13px 16px; font-size: 15px; color: var(--muted); background: var(--panel); border-radius: 10px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 10px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; margin-bottom: 28px; }
+  .card { text-align: left; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; cursor: pointer;
+          display: flex; flex-direction: column; gap: 6px; min-height: 118px; }
+  .card:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .card:disabled { opacity: .5; cursor: default; transform: none; border-color: var(--line); }
+  .card .ico { width: 34px; height: 34px; border-radius: 9px; background: var(--chip); display: grid; place-items: center; }
+  .card .ico svg { width: 19px; height: 19px; stroke: var(--accent); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .card b { font-size: 15px; }
+  .card span { color: var(--muted); font-size: 13px; }
+  .status { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+  .status fieldset { margin: 0; }
+  .ok { color: var(--ok); } .warn { color: var(--warn); }
+  ol.steps { margin: 6px 0 0; padding-left: 20px; } ol.steps li { margin: 5px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>What do you want to do?</h1>
+  <p class="lead">Pick a task, or find anything in the game by name.</p>
+  <div class="bigsearch"><button id="find">🔍&nbsp; Find a quest, item, monster, shop or NPC…  <span style="float:right;font-size:12px">Ctrl K</span></button></div>
+
+  <h2>Make changes</h2>
+  <div class="cards" id="cards"></div>
+
+  <h2>Status</h2>
+  <div class="status">
+    <fieldset><legend>Your game</legend><div id="state">Loading…</div></fieldset>
+    <fieldset><legend>How changes reach the game</legend>
+      <ol class="steps">
+        <li><b>Save</b> in the editor (Ctrl+S). Changes are kept as packs in the game's <code>Mods</code> folder.</li>
+        <li><b>Start the game</b>: packs load when it starts.</li>
+        <li>Game already running? With DevTools, press F7 and type <code>reloadquests</code>, <code>reloadcontent</code> or <code>npcreload</code>.</li>
+      </ol>
+    </fieldset>
+  </div>
+  <p class="hint" style="margin-top:26px">Made with AI (Anthropic's Claude) and tested by a human player. A fan project, not affiliated with SmokymonkeyS.</p>
+</div>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const I = {
+  quest: '<path d="M7 3h10a2 2 0 0 1 2 2v14l-3-2-3 2-3-2-3 2V5a2 2 0 0 1 2-2z"/><path d="M9 8h6M9 12h4"/>',
+  copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>',
+  item: '<path d="M14.5 3.5 20.5 9.5 10 20H4v-6z"/><path d="m12 6 6 6"/>',
+  loot: '<rect x="3" y="9" width="18" height="11" rx="2"/><path d="M3 13h18M8 9V6a4 4 0 0 1 8 0v3"/>',
+  shop: '<path d="M4 9h16l-1 11H5z"/><path d="M8 9V7a4 4 0 0 1 8 0v2"/>',
+  npc: '<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/>',
+  packs: '<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',
+};
+// [icon, title, text, needs mod, tab, message to that tab]
+const TASKS = [
+  ["quest", "Make a new quest", "Who gives it, what to bring or defeat, and the reward.", "QuestLoader", "quests", { cmd: "newQuest" }],
+  ["copy", "Change one of the game's quests", "Browse all 345 and copy or replace one.", "QuestLoader", "quests", { cmd: "browseOriginals" }],
+  ["item", "Change an item", "Price, damage, armor, stack size, name…", "ContentLoader", "items", null],
+  ["loot", "Change what monsters drop", "Drop chances and what's in the chest, with a preview.", "ContentLoader", "loot", null],
+  ["shop", "Change what a shop sells", "Each vendor's stock.", "ContentLoader", "shops", null],
+  ["npc", "Add a person to the world", "Pick a look, a place and a job: quests, shop, bank…", "NPCLoader", "npcs", { cmd: "newNpc" }],
+  ["packs", "Switch packs and mods on or off", "Including the examples that come with the mods.", null, "overview", null],
+];
+
+async function load() {
+  const D = await (await fetch("/api/overview")).json();
+  const mods = Object.fromEntries(D.mods.map(m => [m.id, m]));
+  $("#cards").innerHTML = TASKS.map((t, i) => {
+    const missing = t[3] && !mods[t[3]].installed;
+    return `<button class="card" data-i="${i}" ${missing ? "disabled" : ""} title="${missing ? t[3] + " isn't installed: tick it in Setup.exe" : ""}">
+      <div class="ico"><svg viewBox="0 0 24 24">${I[t[0]]}</svg></div><b>${t[1]}</b><span>${missing ? t[3] + " isn't installed (Setup.exe)" : t[2]}</span></button>`;
+  }).join("");
+  document.querySelectorAll(".card").forEach(c => c.onclick = () => { const t = TASKS[+c.dataset.i]; parent.postMessage({ nav: t[4], msg: t[5] }, "*"); });
+
+  const packs = Object.values(D.packs).flat(), on = packs.filter(p => p.enabled).length;
+  const lines = [
+    `<div><span class="ok">●</span> Game folder <code>${esc(D.game)}</code></div>`,
+    `<div style="margin-top:6px">${D.mods.filter(m => m.installed).map(m => esc(m.id)).join(", ") || "No mods installed"}</div>`,
+    `<div style="margin-top:6px">${packs.length} pack(s), ${on} switched on</div>`,
+  ];
+  if (mods.QuestLoader.installed && !D.exported.quests) lines.push(`<div class="warn" style="margin-top:6px">● Play once (enter the world) so QuestLoader can list the game's quests.</div>`);
+  if (mods.ContentLoader.installed && !D.exported.content) lines.push(`<div class="warn" style="margin-top:6px">● Play once (enter the world, wait a few seconds) so ContentLoader can list items and loot.</div>`);
+  $("#state").innerHTML = lines.join("");
+}
+$("#find").onclick = () => parent.postMessage({ cmd: "focusSearch" }, "*");
+window.addEventListener("message", e => { if ((e.data || {}).cmd === "packsChanged") load(); });
+document.addEventListener("keydown", e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); parent.postMessage({ key: "ctrl-k" }, "*"); } });
+load().then(() => parent.postMessage({ ready: true }, "*")).catch(e => { document.body.textContent = "Couldn't load: " + e.message; });
+</script>
+</body>
+</html>

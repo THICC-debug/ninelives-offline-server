@@ -132,7 +132,7 @@ who wants to write their own server (in Rust, Go, anything) has a complete spec.
 | `installer/` | Setup.exe (C#, .NET Framework 4.8) and the release build script |
 | `modloader/` | The mod loader the patcher installs (C#, .NET 3.5) |
 | `mods/` | The mods, each released on its own (and `ExampleMod`, a starter to copy) |
-| `editor/` | The Nine Lives Editor: quests, items, loot, shops and NPCs in your browser |
+| `editor/` | The Nine Lives Editor app (C#) and its pages |
 | `Patch Game.bat` | Patches the game and installs the mod loader (or `restore` to undo) |
 | `Start Nine Lives.bat` | Starts the server, then the game |
 | `PROTOCOL.md` | Every server request and reply the game uses |
@@ -160,12 +160,12 @@ Each mod is self-contained and released on its own:
 
 ### 🛠️ Nine Lives Editor
 
-One page in your browser for everything the mods can change: **Quests**, **Items**, **Loot**, **Shops** and **NPCs**,
-plus an **Overview** to switch mods and packs on and off. The tabs work together: on an NPC, *New quest for …*
-opens the quest editor with that NPC as the giver. It comes with Setup.exe (`Open Nine Lives Editor.bat` in the
-game folder) and runs on your PC only. See **[editor/README.md](editor/README.md)**.
+One app for everything the mods can change: **Quests**, **Items**, **Monster loot**, **Shops** and **NPCs**, with a
+**Home** page of tasks, a search box that finds anything by name (Ctrl+K), and **Packs & mods** to switch things on and off. The tabs work together: on an NPC, *New quest for …*
+opens the quest editor with that NPC as the giver. It comes with Setup.exe (`Nine Lives Editor.exe` in the
+game folder and on the desktop), runs on your PC only, and needs nothing else installed. See **[editor/README.md](editor/README.md)**.
 
-The examples that come with the mods start switched off; turn them on in the editor's Overview.
+The examples that come with the mods start switched off; turn them on in the editor's Packs & mods tab.
 
 ## ⚗️ Alchemy recipes
 

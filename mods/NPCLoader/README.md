@@ -24,7 +24,7 @@ You get `Mods\NPCLoader.dll` and two examples, both switched off:
 - `Mods\NPCs\example-npcs.json.disabled`: Old Bram, next to Crimson Crest's binding stone
 - `Mods\Quests\example-old-bram.json.disabled`: his quest, "Bram's Berries" (needs [QuestLoader](../QuestLoader))
 
-Switch them on in the Nine Lives Editor (**Overview**), or remove `.disabled` from the names.
+Switch them on in the Nine Lives Editor (**Packs & mods**), or remove `.disabled` from the names.
 
 ## Placing NPCs with the editor
 

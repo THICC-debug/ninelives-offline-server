@@ -35,7 +35,6 @@ MODS = [
     ("NPCLoader", True, "Add your own NPCs (quest givers, vendors) from NPC packs (Nine Lives Editor)."),
     ("DevTools", False, "F7 command box for testing: teleport, give items and gold, set flags. Cheats!"),
 ]
-EDITOR_FILES = ["ninelives_editor.py", "index.html", "overview.html", "quests.html", "content.html", "npcs.html", "style.css", "README.md"]
 
 SERVER_FILES = ["ninelives_server.py", "aes.py", "recipes.json", "README.md", "LICENSE", "PROTOCOL.md", "ITEMS.md", "MODDING.md"]
 
@@ -154,11 +153,13 @@ def main():
 
     get_python(files)
 
-    # The Nine Lives Editor goes with the mods (it edits their packs).
+    # The Nine Lives Editor (one exe) goes with the mods: it edits their packs.
     if mods:
+        editor_proj = os.path.join(REPO, "editor", "NineLivesEditor", "NineLivesEditor.csproj")
+        run(["dotnet", "build", "-c", "Release", "-v", "q", "-nologo", editor_proj])
         os.makedirs(os.path.join(files, "editor"))
-        for f in EDITOR_FILES:
-            shutil.copy2(os.path.join(REPO, "editor", f), os.path.join(files, "editor", f))
+        shutil.copy2(os.path.join(REPO, "editor", "NineLivesEditor", "bin", "Release", "net48", "NineLivesEditor.exe"),
+                     os.path.join(files, "editor", "NineLivesEditor.exe"))
 
     # Setup.exe
     run(["dotnet", "build", "-c", "Release", "-v", "q", "-nologo", setup_proj])

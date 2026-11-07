@@ -24,12 +24,12 @@ Edit packs by hand, or in the [Nine Lives Editor](../../editor)'s **Items**, **L
 Tick ContentLoader in Setup.exe, or unzip the release into your game folder (the one with `Ninelives.exe`).
 You get `Mods\ContentLoader.dll` and `Mods\Content\example-content.json.disabled`, an example that makes
 alchemy herbs cheaper and Gnolls drop more. It's switched off: turn it on in the Nine Lives Editor
-(**Overview**), or rename it to `example-content.json`.
+(**Packs & mods**), or rename it to `example-content.json`.
 
 ## Editing content
 
 Play once with ContentLoader installed (enter the world and wait a few seconds) so it can export the
-game's data, then open the Nine Lives Editor (`Open Nine Lives Editor.bat` in the game folder).
+game's data, then open the Nine Lives Editor (`Nine Lives Editor.exe` in the game folder).
 
 - **Items:** every item's original price and stats, filterable by category (weapons, armor, herbs,
   potions…). **Change this item**, then set a new price, markup, stats (with plain names like

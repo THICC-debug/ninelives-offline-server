@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Nine Lives Editor as a Windows app: one exe with the web pages inside, its own window
+       (Edge WebView2, which comes with Windows 10/11), and a built-in local server.
+       No Python needed. Build: dotnet build -c Release -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <AssemblyName>NineLivesEditor</AssemblyName>
+    <RootNamespace>NineLivesEditor</RootNamespace>
+    <Version>1.0.0</Version>
+    <Product>Nine Lives Editor</Product>
+    <Description>Nine Lives Editor</Description>
+    <LangVersion>latest</LangVersion>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies.net48" Version="1.0.3" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4191.47" />
+    <Reference Include="System.Web.Extensions" />
+  </ItemGroup>
+
+  <!-- Build everything into the one exe: the web pages, and WebView2's DLLs (see Resources.cs). -->
+  <PropertyGroup>
+    <WebView2Pkg>$(NuGetPackageRoot)microsoft.web.webview2\1.0.4191.47\</WebView2Pkg>
+  </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="..\web\*.*" LogicalName="web/%(Filename)%(Extension)" />
+  </ItemGroup>
+  <Target Name="EmbedWebView2" BeforeTargets="PrepareForBuild">
+    <ItemGroup>
+      <EmbeddedResource Include="$(WebView2Pkg)lib\net462\Microsoft.Web.WebView2.Core.dll" LogicalName="lib/Microsoft.Web.WebView2.Core.dll" />
+      <EmbeddedResource Include="$(WebView2Pkg)lib\net462\Microsoft.Web.WebView2.WinForms.dll" LogicalName="lib/Microsoft.Web.WebView2.WinForms.dll" />
+      <EmbeddedResource Include="$(WebView2Pkg)runtimes\win-x64\native\WebView2Loader.dll" LogicalName="native/x64/WebView2Loader.dll" />
+      <EmbeddedResource Include="$(WebView2Pkg)runtimes\win-x86\native\WebView2Loader.dll" LogicalName="native/x86/WebView2Loader.dll" />
+    </ItemGroup>
+  </Target>
+</Project>

@@ -35,7 +35,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
 function status(msg, cls) { const s = $("#status"); s.textContent = msg; s.className = cls || ""; }
-function setDirty(v = true) { dirty = v; status(v ? "Unsaved changes" : "Saved", v ? "" : "ok"); }
+function setDirty(v = true) { dirty = v; status(v ? "Unsaved changes" : "Saved", v ? "" : "ok"); parent.postMessage({ dirty: v }, "*"); }
 
 async function api(path, opts) {
   const r = await fetch(path, opts); const j = await r.json();
@@ -66,6 +66,15 @@ function ensurePack(n) { if (![...$("#packSel").options].some(o => o.value === n
 window.addEventListener("message", async e => {
   const m = e.data || {};
   if (m.cmd === "openPack") { ensurePack(m.name); await openPack(m.name); }
+  if (m.cmd === "browseOriginals") { tab = "orig"; sel = null; renderList(); renderEditor(); $("#search").focus(); }
+  if (m.cmd === "search") { tab = "orig"; $("#search").value = m.q || ""; renderList(); }
+  if (m.cmd === "select") {
+    const mine = pack.quests.findIndex(q => q.id == m.id);
+    if (mine >= 0) { tab = "pack"; sel = { tab, i: mine }; }
+    else { const o = D.originals.findIndex(q => q.id == m.id); if (o >= 0) { tab = "orig"; sel = { tab, i: o }; } }
+    $("#search").value = ""; renderList(); renderEditor();
+    const el = document.querySelector("#list .item.sel"); if (el) el.scrollIntoView({ block: "center" });
+  }
   if (m.cmd === "newQuest") {
     newQuest();
     const q = pack.quests[pack.quests.length - 1];
@@ -435,6 +444,9 @@ $("#tabPack").onclick = () => { tab = "pack"; renderList(); };
 $("#tabOrig").onclick = () => { tab = "orig"; renderList(); };
 $("#search").oninput = renderList;
 document.addEventListener("keydown", e => { if ((e.ctrlKey || e.metaKey) && e.key === "s") { e.preventDefault(); save(); } });
+
+// Ctrl+K goes to the search box in the main window.
+document.addEventListener("keydown", e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); parent.postMessage({ key: "ctrl-k" }, "*"); } });
 window.addEventListener("beforeunload", e => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
 boot().then(() => parent.postMessage({ ready: true }, "*")).catch(e => status("Couldn't load: " + e.message, "bad"));
 </script>

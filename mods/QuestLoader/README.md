@@ -30,12 +30,12 @@ Ninelives\Mods\QuestLoader.dll
 Ninelives\Mods\Quests\example-pack.json.disabled     ← a sample quest, switched off
 ```
 
-Switch the example on in the Nine Lives Editor (**Overview**), or rename it to `example-pack.json`.
+Switch the example on in the Nine Lives Editor (**Packs & mods**), or rename it to `example-pack.json`.
 Start the game and log in once: QuestLoader exports the quests and items when you enter the world.
 
 ## Making quests
 
-Open the Nine Lives Editor (`Open Nine Lives Editor.bat` in the game folder) and go to **Quests**.
+Open the Nine Lives Editor (`Nine Lives Editor.exe` in the game folder) and go to **Quests**.
 
 1. **Original quests**: browse all 345 quests. **Copy as a new quest** to use one as a starting point,
    or **Replace this quest in my pack** to change the original.

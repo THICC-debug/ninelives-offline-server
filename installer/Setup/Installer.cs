@@ -24,7 +24,7 @@ namespace NineLivesSetup
     /// Layout next to Setup.exe:
     ///   files\loader\   NineLivesModLoader.dll, 0Harmony.dll
     ///   files\server\   ninelives_server.py, aes.py, recipes.json, docs
-    ///   files\python\   the official Python embeddable package (runs the server and editors)
+    ///   files\python\   the official Python embeddable package (runs the server)
     ///   files\mods\     one release zip per mod, laid out to unzip into the game folder
     ///   files\editor\   the Nine Lives Editor (with the mods)
     ///   files\mods.txt  id | version | zip | default | description
@@ -33,7 +33,7 @@ namespace NineLivesSetup
     ///   Ninelives_Data\Managed\*   patched (originals backed up to Ninelives_Data\OfflineBackup)
     ///   OfflineServer\             server, its Python, and the save (save.json)
     ///   Mods\                      mod loader's folder and the chosen mods
-    ///   Editor\                    the Nine Lives Editor, with "Open Nine Lives Editor.bat"
+    ///   Nine Lives Editor.exe      the editor (one exe, no Python needed)
     ///   Play Nine Lives Offline.bat
     /// </summary>
     public static class Installer
@@ -41,11 +41,11 @@ namespace NineLivesSetup
         public const string ServerFolder = "OfflineServer";
         public const string PlayLauncher = "Play Nine Lives Offline.bat";
         public const string ShortcutName = "Nine Lives (Offline).lnk";
-        public const string EditorFolder = "Editor";
-        public const string EditorLauncher = "Open Nine Lives Editor.bat";
-        // Launchers and folders from before the all-in-one editor (1.0.x installs).
-        static readonly string[] OldEditorLaunchers = { "Mods\\Open Quest Editor.bat", "Mods\\Open Content Editor.bat" };
-        static readonly string[] OldEditorFolders = { "Mods\\QuestLoader\\editor", "Mods\\ContentLoader\\editor" };
+        public const string EditorExe = "Nine Lives Editor.exe";
+        public const string EditorShortcutName = "Nine Lives Editor.lnk";
+        // Editors from earlier versions: the per-mod ones (1.0.x) and the Python-based all-in-one.
+        static readonly string[] OldEditorFiles = { "Mods\\Open Quest Editor.bat", "Mods\\Open Content Editor.bat", "Open Nine Lives Editor.bat" };
+        static readonly string[] OldEditorFolders = { "Mods\\QuestLoader\\editor", "Mods\\ContentLoader\\editor", "Editor" };
         static readonly string[] SaveFiles = { "save.json" };
 
         public static string Version
@@ -112,6 +112,15 @@ namespace NineLivesSetup
         // ---------- state ----------
 
         public static bool GameRunning() { return Process.GetProcessesByName("Ninelives").Length > 0; }
+
+        /// <summary>Is this game's editor open? (It may have unsaved changes, so Setup asks instead of closing it.)</summary>
+        static bool EditorRunning(string game)
+        {
+            var exe = Path.Combine(game, EditorExe);
+            foreach (var p in Process.GetProcessesByName(Path.GetFileNameWithoutExtension(EditorExe)))
+                try { if (string.Equals(p.MainModule.FileName, exe, StringComparison.OrdinalIgnoreCase)) return true; } catch { }
+            return false;
+        }
 
         /// <summary>
         /// Stop the offline server and editors started from this game folder (they lock the Python files).
@@ -181,6 +190,7 @@ namespace NineLivesSetup
             var problem = PayloadProblem();
             if (problem != null) throw new InvalidOperationException(problem);
             if (GameRunning()) throw new InvalidOperationException("Nine Lives is running. Close the game, then try again.");
+            if (EditorRunning(game)) throw new InvalidOperationException("The Nine Lives Editor is open. Save your changes and close it, then try again.");
             var mods = LoadMods();
             var unknown = modIds.Where(id => !mods.Any(m => m.Id.Equals(id, StringComparison.OrdinalIgnoreCase))).ToList();
             if (unknown.Count > 0) throw new InvalidOperationException("Unknown mod: " + string.Join(", ", unknown));
@@ -220,16 +230,17 @@ namespace NineLivesSetup
             }
 
             // 4) The Nine Lives Editor (shipped with the mods), replacing the old per-mod editors.
-            foreach (var old in OldEditorLaunchers) { var f = Path.Combine(game, old); if (File.Exists(f)) File.Delete(f); }
-            foreach (var old in OldEditorFolders) { var d = Path.Combine(game, old); if (Directory.Exists(d)) Directory.Delete(d, true); }
-            var editorSrc = Path.Combine(Payload, "editor");
-            if (Directory.Exists(editorSrc))
+            RemoveOldEditors(game);
+            var editorSrc = Path.Combine(Payload, "editor", "NineLivesEditor.exe");
+            if (File.Exists(editorSrc))
             {
-                var editorDir = Path.Combine(game, EditorFolder);
-                if (Directory.Exists(editorDir)) Directory.Delete(editorDir, true);
-                CopyDir(editorSrc, editorDir);
-                WriteEditorLauncher(game);
-                log("Nine Lives Editor installed: \"" + EditorLauncher + "\" in the game folder");
+                File.Copy(editorSrc, Path.Combine(game, EditorExe), true);
+                log("Nine Lives Editor installed: \"" + EditorExe + "\" in the game folder");
+                if (shortcut)
+                {
+                    try { MakeShortcut(Path.Combine(DesktopDir, EditorShortcutName), Path.Combine(game, EditorExe), game, Path.Combine(game, "Ninelives.exe") + ",0", "Edit quests, items, loot, shops and NPCs", 1); }
+                    catch (Exception e) { log("Couldn't make the editor's desktop shortcut: " + e.Message); }
+                }
             }
 
             // 5) Launcher, shortcut, remember the folder.
@@ -315,35 +326,34 @@ start """" ""%~dp0Ninelives.exe""
 ");
         }
 
-        static void WriteEditorLauncher(string game)
+        static void RemoveOldEditors(string game)
         {
-            WriteBat(Path.Combine(game, EditorLauncher),
-@"@echo off
-rem Opens the Nine Lives Editor in your browser. Keep this window open while you edit; close it to stop the editor.
-cd /d ""%~dp0""
-""OfflineServer\python\python.exe"" ""Editor\ninelives_editor.py"" --game ""%CD%""
-if errorlevel 1 pause
-");
+            foreach (var old in OldEditorFiles) { var f = Path.Combine(game, old); if (File.Exists(f)) File.Delete(f); }
+            foreach (var old in OldEditorFolders) { var d = Path.Combine(game, old); if (Directory.Exists(d)) Directory.Delete(d, true); }
         }
 
-        static string DesktopShortcut
-        {
-            get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), ShortcutName); }
-        }
+        static string DesktopDir { get { return Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory); } }
+        static string DesktopShortcut { get { return Path.Combine(DesktopDir, ShortcutName); } }
 
         static void MakeShortcut(string game)
+        {
+            // Minimized: the .bat's own window closes right away anyway.
+            MakeShortcut(DesktopShortcut, Path.Combine(game, PlayLauncher), game, Path.Combine(game, "Ninelives.exe") + ",0", "Play Nine Lives with the offline server", 7);
+        }
+
+        static void MakeShortcut(string lnkPath, string target, string workDir, string icon, string description, int windowStyle)
         {
             // WScript.Shell is on every Windows; late-bound so no COM interop assembly is needed.
             var shellType = Type.GetTypeFromProgID("WScript.Shell");
             var shell = Activator.CreateInstance(shellType);
-            var lnk = shellType.InvokeMember("CreateShortcut", System.Reflection.BindingFlags.InvokeMethod, null, shell, new object[] { DesktopShortcut });
+            var lnk = shellType.InvokeMember("CreateShortcut", System.Reflection.BindingFlags.InvokeMethod, null, shell, new object[] { lnkPath });
             var t = lnk.GetType();
             Action<string, object> set = (n, v) => t.InvokeMember(n, System.Reflection.BindingFlags.SetProperty, null, lnk, new[] { v });
-            set("TargetPath", Path.Combine(game, PlayLauncher));
-            set("WorkingDirectory", game);
-            set("IconLocation", Path.Combine(game, "Ninelives.exe") + ",0");
-            set("WindowStyle", 7);   // minimized: the .bat window closes right away anyway
-            set("Description", "Play Nine Lives with the offline server");
+            set("TargetPath", target);
+            set("WorkingDirectory", workDir);
+            set("IconLocation", icon);
+            set("WindowStyle", windowStyle);
+            set("Description", description);
             t.InvokeMember("Save", System.Reflection.BindingFlags.InvokeMethod, null, lnk, null);
         }
 
@@ -358,6 +368,7 @@ if errorlevel 1 pause
             game = Path.GetFullPath(game);
             if (!GamePatcher.LooksLikeGame(game)) throw new InvalidOperationException("Ninelives.exe isn't in " + game + ".");
             if (GameRunning()) throw new InvalidOperationException("Nine Lives is running. Close the game, then try again.");
+            if (EditorRunning(game)) throw new InvalidOperationException("The Nine Lives Editor is open. Save your changes and close it, then try again.");
             log("Uninstalling Nine Lives Offline from " + game);
             StopOurPython(game, log);
 
@@ -402,10 +413,11 @@ if errorlevel 1 pause
                 }
             }
 
-            var editorFolder = Path.Combine(game, EditorFolder);
-            if (Directory.Exists(editorFolder)) Directory.Delete(editorFolder, true);
-            foreach (var f in new[] { EditorLauncher }.Concat(OldEditorLaunchers).Select(x => Path.Combine(game, x)))
-                if (File.Exists(f)) File.Delete(f);
+            RemoveOldEditors(game);
+            var editorExe = Path.Combine(game, EditorExe);
+            if (File.Exists(editorExe)) File.Delete(editorExe);
+            var editorLnk = Path.Combine(DesktopDir, EditorShortcutName);
+            if (File.Exists(editorLnk)) File.Delete(editorLnk);
 
             var play = Path.Combine(game, PlayLauncher);
             if (File.Exists(play)) File.Delete(play);

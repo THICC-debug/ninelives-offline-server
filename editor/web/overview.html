@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Overview</title>
+<title>Packs &amp; mods</title>
 <link rel="stylesheet" href="/style.css">
 <style>
   body { overflow: auto; }
@@ -22,7 +22,7 @@
 </head>
 <body>
 <div class="wrap">
-  <p class="title">Overview</p>
+  <p class="title">Packs &amp; mods</p>
   <p class="hint" id="game"></p>
   <div id="notes"></div>
 
@@ -108,6 +108,9 @@ async function load() {
 }
 
 window.addEventListener("message", e => { if ((e.data || {}).cmd === "packsChanged") load(); });
+// Ctrl+K goes to the search box in the main window.
+document.addEventListener("keydown", e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); parent.postMessage({ key: "ctrl-k" }, "*"); } });
+
 load().then(() => parent.postMessage({ ready: true }, "*")).catch(e => { document.body.textContent = "Couldn't load: " + e.message; });
 </script>
 </body>

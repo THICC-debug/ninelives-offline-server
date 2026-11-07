@@ -40,7 +40,7 @@ const zoneName = z => String(z || "").replace(/^Zone_/, "").replace(/([a-z])([A-
 const r1 = v => Math.round((+v || 0) * 10) / 10;
 
 function status(msg, cls) { const s = $("#status"); s.textContent = msg; s.className = cls || ""; }
-function setDirty(v = true) { dirty = v; status(v ? "Unsaved changes" : "Saved", v ? "" : "ok"); }
+function setDirty(v = true) { dirty = v; status(v ? "Unsaved changes" : "Saved", v ? "" : "ok"); parent.postMessage({ dirty: v }, "*"); }
 async function api(path, opts) { const r = await fetch(path, opts); const j = await r.json(); if (!r.ok) throw new Error(j.error || r.statusText); return j; }
 
 // The game's own NPCs (from QuestLoader's export), by zone.
@@ -209,6 +209,15 @@ async function save(quiet) {
 window.addEventListener("message", async e => {
   const m = e.data || {};
   if (m.cmd === "openPack") { ensurePack(m.name); await openPack(m.name); }
+  if (m.cmd === "newNpc") newNpc();
+  if (m.cmd === "select") {
+    let i = pack.npcs.findIndex(n => n.id == m.id);
+    if (i < 0) {   // in another pack
+      const where = (D.custom || []).find(n => n.cid == m.id);
+      if (where && where.pack !== packName) { ensurePack(where.pack); await openPack(where.pack); i = pack.npcs.findIndex(n => n.id == m.id); }
+    }
+    if (i >= 0) { sel = i; renderList(); renderEditor(); }
+  }
   if (m.cmd === "packsChanged" && m.kind !== "npcs") {
     const fresh = await api("/api/npcs/data");
     D.originals = fresh.originals; D.packQuests = fresh.packQuests; D.shops = fresh.shops; D.packsOff = fresh.packsOff;
@@ -224,6 +233,9 @@ $("#newPack").onclick = () => {
 };
 $("#search").oninput = renderList;
 document.addEventListener("keydown", e => { if ((e.ctrlKey || e.metaKey) && e.key === "s") { e.preventDefault(); save(); } });
+
+// Ctrl+K goes to the search box in the main window.
+document.addEventListener("keydown", e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); parent.postMessage({ key: "ctrl-k" }, "*"); } });
 window.addEventListener("beforeunload", e => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
 boot().then(() => parent.postMessage({ ready: true }, "*")).catch(e => status("Couldn't load: " + e.message, "bad"));
 </script>
