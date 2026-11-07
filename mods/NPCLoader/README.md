@@ -1,6 +1,6 @@
 # NPCLoader for Nine Lives
 
-**Version 1.2.0** · a mod for *Ninelives* 0.24.3 (offline)
+**Version 1.2.1** · a mod for *Ninelives* 0.24.3 (offline)
 
 > [!NOTE]
 > This mod was made with AI (Anthropic's Claude, in Claude Code) and tested by a human player.

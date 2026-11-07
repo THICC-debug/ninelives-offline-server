@@ -37,6 +37,7 @@
   <span id="status">Loading…</span>
   <span id="live" class="badge off">○ Game not running</span>
 </header>
+<div class="offbar" id="offBar" hidden>⚠ This pack is switched off, so the game ignores it. <button id="offOn">Switch it on</button></div>
 <main>
   <aside>
     <input id="search" type="search" placeholder="Search rules and scripts…">
@@ -74,7 +75,7 @@ async function boot() {
   $("#keyList").innerHTML = KEYS.map(k => `<option value="${k}">`).join("");
   const packs = D.packs.length ? D.packs : ["my-scripts"];
   fillPacks(packs);
-  await openPack(packs.find(p => !(D.packsOff || []).includes(p)) || packs[0]);
+  await openPack(packs.find(p => !(D.packsOff || []).includes(p)) || (ensurePack("my-scripts"), "my-scripts"));
 }
 function fillPacks(list) {
   const off = new Set(D.packsOff || []);
@@ -90,6 +91,7 @@ async function openPack(name) {
   dirty = false; parent.postMessage({ dirty: false }, "*");
   status(`Pack "${name}": ${pack.rules.length} rule(s), ${pack.scripts.length} Lua script(s)`);
   renderList(); renderEditor();
+  updateOffBar();
 }
 const uid = (list, base) => { for (let i = 1; ; i++) if (!list.some(x => x.id === base + i)) return base + i; };
 
@@ -271,6 +273,24 @@ function newLua() {
   pack.scripts.push({ id: uid(pack.scripts, "script-"), name: "New script", code: LUA_EXAMPLE });
   sel = { k: "lua", i: pack.scripts.length - 1 }; setDirty(); renderList(); renderEditor();
 }
+
+
+// ---------------------------------------------------------------- a pack that's switched off does nothing in the game: say so
+function updateOffBar() {
+  const bar = document.getElementById("offBar"); if (!bar) return;
+  bar.hidden = !(D.packsOff || []).includes(packName);
+}
+document.getElementById("offOn").onclick = async () => {
+  try {
+    await api(`/api/packs/toggle?kind=scripts&name=${encodeURIComponent(packName)}&on=1`, { method: "POST" });
+    D.packsOff = (D.packsOff || []).filter(n => n !== packName);
+    fillPacks([...$("#packSel").options].map(o => o.value));
+    updateOffBar();
+    status("Switched on.", "ok");
+    if (G.connected && G.inWorld) await fetch("/api/live/scripts/reload", { method: "POST", body: "{}" });
+    parent.postMessage({ broadcast: { cmd: "packsChanged", kind: "scripts" } }, "*");
+  } catch (e) { status("Couldn't switch it on: " + e.message, "bad"); }
+};
 
 // ---------------------------------------------------------------- live, save, delete
 async function pollGame() {

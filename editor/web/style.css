@@ -89,3 +89,8 @@ table.kv td.changed input { border-color: var(--accent); }
 .switch input:checked::after { left: 18px; }
 
 @media (max-width: 760px) { main { grid-template-columns: 1fr; height: auto; } aside { max-height: 45vh; } }
+
+/* "this pack is switched off" */
+.offbar { display: flex; gap: 10px; align-items: center; padding: 7px 16px; background: var(--chip); color: var(--warn); border-bottom: 1px solid var(--line); font-size: 13px; }
+.offbar[hidden] { display: none; }
+.offbar button { padding: 3px 10px; font-size: 12px; }

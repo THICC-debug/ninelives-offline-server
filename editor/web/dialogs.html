@@ -44,6 +44,7 @@
   <span id="status">Loading…</span>
   <span id="live" class="badge off">○ Game not running</span>
 </header>
+<div class="offbar" id="offBar" hidden>⚠ This pack is switched off, so the game ignores it. <button id="offOn">Switch it on</button></div>
 <main>
   <aside>
     <input id="search" type="search" placeholder="Search dialogues…">
@@ -80,8 +81,13 @@ async function boot() {
   $("#zoneList").innerHTML = [...new Set(D.npcs.map(n => n.zone).filter(Boolean))].sort().map(z => `<option value="${esc(z)}">`).join("");
   $("#keyList").innerHTML = KEYS.map(k => `<option value="${k}">`).join("");
   const packs = D.packs.length ? D.packs : ["my-scripts"];
-  $("#packSel").innerHTML = packs.map(p => `<option value="${esc(p)}">${esc(p)}${(D.packsOff || []).includes(p) ? " (off)" : ""}</option>`).join("");
-  await openPack(packs.find(p => !(D.packsOff || []).includes(p)) || packs[0]);
+  fillPacks(packs);
+  await openPack(packs.find(p => !(D.packsOff || []).includes(p)) || (ensurePack("my-scripts"), "my-scripts"));
+}
+function fillPacks(list) {
+  const off = new Set(D.packsOff || []);
+  $("#packSel").innerHTML = list.map(p => `<option value="${esc(p)}">${esc(p)}${off.has(p) ? " (off)" : ""}</option>`).join("");
+  if (packName) $("#packSel").value = packName;
 }
 function ensurePack(n) { if (![...$("#packSel").options].some(o => o.value === n)) $("#packSel").insertAdjacentHTML("beforeend", `<option value="${esc(n)}">${esc(n)}</option>`); $("#packSel").value = n; }
 async function openPack(name) {
@@ -91,6 +97,7 @@ async function openPack(name) {
   packName = name; sel = pack.dialogs.length ? 0 : -1; dirty = false; parent.postMessage({ dirty: false }, "*");
   status(`Pack "${name}": ${pack.dialogs.length} dialogue(s)`);
   renderList(); renderEditor();
+  updateOffBar();
 }
 const uid = (list, base) => { for (let i = 1; ; i++) if (!list.some(x => x.id === base + i)) return base + i; };
 
@@ -301,6 +308,24 @@ function preview(d, nodeId, did) {
 }
 function closePv() { $("#pv").classList.remove("on"); }
 $("#pvX").onclick = closePv;
+
+
+// ---------------------------------------------------------------- a pack that's switched off does nothing in the game: say so
+function updateOffBar() {
+  const bar = document.getElementById("offBar"); if (!bar) return;
+  bar.hidden = !(D.packsOff || []).includes(packName);
+}
+document.getElementById("offOn").onclick = async () => {
+  try {
+    await api(`/api/packs/toggle?kind=scripts&name=${encodeURIComponent(packName)}&on=1`, { method: "POST" });
+    D.packsOff = (D.packsOff || []).filter(n => n !== packName);
+    fillPacks([...$("#packSel").options].map(o => o.value));
+    updateOffBar();
+    status("Switched on.", "ok");
+    if (G.connected && G.inWorld) await fetch("/api/live/scripts/reload", { method: "POST", body: "{}" });
+    parent.postMessage({ broadcast: { cmd: "packsChanged", kind: "scripts" } }, "*");
+  } catch (e) { status("Couldn't switch it on: " + e.message, "bad"); }
+};
 
 // ---------------------------------------------------------------- live, save
 async function pollGame() {

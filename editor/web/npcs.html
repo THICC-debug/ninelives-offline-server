@@ -28,6 +28,7 @@
   <span id="status">Loading…</span>
   <span id="live" class="badge off" title="Live link to the running game">○ Game not running</span>
 </header>
+<div class="offbar" id="offBar" hidden>⚠ This pack is switched off, so the game ignores it. <button id="offOn">Switch it on</button></div>
 <main>
   <aside>
     <input id="search" type="search" placeholder="Search name, id, zone…">
@@ -67,7 +68,7 @@ async function boot() {
   D = await api("/api/npcs/data");
   const packs = D.packs.length ? D.packs : ["my-npcs"];
   fillPacks(packs);
-  await openPack(packs.find(p => !(D.packsOff || []).includes(p)) || packs[0]);
+  await openPack(packs.find(p => !(D.packsOff || []).includes(p)) || (ensurePack("my-npcs"), "my-npcs"));
   if (!gameNpcs().length) status("No NPC list yet: play once with QuestLoader installed (visit a zone), then reload.", "bad");
 }
 
@@ -84,6 +85,7 @@ async function openPack(name) {
   pack.npcs = pack.npcs || []; packName = name; sel = pack.npcs.length ? 0 : -1; dirty = false;
   status(`Pack "${name}": ${pack.npcs.length} NPC(s)`);
   renderList(); renderEditor();
+  updateOffBar();
 }
 
 // Ids used by every pack (this one as edited, the others as saved).
@@ -343,6 +345,24 @@ $("#discard").onclick = async () => {
 
 setInterval(pollGame, 2500);
 pollGame();
+
+
+// ---------------------------------------------------------------- a pack that's switched off does nothing in the game: say so
+function updateOffBar() {
+  const bar = document.getElementById("offBar"); if (!bar) return;
+  bar.hidden = !(D.packsOff || []).includes(packName);
+}
+document.getElementById("offOn").onclick = async () => {
+  try {
+    await api(`/api/packs/toggle?kind=npcs&name=${encodeURIComponent(packName)}&on=1`, { method: "POST" });
+    D.packsOff = (D.packsOff || []).filter(n => n !== packName);
+    fillPacks([...$("#packSel").options].map(o => o.value));
+    updateOffBar();
+    status("Switched on.", "ok");
+    if (G.connected && G.inWorld) await fetch("/api/live/reload", { method: "POST", body: "{}" });
+    parent.postMessage({ broadcast: { cmd: "packsChanged", kind: "npcs" } }, "*");
+  } catch (e) { status("Couldn't switch it on: " + e.message, "bad"); }
+};
 
 // ---------------------------------------------------------------- save
 async function save(quiet) {

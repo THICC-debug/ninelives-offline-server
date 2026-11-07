@@ -34,6 +34,7 @@
   <span id="status">Loading…</span>
   <span id="live" class="badge off">○ Game not running</span>
 </header>
+<div class="offbar" id="offBar" hidden>⚠ This pack is switched off, so the game ignores it. <button id="offOn">Switch it on</button></div>
 <main>
   <aside>
     <input id="search" type="search" placeholder="Search name, zone…">
@@ -63,7 +64,7 @@ async function boot() {
   D = await api("/api/world/data");
   const packs = D.packs.length ? D.packs : ["my-world"];
   fillPacks(packs);
-  await openPack(packs.find(p => !(D.packsOff || []).includes(p)) || packs[0]);
+  await openPack(packs.find(p => !(D.packsOff || []).includes(p)) || (ensurePack("my-world"), "my-world"));
 }
 function fillPacks(names) {
   const off = new Set(D.packsOff || []);
@@ -77,6 +78,7 @@ async function openPack(name) {
   pack.objects = pack.objects || []; packName = name; sel = pack.objects.length ? 0 : -1; dirty = false; parent.postMessage({ dirty: false }, "*");
   status(`Pack "${name}": ${pack.objects.length} thing(s)`);
   renderList(); renderEditor();
+  updateOffBar();
 }
 function nextId(base) {
   const used = new Set([...(D.ids || []), ...pack.objects.map(o => o.id)]);
@@ -268,6 +270,24 @@ async function pollGame() {
   const typing = document.activeElement && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName);
   if (state !== pollGame.last && !typing && pack) { pollGame.last = state; renderEditor(); }
 }
+
+
+// ---------------------------------------------------------------- a pack that's switched off does nothing in the game: say so
+function updateOffBar() {
+  const bar = document.getElementById("offBar"); if (!bar) return;
+  bar.hidden = !(D.packsOff || []).includes(packName);
+}
+document.getElementById("offOn").onclick = async () => {
+  try {
+    await api(`/api/packs/toggle?kind=world&name=${encodeURIComponent(packName)}&on=1`, { method: "POST" });
+    D.packsOff = (D.packsOff || []).filter(n => n !== packName);
+    fillPacks([...$("#packSel").options].map(o => o.value));
+    updateOffBar();
+    status("Switched on.", "ok");
+    if (G.connected && G.inWorld) await fetch("/api/live/world/reload", { method: "POST", body: "{}" });
+    parent.postMessage({ broadcast: { cmd: "packsChanged", kind: "world" } }, "*");
+  } catch (e) { status("Couldn't switch it on: " + e.message, "bad"); }
+};
 
 // ---------------------------------------------------------------- save, delete, discard
 async function save() {

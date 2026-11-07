@@ -40,7 +40,7 @@ namespace NPCLoader
         public bool sit;
     }
 
-    [ModInfo("npcloader", "NPCLoader", "1.2.0", Author = "Nine Lives offline project",
+    [ModInfo("npcloader", "NPCLoader", "1.2.1", Author = "Nine Lives offline project",
         Description = "Adds custom NPCs (quest givers, vendors, alchemists) from JSON NPC packs in Mods\\NPCs.")]
     public class NPCLoader : Mod
     {
@@ -384,15 +384,22 @@ namespace NPCLoader
         }
 
         static readonly FieldInfo SelectorReady = AccessTools.Field(typeof(CharacterSelector), "initPortrait");
+        static readonly FieldInfo SelectorStats = AccessTools.Field(typeof(CharacterSelector), "statsSet");
+        static readonly HashSet<int> selectorTold = new HashSet<int>();
 
         static void FixModel(CommonStats s)
         {
             if (s == null || !s.initialized) return;
             // Clicking an NPC only works once its selector heard "stats initialized". A copy's selector
-            // can start before that's possible and never hears it, so tell it ourselves.
+            // can start before that's possible and never hears it, so tell it ourselves - once the
+            // selector itself has started (it knows its NPC) and the NPC has its body.
             foreach (var sel in s.GetComponentsInChildren<CharacterSelector>(true))
-                if (SelectorReady != null && !(bool)SelectorReady.GetValue(sel))
-                    try { sel.onCommonStatsInitialized(s); } catch (Exception e) { ModLoader.Log("NPCLoader: selector: " + e.Message); }
+            {
+                if (SelectorReady == null || (bool)SelectorReady.GetValue(sel)) continue;
+                if (SelectorStats == null || SelectorStats.GetValue(sel) == null || s.controllTarget == null) continue;   // not yet: next frame
+                try { sel.onCommonStatsInitialized(s); }
+                catch (Exception e) { if (selectorTold.Add(sel.GetInstanceID())) ModLoader.Log("NPCLoader: " + s.dispName + ": selector: " + e.Message); }
+            }
             if (!s.initializedCharacterModel || s.controllTarget == null) return;
             var keep = s.controllTarget;
             if (keep.parent == s.transform && keep.localPosition.sqrMagnitude > 1000f * 1000f) keep.localPosition = Vector3.zero;
