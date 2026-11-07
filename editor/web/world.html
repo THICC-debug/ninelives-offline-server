@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>World</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+  #live { margin-left: 6px; font-size: 12px; padding: 2px 9px; }
+  #live.on { color: var(--ok); border: 1px solid var(--ok); }
+  .livebox { border-color: var(--accent); }
+  .livebox legend { color: var(--accent); }
+  .pad { display: grid; grid-template-columns: repeat(3, 38px); gap: 4px; }
+  .pad button { padding: 6px 0; }
+  .liverow { display: flex; gap: 18px; flex-wrap: wrap; align-items: flex-start; }
+  .liverow .col { display: flex; flex-direction: column; gap: 6px; }
+  .chain { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin-top: 8px; }
+  .chain .lv { display: flex; gap: 10px; align-items: center; padding: 7px 10px; border-bottom: 1px solid var(--line); }
+  .chain .lv:last-child { border-bottom: 0; }
+  .chain .lv.sug { background: var(--chip); box-shadow: inset 3px 0 var(--accent); }
+  .chain .lv .nm { flex: 1; min-width: 0; }
+  .chain .lv .nm small { display: block; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .chain .lv button { padding: 3px 9px; font-size: 12px; }
+  code.path { word-break: break-all; }
+</style>
+</head>
+<body>
+<header>
+  <label>Pack <select id="packSel"></select></label>
+  <button id="newPack">New pack</button>
+  <button id="save" class="primary" title="Ctrl+S">Save pack</button>
+  <button id="delPack" class="danger" title="Delete this pack (to the Recycle Bin)">Delete pack</button>
+  <button id="discard" title="Throw away unsaved changes (and put the game back as saved)">Discard changes</button>
+  <span id="status">Loading…</span>
+  <span id="live" class="badge off">○ Game not running</span>
+</header>
+<main>
+  <aside>
+    <input id="search" type="search" placeholder="Search name, zone…">
+    <div id="list"></div>
+  </aside>
+  <section id="editor"></section>
+</main>
+<script>
+let D = {}, pack = null, packName = null, sel = -1, dirty = false;
+let G = { connected: false }, pick = null, near = null, liveTimer = null;
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const zoneName = z => String(z || "").replace(/^Zone_/, "").replace(/([a-z])([A-Z])/g, "$1 $2");
+const r2 = v => Math.round((+v || 0) * 100) / 100;
+const lastName = p => String(p || "").split("/").pop().replace(/#\d+$/, "");
+
+function status(msg, cls) { const s = $("#status"); s.textContent = msg; s.className = cls || ""; }
+function setDirty(v = true) { dirty = v; status(v ? "Unsaved changes" : "Saved", v ? "" : "ok"); parent.postMessage({ dirty: v }, "*"); if (v) scheduleLive(); }
+async function api(path, opts) { const r = await fetch(path, opts); const j = await r.json(); if (!r.ok) throw new Error(j.error || r.statusText); return j; }
+async function liveGet(path) { try { return await (await fetch("/api/live" + path)).json(); } catch (e) { return { connected: false, error: e.message }; } }
+async function livePost(path, data) {
+  try { return await (await fetch("/api/live" + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: data ? JSON.stringify(data) : "" })).json(); }
+  catch (e) { return { connected: false, error: e.message }; }
+}
+
+async function boot() {
+  D = await api("/api/world/data");
+  const packs = D.packs.length ? D.packs : ["my-world"];
+  fillPacks(packs);
+  await openPack(packs.find(p => !(D.packsOff || []).includes(p)) || packs[0]);
+}
+function fillPacks(names) {
+  const off = new Set(D.packsOff || []);
+  $("#packSel").innerHTML = names.map(p => `<option value="${esc(p)}">${esc(p)}${off.has(p) ? " (off)" : ""}</option>`).join("");
+  if (packName) $("#packSel").value = packName;
+}
+function ensurePack(n) { if (![...$("#packSel").options].some(o => o.value === n)) $("#packSel").insertAdjacentHTML("beforeend", `<option value="${esc(n)}">${esc(n)}</option>`); $("#packSel").value = n; }
+async function openPack(name) {
+  if (dirty && !confirm("Discard unsaved changes?")) { $("#packSel").value = packName; return; }
+  pack = await api("/api/world/pack?name=" + encodeURIComponent(name));
+  pack.objects = pack.objects || []; packName = name; sel = pack.objects.length ? 0 : -1; dirty = false; parent.postMessage({ dirty: false }, "*");
+  status(`Pack "${name}": ${pack.objects.length} thing(s)`);
+  renderList(); renderEditor();
+}
+function nextId(base) {
+  const used = new Set([...(D.ids || []), ...pack.objects.map(o => o.id)]);
+  const stem = String(base || "thing").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 24) || "thing";
+  for (let i = 1; ; i++) if (!used.has(stem + "-" + i)) return stem + "-" + i;
+}
+
+// ---------------------------------------------------------------- list
+function renderList() {
+  const term = $("#search").value.trim().toLowerCase();
+  const html = pack.objects.map((o, i) => {
+    if (term && !`${o.id} ${o.name} ${o.zone} ${o.source}`.toLowerCase().includes(term)) return "";
+    return `<div class="item${i === sel ? " sel" : ""}" data-i="${i}"><b>${esc(o.name || o.id)}</b>
+      <span class="badge">${o.hide ? "hidden" : "copy"}</span>${o.enabled === false ? '<span class="badge off">off</span>' : ""}
+      <small>${esc(zoneName(o.zone))} · ${o.hide ? "hides" : "copy of"} ${esc(lastName(o.source))}</small></div>`;
+  }).join("");
+  $("#list").innerHTML = html || `<div class="empty">${pack.objects.length ? "Nothing matches." : "Nothing placed in this pack yet."}</div>`;
+  $("#list").querySelectorAll(".item").forEach(el => el.onclick = () => { sel = +el.dataset.i; renderList(); renderEditor(); });
+}
+
+// ---------------------------------------------------------------- live: pick and around me
+function pickBox() {
+  if (!G.connected) return `<fieldset class="livebox" id="liveBox"><legend>Build in the game</legend>
+    <p class="hint">Start the game (with WorldLoader installed) and enter the world. Then look at a house, fence, tree or anything else,
+    and copy it or hide it from here. You see every change in the game as you make it.</p></fieldset>`;
+  if (!G.inWorld) return `<fieldset class="livebox" id="liveBox"><legend>Build in the game</legend><p class="hint">Log in and enter the world.</p></fieldset>`;
+  if (!(G.mods || []).includes("worldloader")) return `<fieldset class="livebox" id="liveBox"><legend>Build in the game</legend>
+    <p class="hint">WorldLoader isn't running in the game. Install it with Setup.exe (and switch it on in Packs &amp; mods), then restart the game.</p></fieldset>`;
+  const levels = pick ? pick.chain : (near ? near.things : null);
+  return `<fieldset class="livebox" id="liveBox"><legend>Build in the game · ${esc(zoneName(G.zone))}</legend>
+    <div class="row" style="margin-top:0">
+      <button class="primary" id="pkLook">Pick what I'm looking at</button>
+      <button id="pkNear">Things around me</button>
+      <span class="hint">Turn the camera so the thing is in the middle of the game window, then Pick.</span>
+    </div>
+    ${pick ? `<p class="hint" style="margin-top:8px">You're looking at <b>${esc(pick.chain[0].name)}</b>. It belongs to bigger things: choose how much of it to copy (the glowing one is suggested).</p>` : ""}
+    ${near ? `<p class="hint" style="margin-top:8px">${near.things.length} thing(s) within 20 m, nearest first.</p>` : ""}
+    ${levels ? `<div class="chain">${levels.map((t, i) => `<div class="lv${pick && i === pick.suggested ? " sug" : ""}">
+        <div class="nm"><b>${esc(t.name)}</b> <span class="hint">${t.size} m · ${t.parts} part(s)${t.baked ? ` · ${t.baked} pre-baked` : ""}${t.distance != null && near ? ` · ${t.distance} m away` : ""}</span>
+          <small>${esc(t.path)}</small></div>
+        ${t.character ? '<span class="hint">a character (use the NPCs tab)</span>'
+          : `<button data-glow="${i}">Show</button><button class="primary" data-copy="${i}">Copy it here</button><button data-hide="${i}">Hide it</button>`}
+      </div>`).join("")}</div>` : ""}
+    <p class="hint" id="liveNote"></p>
+  </fieldset>`;
+}
+function wirePick() {
+  const levels = () => pick ? pick.chain : (near ? near.things : []);
+  const on = (id, f) => { const el = $("#" + id); if (el) el.onclick = f; };
+  on("pkLook", async () => {
+    const r = await liveGet("/world/pick");
+    if (r.error) return note(r.error);
+    pick = r; near = null; renderEditor();
+  });
+  on("pkNear", async () => {
+    const r = await liveGet("/world/near?radius=20");
+    if (r.error) return note(r.error);
+    near = r; pick = null; renderEditor();
+  });
+  document.querySelectorAll("[data-glow]").forEach(b => b.onclick = () => livePost("/world/highlight?path=" + encodeURIComponent(levels()[+b.dataset.glow].path)));
+  document.querySelectorAll("[data-copy]").forEach(b => b.onclick = async () => {
+    const t = levels()[+b.dataset.copy];
+    const h = await liveGet("/here");
+    const o = { id: nextId(t.name), name: "Copy of " + t.name, zone: G.zone, source: t.path,
+                x: h.x ?? t.x, y: h.y ?? t.y, z: h.z ?? t.z, rx: 0, ry: r2(t.ry || 0), rz: 0, scale: 1 };
+    pack.objects.push(o); sel = pack.objects.length - 1; pick = near = null; setDirty(); renderList(); renderEditor();
+  });
+  document.querySelectorAll("[data-hide]").forEach(b => b.onclick = () => {
+    const t = levels()[+b.dataset.hide];
+    const o = { id: nextId("hide-" + t.name), name: "Hide " + t.name, zone: G.zone, source: t.path, hide: true, x: t.x, y: t.y, z: t.z };
+    pack.objects.push(o); sel = pack.objects.length - 1; pick = near = null; setDirty(); renderList(); renderEditor();
+  });
+}
+function note(t) { const el = $("#liveNote"); if (el) el.textContent = t; }
+
+// ---------------------------------------------------------------- the form
+function problemsOf(o) {
+  const p = [];
+  if (!o.id) p.push("needs an id");
+  if (pack.objects.filter(x => x.id === o.id).length > 1) p.push("id " + o.id + " is used twice");
+  if (!o.source) p.push("needs something to copy (Pick it in the game)");
+  if (o.sourceZone && o.sourceZone !== o.zone) p.push("copying from another zone is experimental");
+  return p;
+}
+
+function renderEditor() {
+  const ed = $("#editor");
+  const o = sel >= 0 ? pack.objects[sel] : null;
+  const live = G.connected && G.inWorld;
+  ed.innerHTML = pickBox() + (o ? `
+    <div class="actions" style="margin-top:14px"><button id="dup">Duplicate</button><button class="danger" id="del">Delete</button></div>
+    <div class="problems" id="problems"></div>
+    <fieldset><legend>${o.hide ? "Hidden thing" : "Copy"}</legend><div class="grid">
+      <label>Name<input data-k="name" value="${esc(o.name)}"></label>
+      <label>Id<input data-k="id" value="${esc(o.id)}"></label>
+      <label>Zone<input data-k="zone" value="${esc(o.zone)}"></label>
+    </div>
+    <p class="hint" style="margin-top:8px">${o.hide ? "Hides" : "A copy of"} <code class="path">${esc(o.source)}</code>
+      ${live ? '<button class="link" id="glowSrc">show it in the game</button>' : ""}</p>
+    <div class="checks" style="margin-top:6px">
+      <label><input type="checkbox" data-k="enabled" ${o.enabled === false ? "" : "checked"}>on (untick to switch off without deleting)</label>
+      ${o.hide ? "" : `<label title="Doors, triggers and other game scripts come along too. Can have side effects."><input type="checkbox" data-k="keepScripts" ${o.keepScripts ? "checked" : ""}>copy its game scripts too (doors, triggers…)</label>`}
+    </div></fieldset>
+    ${o.hide ? "" : `
+    ${live ? `<fieldset class="livebox"><legend>Move it in the game</legend>
+      <div class="liverow">
+        <div class="col">
+          <button class="primary" id="lvHere">Put here (in front of me)</button>
+          <button id="lvGo" ${o.zone === G.zone ? "" : "disabled"}>Take me there</button>
+          <button id="lvGround">Drop to the ground</button>
+        </div>
+        <div class="col"><span class="hint">Move (from where you face)</span>
+          <div class="pad">
+            <button data-turn="-15" title="Turn left">⟲</button><button data-move="0,1" title="Away from you">▲</button><button data-turn="15" title="Turn right">⟳</button>
+            <button data-move="-1,0" title="Left">◀</button><button disabled>·</button><button data-move="1,0" title="Right">▶</button>
+            <button data-up="1" title="Up">⤒</button><button data-move="0,-1" title="Towards you">▼</button><button data-up="-1" title="Down">⤓</button>
+          </div>
+          <label class="checks"><label><input type="checkbox" id="lvBig">1 m steps</label></label>
+        </div>
+        <div class="col"><span class="hint">Size and tilt</span>
+          <div class="row" style="margin:0"><button data-scale="0.9">Smaller</button><button data-scale="1.1">Bigger</button></div>
+          <div class="row" style="margin:0"><button data-tilt="rx,-5">Tilt ▲</button><button data-tilt="rx,5">Tilt ▼</button></div>
+          <div class="row" style="margin:0"><button data-tilt="rz,-5">Lean ◀</button><button data-tilt="rz,5">Lean ▶</button></div>
+        </div>
+      </div>
+      <p class="hint" id="moveNote">Changes show in the game right away. Save keeps them.</p></fieldset>` : ""}
+    <fieldset><legend>Where</legend><div class="grid">
+      <label>X<input type="number" step="0.1" data-k="x" value="${o.x}"></label>
+      <label>Y (height)<input type="number" step="0.1" data-k="y" value="${o.y}"></label>
+      <label>Z<input type="number" step="0.1" data-k="z" value="${o.z}"></label>
+      <label>Turn (degrees)<input type="number" step="5" data-k="ry" value="${o.ry || 0}"></label>
+      <label>Tilt (degrees)<input type="number" step="1" data-k="rx" value="${o.rx || 0}"></label>
+      <label>Lean (degrees)<input type="number" step="1" data-k="rz" value="${o.rz || 0}"></label>
+      <label>Size (1 = same)<input type="number" step="0.05" min="0.05" data-k="scale" value="${o.scale || 1}"></label>
+    </div></fieldset>`}` : (G.connected && G.inWorld ? "" : `<div class="empty"><p class="title">Build in the world</p>
+      <p>Copy any house, fence, tree or prop in a zone and place the copies anywhere in it: turned, tilted and resized. Or hide things that are in the way.</p>
+      <p class="hint">Start the game with WorldLoader to pick things by looking at them. Packs are saved in <code>Mods\\World</code>.</p></div>`));
+  wirePick();
+  if (!o) return;
+  ed.querySelectorAll("[data-k]").forEach(el => el.onchange = () => {
+    const k = el.dataset.k;
+    if (el.type === "checkbox") { if (k === "enabled") { if (el.checked) delete o.enabled; else o.enabled = false; } else if (el.checked) o[k] = true; else delete o[k]; }
+    else if (el.type === "number") o[k] = +el.value || 0;
+    else o[k] = el.value;
+    setDirty(); renderList(); showProblems(o);
+  });
+  const changed = () => { setDirty(); renderList(); renderEditor(); };
+  const on = (id, f) => { const el = $("#" + id); if (el) el.onclick = f; };
+  on("glowSrc", () => livePost("/world/highlight?path=" + encodeURIComponent(o.source)));
+  on("lvHere", async () => { const h = await liveGet("/here"); if (h.error) return; o.zone = h.zone; o.x = h.x; o.y = h.y; o.z = h.z; changed(); });
+  on("lvGo", () => livePost("/goto", { x: o.x, y: o.y, z: o.z, rotation: o.ry || 0 }));
+  on("lvGround", async () => { const g = await livePost("/world/ground", { x: o.x, y: o.y, z: o.z }); if (g.y != null) { o.y = g.y; changed(); } });
+  const step = () => ($("#lvBig") && $("#lvBig").checked ? 1 : 0.25);
+  document.querySelectorAll("[data-move]").forEach(b => b.onclick = () => {
+    const [rx, fw] = b.dataset.move.split(",").map(Number), a = (G.facing || 0) * Math.PI / 180, s = step() * 2;
+    o.x = r2(o.x + (Math.sin(a) * fw + Math.cos(a) * rx) * s);
+    o.z = r2(o.z + (Math.cos(a) * fw - Math.sin(a) * rx) * s);
+    changed();
+  });
+  document.querySelectorAll("[data-up]").forEach(b => b.onclick = () => { o.y = r2(o.y + +b.dataset.up * step()); changed(); });
+  document.querySelectorAll("[data-turn]").forEach(b => b.onclick = () => { o.ry = Math.round((((o.ry || 0) + +b.dataset.turn) % 360 + 360) % 360); changed(); });
+  document.querySelectorAll("[data-scale]").forEach(b => b.onclick = () => { o.scale = r2(Math.max(0.05, (o.scale || 1) * +b.dataset.scale)); changed(); });
+  document.querySelectorAll("[data-tilt]").forEach(b => b.onclick = () => { const [k, d] = b.dataset.tilt.split(","); o[k] = ((o[k] || 0) + +d); changed(); });
+  $("#dup").onclick = () => { const c = JSON.parse(JSON.stringify(o)); c.id = nextId(o.name); c.name = (o.name || "") + " (copy)"; c.x = r2(c.x + 2); pack.objects.push(c); sel = pack.objects.length - 1; changed(); };
+  $("#del").onclick = () => { if (confirm(`Delete ${o.name || o.id}?`)) { if (G.connected) livePost("/world/remove?id=" + encodeURIComponent(o.id)); pack.objects.splice(sel, 1); sel = Math.min(sel, pack.objects.length - 1); changed(); } };
+  showProblems(o);
+}
+function showProblems(o) { const el = $("#problems"); if (el) { const p = problemsOf(o); el.textContent = p.length ? "Check: " + p.join(" · ") : ""; } }
+
+// Send the thing being edited to the game a moment after the last change.
+function scheduleLive() {
+  if (!G.connected || !G.inWorld || sel < 0 || !pack.objects[sel]) return;
+  const o = pack.objects[sel];
+  clearTimeout(liveTimer);
+  liveTimer = setTimeout(async () => {
+    const r = await livePost("/world/obj", o);
+    const el = $("#moveNote") || $("#liveNote");
+    if (el) el.textContent = r.error ? r.error : (r.shown ? "Showing it in the game. Save keeps it." : "Not shown (switched off, or in another zone).");
+  }, 250);
+}
+
+async function pollGame() {
+  G = await liveGet("/status");
+  const b = $("#live");
+  if (G.connected && G.inWorld) { b.className = "badge on"; b.textContent = "● In game: " + zoneName(G.zone); }
+  else if (G.connected) { b.className = "badge"; b.textContent = "● Game running, not in the world yet"; }
+  else { b.className = "badge off"; b.textContent = "○ Game not running"; }
+  const state = (G.connected ? "c" : "") + (G.inWorld ? "w" : "") + (G.zone || "") + ((G.mods || []).includes("worldloader") ? "m" : "");
+  const typing = document.activeElement && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName);
+  if (state !== pollGame.last && !typing && pack) { pollGame.last = state; renderEditor(); }
+}
+
+// ---------------------------------------------------------------- save, delete, discard
+async function save() {
+  const bad = pack.objects.map(o => [o, problemsOf(o)]).filter(x => x[1].length);
+  if (bad.length && !confirm(`${bad.length} thing(s) have problems (e.g. ${bad[0][0].name || bad[0][0].id}: ${bad[0][1][0]}). Save anyway?`)) return;
+  pack.name = pack.name || packName;
+  try {
+    const r = await api("/api/world/pack?name=" + encodeURIComponent(packName), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(pack) });
+    setDirty(false); status(`Saved ${r.count} thing(s)${r.enabled ? "" : " (pack is off)"}.`, "ok");
+    parent.postMessage({ broadcast: { cmd: "packsChanged", kind: "world" } }, "*");
+  } catch (e) { status("Save failed: " + e.message, "bad"); }
+}
+async function deletePack() {
+  const exists = ((await api("/api/overview")).packs.world || []).some(p => p.name === packName);
+  if (!confirm(exists ? `Delete the pack "${packName}"?\n\nIt goes to the Recycle Bin, so you can get it back from there.` : `"${packName}" was never saved. Throw it away?`)) return;
+  if (exists) { try { await api(`/api/packs/delete?kind=world&name=${encodeURIComponent(packName)}`, { method: "POST" }); } catch (e) { return status("Couldn't delete: " + e.message, "bad"); } }
+  const left = ((await api("/api/overview")).packs.world || []).map(p => p.name);
+  dirty = false; parent.postMessage({ dirty: false }, "*");
+  D.packs = left; packName = null; fillPacks(left.length ? left : ["my-world"]);
+  await openPack(left[0] || "my-world");
+  if (G.connected && G.inWorld) await livePost("/world/reload");
+  parent.postMessage({ broadcast: { cmd: "packsChanged", kind: "world" } }, "*");
+}
+$("#discard").onclick = async () => {
+  if (dirty && !confirm("Throw away your unsaved changes?")) return;
+  dirty = false; parent.postMessage({ dirty: false }, "*");
+  await openPack(packName);
+  if (G.connected && G.inWorld) { await livePost("/world/reload"); status("Changes thrown away; the game shows the saved world again.", "ok"); }
+  else status("Changes thrown away.", "ok");
+};
+$("#save").onclick = save;
+$("#delPack").onclick = deletePack;
+$("#packSel").onchange = e => openPack(e.target.value);
+$("#newPack").onclick = () => { const n = prompt("Name for the new pack (letters, numbers, spaces, - and _):", "my-world"); if (n) { ensurePack(n); openPack(n); } };
+$("#search").oninput = renderList;
+window.addEventListener("message", async e => {
+  const m = e.data || {};
+  if (m.cmd === "packsChanged" && m.kind === "world" && m.deleted === packName) {
+    const left = ((await api("/api/overview")).packs.world || []).map(p => p.name);
+    dirty = false; D.packs = left; packName = null; fillPacks(left.length ? left : ["my-world"]); await openPack(left[0] || "my-world"); return;
+  }
+  if (m.cmd === "openPack") { ensurePack(m.name); await openPack(m.name); }
+  if (m.cmd === "select") { const i = pack.objects.findIndex(o => o.id === m.id); if (i >= 0) { sel = i; renderList(); renderEditor(); } }
+});
+document.addEventListener("keydown", e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === "s") { e.preventDefault(); save(); }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); parent.postMessage({ key: "ctrl-k" }, "*"); }
+});
+window.addEventListener("beforeunload", e => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
+setInterval(pollGame, 2500);
+boot().then(() => { parent.postMessage({ ready: true }, "*"); pollGame(); }).catch(e => status("Couldn't load: " + e.message, "bad"));
+</script>
+</body>
+</html>

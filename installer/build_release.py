@@ -33,6 +33,7 @@ MODS = [
     ("QuestLoader", True, "Adds quests from quest packs (Mods\\Quests). Edit them in the Nine Lives Editor."),
     ("ContentLoader", True, "Change item prices and stats, loot and shop stock with content packs (Nine Lives Editor)."),
     ("NPCLoader", True, "Add your own NPCs (quest givers, vendors) from NPC packs (Nine Lives Editor)."),
+    ("WorldLoader", True, "Place copies of houses, fences, trees and props, or hide things (World tab in the editor). New."),
     ("DevTools", False, "F7 command box for testing: teleport, give items and gold, set flags. Cheats!"),
 ]
 

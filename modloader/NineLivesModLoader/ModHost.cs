@@ -28,6 +28,7 @@ namespace NineLivesModLoader
             DontDestroyOnLoad(go);
             instance = go.AddComponent<ModHost>();
             ModLoader.Log("Game started: events and the F11 mod list are running");
+            LiveLink.Start();
             Events.FireGameStarted();
         }
 
@@ -47,6 +48,7 @@ namespace NineLivesModLoader
             var p = Universe.getCurrentPlayerController();
             if (p != null && p != lastPlayer) { lastPlayer = p; Events.FirePlayerSpawned(); }
             if (Input.GetKeyDown(KeyCode.F11)) showList = !showList;
+            LiveLink.Pump();
             Events.FireUpdate();
         }
 

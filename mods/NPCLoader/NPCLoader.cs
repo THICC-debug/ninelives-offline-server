@@ -51,7 +51,6 @@ namespace NPCLoader
         string packsDir, myPackPath;
         readonly List<GameObject> spawned = new List<GameObject>();
         readonly Dictionary<int, int> spawnedTemplate = new Dictionary<int, int>();   // NPC id -> template it was copied from
-        LiveLink live;
 
         // Re-apply id/name/role for a few seconds after spawning: the game's own start-up code runs on
         // the copy after we create it and could reset them.
@@ -69,10 +68,10 @@ namespace NPCLoader
             Commands.Register("npcremove", "npcremove <id>", "delete one of your NPCs", NpcRemove);
             Commands.Register("npcreload", "npcreload", "reload NPC packs from Mods\\NPCs", a => Respawn());
             Commands.Register("npcnear", "npcnear", "list nearby NPCs you can use as a template", a => NpcNear());
-            live = new LiveLink(HandleLive);
-            string err;
-            if (!live.Start(out err)) { Log("live link for the editor is off (port " + LiveLink.Port + ": " + err + ")"); live = null; }
-            Log("ready - NPC packs go in Mods\\NPCs" + (live != null ? "; the Nine Lives Editor can show changes live" : ""));
+            // The Nine Lives Editor's live link (run by the mod loader): show NPC changes in the world as they're made.
+            foreach (var path in new[] { "/npcs", "/npc", "/remove", "/reload" })
+                LiveLink.Route(path, r => HandleLive(r.Method, r.Path, r.Query, r.Body));
+            Log("ready - NPC packs go in Mods\\NPCs");
         }
 
         public override void OnZoneLoaded(string zone)
@@ -104,7 +103,6 @@ namespace NPCLoader
 
         public override void OnUpdate()
         {
-            if (live != null) live.Pump();
             float now = Time.realtimeSinceStartup;
             if (spawnAt > 0 && now >= spawnAt)
             {
@@ -317,7 +315,7 @@ namespace NPCLoader
 
             if (path == "/remove" && method == "POST")
             {
-                int id; int.TryParse(LiveLink.QueryValue(query, "id") ?? "", out id);
+                int id; int.TryParse(new LiveRequest { Query = query }.Get("id") ?? "", out id);
                 Despawn(id);
                 return "{\"ok\":true}";
             }

@@ -19,7 +19,7 @@ namespace NineLivesEditor
     {
         const string Off = ".disabled";
         static readonly Regex PackName = new Regex(@"^[A-Za-z0-9 _\-]{1,60}$");
-        static readonly string[] Mods = { "TravelMod", "QuestLoader", "ContentLoader", "NPCLoader", "DevTools" };
+        static readonly string[] Mods = { "TravelMod", "QuestLoader", "ContentLoader", "NPCLoader", "WorldLoader", "DevTools" };
 
         // kind -> (folder under Mods, list key in a pack, or null)
         static readonly Dictionary<string, string[]> Kinds = new Dictionary<string, string[]>
@@ -27,12 +27,13 @@ namespace NineLivesEditor
             { "quests", new[] { "Quests", "quests" } },
             { "content", new[] { "Content", null } },
             { "npcs", new[] { "NPCs", "npcs" } },
+            { "world", new[] { "World", "objects" } },
         };
 
         static readonly Dictionary<string, string> Pages = new Dictionary<string, string>
         {
             { "/", "index.html" }, { "/index.html", "index.html" }, { "/home", "home.html" }, { "/overview", "overview.html" },
-            { "/quests", "quests.html" }, { "/content", "content.html" }, { "/npcs", "npcs.html" }, { "/style.css", "style.css" },
+            { "/quests", "quests.html" }, { "/content", "content.html" }, { "/npcs", "npcs.html" }, { "/world", "world.html" }, { "/style.css", "style.css" },
         };
 
         readonly string game;
@@ -327,6 +328,13 @@ namespace NineLivesEditor
                     raw("npcs", Json.Write(GameNpcs().Concat(CustomNpcs()).ToList()));
                     raw("itemNames", ExportRaw("QuestLoader", "items.json", "[]"));
                 }
+                else if (kind == "world")
+                {
+                    // Ids already used in every world pack (ids must be unique).
+                    var ids = new List<object>();
+                    foreach (var p in Packs("world")) foreach (var o in PackItems("world", p.Key)) ids.Add(Json.Str(o, "id"));
+                    raw("ids", Json.Write(ids));
+                }
                 else
                 {
                     raw("npcs", Json.Write(GameNpcs()));
@@ -402,6 +410,9 @@ namespace NineLivesEditor
             if (shops != null)
                 foreach (var k in shops.Keys) { long id; long.TryParse(k, out id); add("shop", k, who(id) ?? "Shop " + k, "Shop " + k); }
             foreach (var n in custom) add("npc", n["cid"], (string)n["name"], "Your NPC · pack " + n["pack"]);
+            foreach (var p in Packs("world"))
+                foreach (var o in PackItems("world", p.Key))
+                    add("obj", Json.Str(o, "id"), Json.Str(o, "name") ?? Json.Str(o, "id"), (true.Equals(Json.Get(o, "hide")) ? "Hidden thing" : "Placed thing") + " · pack " + p.Key + " · " + (Json.Str(o, "zone") ?? "").Replace("Zone_", ""));
             foreach (var n in GameNpcs())
             {
                 long c = Json.Num(n, "cid");
