@@ -5,6 +5,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NPCs</title>
 <link rel="stylesheet" href="/style.css">
+<style>
+  #live { margin-left: 6px; font-size: 12px; padding: 2px 9px; }
+  #live.on { color: var(--ok); border: 1px solid var(--ok); }
+  .livebox { border-color: var(--accent); }
+  .livebox legend { color: var(--accent); }
+  .pad { display: grid; grid-template-columns: repeat(3, 38px); gap: 4px; }
+  .pad button { padding: 6px 0; }
+  .liverow { display: flex; gap: 18px; flex-wrap: wrap; align-items: flex-start; }
+  .liverow .col { display: flex; flex-direction: column; gap: 6px; }
+  #liveNote { min-height: 18px; }
+</style>
 </head>
 <body>
 <header>
@@ -13,7 +24,9 @@
   <button id="newNpc">New NPC</button>
   <button id="save" class="primary" title="Ctrl+S">Save pack</button>
   <button id="delPack" class="danger" title="Delete this pack (to the Recycle Bin)">Delete pack</button>
+  <button id="discard" title="Throw away unsaved changes (and put the game back as saved)">Discard changes</button>
   <span id="status">Loading…</span>
+  <span id="live" class="badge off" title="Live link to the running game">○ Game not running</span>
 </header>
 <main>
   <aside>
@@ -41,7 +54,7 @@ const zoneName = z => String(z || "").replace(/^Zone_/, "").replace(/([a-z])([A-
 const r1 = v => Math.round((+v || 0) * 10) / 10;
 
 function status(msg, cls) { const s = $("#status"); s.textContent = msg; s.className = cls || ""; }
-function setDirty(v = true) { dirty = v; status(v ? "Unsaved changes" : "Saved", v ? "" : "ok"); parent.postMessage({ dirty: v }, "*"); }
+function setDirty(v = true) { dirty = v; status(v ? "Unsaved changes" : "Saved", v ? "" : "ok"); parent.postMessage({ dirty: v }, "*"); if (v) scheduleLive(); }
 async function api(path, opts) { const r = await fetch(path, opts); const j = await r.json(); if (!r.ok) throw new Error(j.error || r.statusText); return j; }
 
 // The game's own NPCs (from QuestLoader's export), by zone.
@@ -86,6 +99,7 @@ function newNpc(near) {
   const n = { id: nextId(), name: "New NPC", zone: z, x: r1(base.x + 1.5), y: r1(base.y), z: r1(base.z), rotation: 0,
               template: base.cid || 0, role: "quest" };
   pack.npcs.push(n); sel = pack.npcs.length - 1; setDirty(); renderList(); renderEditor();
+  if (!near && G.connected && G.inWorld && $("#lvHere")) $("#lvHere").click();   // start in front of the player
 }
 
 // ---------------------------------------------------------------- list
@@ -134,6 +148,7 @@ function renderEditor() {
   ed.innerHTML = `
     <div class="actions"><button id="dup">Duplicate</button><button class="danger" id="del">Delete</button></div>
     <div class="problems" id="problems"></div>
+    ${liveBox(n)}
     <fieldset><legend>Who</legend><div class="grid">
       <label>Name<input data-k="name" value="${esc(n.name)}"></label>
       <label>Id (${FIRST_ID} and up)<input type="number" data-k="id" value="${n.id}"></label>
@@ -147,7 +162,7 @@ function renderEditor() {
 
     <fieldset><legend>Looks like</legend>
       <label>Copy the look of<select data-k="template" data-num>${
-        (npcsIn(n.zone).length ? npcsIn(n.zone) : (tpl ? [tpl] : [])).map(t => `<option value="${t.cid}" ${t.cid === n.template ? "selected" : ""}>${esc(t.name || "?")} (#${t.cid})</option>`).join("")
+        lookChoices(n).map(t => `<option value="${t.cid}" ${t.cid === n.template ? "selected" : ""}>${esc(t.name || "?")} (#${t.cid})${t.distance != null ? " · " + Math.round(t.distance) + " m away" : ""}</option>`).join("")
         || `<option value="${n.template || 0}">NPC ${n.template || "?"} (no NPC list for this zone yet)</option>`}</select></label>
       <p class="hint">Only NPCs in the same zone can be copied. The copy stands still and talks like its job above, whatever the original does.</p></fieldset>
 
@@ -183,15 +198,149 @@ function renderEditor() {
   });
   $("#near").onchange = e => { const t = gameNpc(+e.target.value); if (!t) return; n.x = r1(t.x + 1.5); n.y = r1(t.y); n.z = r1(t.z); setDirty(); renderEditor(); };
   $("#dup").onclick = () => { const c = JSON.parse(JSON.stringify(n)); c.id = nextId(); c.name += " (copy)"; c.x = r1(c.x + 1.5); pack.npcs.push(c); sel = pack.npcs.length - 1; setDirty(); renderList(); renderEditor(); };
-  $("#del").onclick = () => { if (confirm(`Delete ${n.name}?`)) { pack.npcs.splice(sel, 1); sel = Math.min(sel, pack.npcs.length - 1); setDirty(); renderList(); renderEditor(); } };
+  $("#del").onclick = () => { if (confirm(`Delete ${n.name}?`)) { removeLive(n.id); pack.npcs.splice(sel, 1); sel = Math.min(sel, pack.npcs.length - 1); setDirty(); renderList(); renderEditor(); } };
   const shop = $("#shop"); if (shop) shop.onclick = () => parent.postMessage({ nav: "shops", msg: { cmd: "openShop", id: n.id } }, "*");
   const nq = $("#newQuest"); if (nq) nq.onclick = async () => {
     if (dirty) await save(true);   // the quest tab needs to know this NPC
     parent.postMessage({ nav: "quests", msg: { cmd: "newQuest", giver: n.id } }, "*");
   };
   showProblems(n);
+  wireLive(n);
 }
 function showProblems(n) { const p = problemsOf(n); $("#problems").textContent = p.length ? "Check: " + p.join(" · ") : ""; }
+
+// ---------------------------------------------------------------- live in game (NPCLoader's live link)
+let G = { connected: false }, liveNpcs = [], liveTimer = null, liveFor = null;
+const zoneOf = () => G.inWorld ? G.zone : null;
+
+async function pollGame() {
+  try { G = await (await fetch("/api/live/status")).json(); } catch (e) { G = { connected: false }; }
+  const b = $("#live");
+  if (G.connected && G.inWorld) { b.className = "badge on"; b.textContent = "● In game: " + zoneName(G.zone); }
+  else if (G.connected) { b.className = "badge"; b.textContent = "● Game running, not in the world yet"; }
+  else { b.className = "badge off"; b.textContent = "○ Game not running"; }
+  const was = liveNpcs.length;
+  if (G.connected && G.inWorld && (!liveNpcs.length || liveNpcs.zone !== G.zone || Date.now() - (liveNpcs.at || 0) > 20000)) {
+    try { const r = await (await fetch("/api/live/npcs")).json(); liveNpcs = r.npcs || []; liveNpcs.zone = r.zone; liveNpcs.at = Date.now(); } catch (e) {}
+  }
+  if (!G.connected) liveNpcs = [];
+  const box = $("#liveBox");
+  const typing = document.activeElement && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName);
+  if (box && sel >= 0 && !typing && (box.dataset.state !== liveState() || was !== liveNpcs.length)) renderEditor();
+}
+const liveState = () => (G.connected ? "c" : "") + (G.inWorld ? "w" : "") + (G.zone || "");
+
+// Looks: with the game connected, the NPCs really standing in that zone (nearest first).
+function lookChoices(n) {
+  if (G.connected && G.inWorld && n.zone === G.zone && liveNpcs.length)
+    return liveNpcs.filter(t => !t.custom && t.cid < FIRST_ID).map(t => ({ cid: t.cid, name: t.name, distance: t.distance }));
+  const tpl = gameNpc(n.template);
+  return npcsIn(n.zone).length ? npcsIn(n.zone) : (tpl ? [tpl] : []);
+}
+
+function liveBox(n) {
+  const st = liveState();
+  if (!G.connected) return `<fieldset class="livebox" id="liveBox" data-state="${st}"><legend>Live in game</legend>
+      <p class="hint">Start the game (with NPCLoader 1.2 or newer) and enter the world: then changes here show up in the game as you make them,
+      and you can place NPCs where you stand.</p></fieldset>`;
+  if (!G.inWorld) return `<fieldset class="livebox" id="liveBox" data-state="${st}"><legend>Live in game</legend><p class="hint">Log in and enter the world.</p></fieldset>`;
+  const here = n.zone === G.zone;
+  return `<fieldset class="livebox" id="liveBox" data-state="${st}"><legend>Live in game · ${esc(zoneName(G.zone))}</legend>
+    ${here ? "" : `<p class="hint">${esc(n.name)} is in ${esc(zoneName(n.zone))}; you're in ${esc(zoneName(G.zone))}. Travel there in game to see it, or put it where you are.</p>`}
+    <div class="liverow">
+      <div class="col">
+        <button class="primary" id="lvHere" title="2.5 m in front of you, facing you">Put here (in front of me)</button>
+        <button id="lvGo" ${here ? "" : "disabled"}>Take me there</button>
+        <button id="lvFace" ${here ? "" : "disabled"}>Turn to face me</button>
+      </div>
+      <div class="col"><span class="hint">Move (from where you face in game)</span>
+        <div class="pad">
+          <button data-turn="-15" title="Turn left">⟲</button><button data-move="0,1" title="Away from you">▲</button><button data-turn="15" title="Turn right">⟳</button>
+          <button data-move="-1,0" title="Left">◀</button><button data-move="0,0" disabled>·</button><button data-move="1,0" title="Right">▶</button>
+          <span></span><button data-move="0,-1" title="Towards you">▼</button><span></span>
+        </div>
+        <label class="checks" style="margin-top:2px"><label><input type="checkbox" id="lvBig">1 m steps</label></label>
+      </div>
+      <div class="col"><span class="hint">Look</span>
+        <div class="row" style="margin:0"><button id="lvPrev" ${here ? "" : "disabled"}>◀ Previous</button><button id="lvNext" ${here ? "" : "disabled"}>Next ▶</button></div>
+        <span class="hint">Flips through the people in this zone.</span>
+      </div>
+    </div>
+    <p class="hint" id="liveNote">Changes show in the game right away. <b>Save</b> keeps them; <b>Discard changes</b> puts the game back.</p>
+  </fieldset>`;
+}
+
+function wireLive(n) {
+  const on = (id, f) => { const el = $("#" + id); if (el) el.onclick = f; };
+  const changed = () => { setDirty(); renderList(); renderEditor(); };
+  on("lvHere", async () => {
+    try {
+      const h = await (await fetch("/api/live/here")).json();
+      if (!h.connected || h.error) return liveNote(h.error || "The game isn't connected.");
+      n.zone = h.zone; n.x = h.x; n.y = h.y; n.z = h.z; n.rotation = h.rotation;
+      if (!lookChoices(n).some(t => t.cid === n.template)) { const near = lookChoices(n)[0]; if (near) n.template = near.cid; }
+      changed();
+    } catch (e) { liveNote("Couldn't reach the game: " + e.message); }
+  });
+  on("lvGo", async () => { await liveSend("/api/live/goto", n); liveNote("Teleported you in front of " + n.name + "."); });
+  on("lvFace", () => {
+    const dx = G.x - n.x, dz = G.z - n.z;
+    n.rotation = Math.round(((Math.atan2(dx, dz) * 180 / Math.PI) + 360) % 360);
+    changed();
+  });
+  document.querySelectorAll("[data-turn]").forEach(b => b.onclick = () => { n.rotation = Math.round((((n.rotation || 0) + +b.dataset.turn) % 360 + 360) % 360); changed(); });
+  document.querySelectorAll("[data-move]").forEach(b => b.onclick = () => {
+    const [rx, fw] = b.dataset.move.split(",").map(Number), step = $("#lvBig") && $("#lvBig").checked ? 1 : 0.5;
+    const a = (G.facing || 0) * Math.PI / 180;           // the player's facing: forward = away from you
+    n.x = r1(n.x + (Math.sin(a) * fw + Math.cos(a) * rx) * step);
+    n.z = r1(n.z + (Math.cos(a) * fw - Math.sin(a) * rx) * step);
+    changed();
+  });
+  const cycle = d => {
+    const looks = lookChoices(n); if (!looks.length) return;
+    const i = looks.findIndex(t => t.cid === n.template);
+    n.template = looks[((i < 0 ? 0 : i + d) + looks.length) % looks.length].cid;
+    changed();
+  };
+  on("lvPrev", () => cycle(-1));
+  on("lvNext", () => cycle(1));
+}
+
+function liveNote(t) { const el = $("#liveNote"); if (el) el.textContent = t; }
+
+async function liveSend(url, data) {
+  try {
+    const r = await (await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: data ? JSON.stringify(data) : "" })).json();
+    if (r.error) liveNote(r.error);
+    return r;
+  } catch (e) { liveNote("Couldn't reach the game: " + e.message); return {}; }
+}
+
+// Send the NPC being edited to the game (a moment after the last change).
+function scheduleLive() {
+  if (!G.connected || !G.inWorld || sel < 0 || !pack.npcs[sel]) return;
+  liveFor = pack.npcs[sel];
+  clearTimeout(liveTimer);
+  liveTimer = setTimeout(async () => {
+    const n = liveFor; if (!n) return;
+    const r = await liveSend("/api/live/npc", n);
+    if (r.ok && r.shown) liveNote(`Showing ${n.name} in the game. Save keeps it.`);
+    else if (r.ok && !r.shown) liveNote(n.zone === G.zone ? `${n.name} is hidden (untick "in the world" to hide).` : `${n.name} is in another zone.`);
+  }, 250);
+}
+function removeLive(id) { if (G.connected && G.inWorld) liveSend("/api/live/remove?id=" + id); }
+
+// Discard: back to the pack on disk, and the game back to the saved packs.
+$("#discard").onclick = async () => {
+  if (dirty && !confirm("Throw away your unsaved changes?")) return;
+  dirty = false; parent.postMessage({ dirty: false }, "*");
+  await openPack(packName);
+  if (G.connected && G.inWorld) { await liveSend("/api/live/reload"); status("Changes thrown away; the game shows the saved NPCs again.", "ok"); }
+  else status("Changes thrown away.", "ok");
+};
+
+setInterval(pollGame, 2500);
+pollGame();
 
 // ---------------------------------------------------------------- save
 async function save(quiet) {

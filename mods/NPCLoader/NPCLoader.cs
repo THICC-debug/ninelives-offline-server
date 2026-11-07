@@ -40,7 +40,7 @@ namespace NPCLoader
         public bool sit;
     }
 
-    [ModInfo("npcloader", "NPCLoader", "1.1.0", Author = "Nine Lives offline project",
+    [ModInfo("npcloader", "NPCLoader", "1.2.0", Author = "Nine Lives offline project",
         Description = "Adds custom NPCs (quest givers, vendors, alchemists) from JSON NPC packs in Mods\\NPCs.")]
     public class NPCLoader : Mod
     {
@@ -50,6 +50,8 @@ namespace NPCLoader
 
         string packsDir, myPackPath;
         readonly List<GameObject> spawned = new List<GameObject>();
+        readonly Dictionary<int, int> spawnedTemplate = new Dictionary<int, int>();   // NPC id -> template it was copied from
+        LiveLink live;
 
         // Re-apply id/name/role for a few seconds after spawning: the game's own start-up code runs on
         // the copy after we create it and could reset them.
@@ -67,14 +69,17 @@ namespace NPCLoader
             Commands.Register("npcremove", "npcremove <id>", "delete one of your NPCs", NpcRemove);
             Commands.Register("npcreload", "npcreload", "reload NPC packs from Mods\\NPCs", a => Respawn());
             Commands.Register("npcnear", "npcnear", "list nearby NPCs you can use as a template", a => NpcNear());
-            Log("ready - NPC packs go in Mods\\NPCs");
+            live = new LiveLink(HandleLive);
+            string err;
+            if (!live.Start(out err)) { Log("live link for the editor is off (port " + LiveLink.Port + ": " + err + ")"); live = null; }
+            Log("ready - NPC packs go in Mods\\NPCs" + (live != null ? "; the Nine Lives Editor can show changes live" : ""));
         }
 
         public override void OnZoneLoaded(string zone)
         {
             // Wait for the player (OnPlayerSpawned): copying an NPC while the zone is still loading
             // its characters can stall the load.
-            spawned.Clear(); settle.Clear();
+            spawned.Clear(); spawnedTemplate.Clear(); settle.Clear();
             spawnAt = -1;
         }
 
@@ -99,6 +104,7 @@ namespace NPCLoader
 
         public override void OnUpdate()
         {
+            if (live != null) live.Pump();
             float now = Time.realtimeSinceStartup;
             if (spawnAt > 0 && now >= spawnAt)
             {
@@ -140,7 +146,7 @@ namespace NPCLoader
         string Respawn()
         {
             foreach (var go in spawned) if (go != null) UnityEngine.Object.Destroy(go);
-            spawned.Clear(); settle.Clear();
+            spawned.Clear(); spawnedTemplate.Clear(); settle.Clear();
             if (!Game.InWorld) return "Not in the world yet.";
             var problems = new List<string>();
             int made = 0;
@@ -180,11 +186,7 @@ namespace NPCLoader
             if (tpl == null) return "template NPC " + d.template + " isn't in this zone (or is hidden right now)";
             if (tpl.gameObject.activeInHierarchy && (!tpl.initialized || !tpl.initializedCharacterModel)) return "template NPC " + d.template + " hasn't finished loading; try npcreload";
             var rot = Quaternion.Euler(0, d.rotation, 0);
-            // Stand on whatever is below (a platform, steps): the pack's height may be a little off.
-            var spot = new Vector3(d.x, d.y, d.z);
-            RaycastHit hit;
-            if (Physics.Raycast(spot + Vector3.up * 3f, Vector3.down, out hit, 8f, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
-                spot = hit.point + Vector3.up * 0.05f;
+            var spot = Ground(new Vector3(d.x, d.y, d.z));
             var go = (GameObject)UnityEngine.Object.Instantiate(tpl.gameObject, spot, rot);
             // Not under the template's parent: the game switches whole groups of NPCs on and off by
             // area (ActiveControllByTrigger), so a copy placed elsewhere would be hidden next to you.
@@ -205,8 +207,123 @@ namespace NPCLoader
             var stats = go.GetComponent<CommonStats>();
             Apply(stats, d);
             spawned.Add(go);
+            spawnedTemplate[d.id] = d.template;
             settle.Add(new KeyValuePair<CommonStats, NpcDef>(stats, d));
             return null;
+        }
+
+        /// <summary>Stand on whatever is below (a platform, steps): the pack's height may be a little off.</summary>
+        static Vector3 Ground(Vector3 spot)
+        {
+            RaycastHit hit;
+            if (Physics.Raycast(spot + Vector3.up * 3f, Vector3.down, out hit, 8f, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
+                return hit.point + Vector3.up * 0.05f;
+            return spot;
+        }
+
+        GameObject SpawnedNpc(int id)
+        {
+            spawned.RemoveAll(g => g == null);
+            return spawned.FirstOrDefault(g => g.name.StartsWith("ModNPC_" + id + "_", StringComparison.Ordinal));
+        }
+
+        void Despawn(int id)
+        {
+            var go = SpawnedNpc(id);
+            if (go != null) { spawned.Remove(go); UnityEngine.Object.Destroy(go); }
+            spawnedTemplate.Remove(id);
+            settle.RemoveAll(kv => kv.Value.id == id);
+        }
+
+        // ------------------------------------------------------------ live link (Nine Lives Editor)
+        /// <summary>Runs on the main thread. Shows editor changes in the world right away (not saved).</summary>
+        string HandleLive(string method, string path, string query, string body)
+        {
+            if (path == "/status")
+            {
+                if (!Game.InWorld) return "{\"inWorld\":false}";
+                var t = Game.Player.transform;
+                return JsonConvert.SerializeObject(new Dictionary<string, object> {
+                    { "inWorld", true }, { "zone", Game.Zone }, { "x", R(t.position.x) }, { "y", R(t.position.y) }, { "z", R(t.position.z) },
+                    { "facing", R(t.eulerAngles.y) }, { "custom", spawned.Where(g => g != null).Count() } });
+            }
+            if (!Game.InWorld) return "{\"error\":\"Not in the world yet.\"}";
+
+            if (path == "/npcs")   // everyone in this zone, nearest first
+            {
+                var me = Game.PlayerPosition;
+                var seen = new HashSet<int>();
+                var list = new List<Dictionary<string, object>>();
+                foreach (var o in Resources.FindObjectsOfTypeAll(typeof(CommonStats)))
+                {
+                    var c = (CommonStats)o;
+                    if (c == null || c == Game.Stats || !c.gameObject.scene.IsValid() || c.getCID() <= 0) continue;
+                    bool mine = c.gameObject.name.StartsWith("ModNPC_", StringComparison.Ordinal);
+                    if (!seen.Add(c.getCID())) continue;
+                    var p = c.transform.position;
+                    list.Add(new Dictionary<string, object> {
+                        { "cid", c.getCID() }, { "name", c.dispName }, { "x", R(p.x) }, { "y", R(p.y) }, { "z", R(p.z) },
+                        { "rotation", R(c.transform.eulerAngles.y) }, { "role", c.selectedGUILink.ToString() }, { "custom", mine },
+                        { "shown", c.gameObject.activeInHierarchy }, { "distance", R(Vector3.Distance(p, me)) } });
+                }
+                return JsonConvert.SerializeObject(new Dictionary<string, object> { { "zone", Game.Zone }, { "npcs", list.OrderBy(n => (float)n["distance"]).ToList() } });
+            }
+
+            if (path == "/here")   // a spot in front of the player, facing them
+            {
+                var t = Game.Player.transform;
+                var pos = Ground(t.position + t.forward * 2.5f);
+                return JsonConvert.SerializeObject(new Dictionary<string, object> {
+                    { "zone", Game.Zone }, { "x", R(pos.x) }, { "y", R(pos.y) }, { "z", R(pos.z) }, { "rotation", R((t.eulerAngles.y + 180f) % 360f) } });
+            }
+
+            if (path == "/goto" && method == "POST")   // stand in front of a spot, where an NPC there would face you
+            {
+                var d = JsonConvert.DeserializeObject<NpcDef>(body);
+                var at = new Vector3(d.x, d.y, d.z);
+                var front = Quaternion.Euler(0, d.rotation, 0) * Vector3.forward;
+                Game.Teleport(Ground(at + front * 3f));
+                return "{\"ok\":true}";
+            }
+
+            if (path == "/npc" && method == "POST")   // show this NPC as it is in the editor now
+            {
+                var d = JsonConvert.DeserializeObject<NpcDef>(body);
+                if (d == null || d.id <= 0) return "{\"error\":\"needs an id\"}";
+                if (d.zone != Game.Zone || !d.enabled) { Despawn(d.id); return "{\"ok\":true,\"shown\":false}"; }
+                var go = SpawnedNpc(d.id);
+                int tpl;
+                if (go != null && spawnedTemplate.TryGetValue(d.id, out tpl) && tpl == d.template)
+                {
+                    // Same look: just move, turn and rename it (no reload, no flicker).
+                    var spot = Ground(new Vector3(d.x, d.y, d.z));
+                    go.transform.position = spot;
+                    go.transform.rotation = Quaternion.Euler(0, d.rotation, 0);
+                    go.name = "ModNPC_" + d.id + "_" + d.name;
+                    var ai = go.GetComponent<AI_Base>();
+                    if (ai != null) try { Traverse.Create(ai).Field("paramSet").Field("homePosition").SetValue(spot); } catch { }   // or it walks back
+                    var st = go.GetComponent<CommonStats>();
+                    if (st != null) Apply(st, d);
+                    settle.RemoveAll(kv => kv.Value.id == d.id);
+                    if (st != null) settle.Add(new KeyValuePair<CommonStats, NpcDef>(st, d));
+                    settleUntil = Math.Max(settleUntil, Time.realtimeSinceStartup + 5f);
+                    return "{\"ok\":true,\"shown\":true}";
+                }
+                Despawn(d.id);
+                var why = Spawn(d);
+                settleUntil = Time.realtimeSinceStartup + 15f;
+                return why == null ? "{\"ok\":true,\"shown\":true}" : "{\"ok\":false,\"error\":" + LiveLink.Quote(why) + "}";
+            }
+
+            if (path == "/remove" && method == "POST")
+            {
+                int id; int.TryParse(LiveLink.QueryValue(query, "id") ?? "", out id);
+                Despawn(id);
+                return "{\"ok\":true}";
+            }
+
+            if (path == "/reload" && method == "POST") return "{\"ok\":true,\"message\":" + LiveLink.Quote(Respawn()) + "}";
+            return "{\"error\":\"unknown request\"}";
         }
 
         // The game loads an NPC's model 100 km away and moves it into place when it's ready. A copy

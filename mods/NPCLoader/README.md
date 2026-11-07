@@ -1,6 +1,6 @@
 # NPCLoader for Nine Lives
 
-**Version 1.1.0** · a mod for *Ninelives* 0.24.3 (offline)
+**Version 1.2.0** · a mod for *Ninelives* 0.24.3 (offline)
 
 > [!NOTE]
 > This mod was made with AI (Anthropic's Claude, in Claude Code) and tested by a human player.
@@ -31,6 +31,17 @@ Switch them on in the Nine Lives Editor (**Packs & mods**), or remove `.disabled
 The Nine Lives Editor's **NPCs** tab: pick who the NPC looks like (any NPC in the same zone), put it
 next to an NPC or type a position, choose its job, and give it quests (**New quest for …**) or
 shop stock (**Edit the stock**).
+
+**Live in game:** with the game running (and you in the world), the NPCs tab connects to it by
+itself (the badge at the top says **● In game**). Every change shows in the world straight away:
+
+- **Put here (in front of me)** places the NPC where you're standing in game, facing you.
+- **Take me there** teleports you in front of the NPC; **Turn to face me** turns it toward you.
+- The arrows move it half a metre (or 1 m) from where you're facing in game; ⟲ ⟳ turn it.
+- **◀ Previous / Next ▶** flip through the looks of the people standing in your zone.
+- **Save** keeps the changes; **Discard changes** puts the game back as it was saved.
+
+The link is a small server inside the game that only your own PC can reach (`127.0.0.1:8099`).
 
 ## Placing NPCs in game (DevTools)
 

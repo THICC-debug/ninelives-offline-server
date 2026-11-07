@@ -75,7 +75,8 @@ namespace NineLivesEditor
                     var path = q < 0 ? target : target.Substring(0, q);
                     var query = ParseQuery(q < 0 ? "" : target.Substring(q + 1));
                     Response r;
-                    try { r = method == "POST" ? Post(path, query, body) : Get(path, query); }
+                    try { r = path.StartsWith("/api/live/") ? Live(method, target.Substring("/api/live".Length), body)
+                                                            : method == "POST" ? Post(path, query, body) : Get(path, query); }
                     catch (Exception e) { r = Error(500, e.Message); }
                     var head = "HTTP/1.1 " + r.Code + " " + (r.Code == 200 ? "OK" : "Error") + "\r\n" +
                                "Content-Type: " + r.Type + "\r\nContent-Length: " + r.Body.Length + "\r\n" +
@@ -141,6 +142,42 @@ namespace NineLivesEditor
         static Response JsonObj(object o, int code = 200) { return JsonText(Json.Write(o), code); }
         static Response Error(int code, string msg) { return JsonObj(new Dictionary<string, object> { { "error", msg } }, code); }
         static string Q(Dictionary<string, string> q, string k) { string v; return q.TryGetValue(k, out v) ? v : ""; }
+
+        // ------------------------------------------------------------ live link to the game
+        /// <summary>
+        /// Pass a request on to NPCLoader's live link inside the running game (127.0.0.1:8099), so the
+        /// NPCs tab can show changes in the world as you make them.
+        /// </summary>
+        static Response Live(string method, string target, byte[] body)
+        {
+            try
+            {
+                var req = (HttpWebRequest)WebRequest.Create("http://127.0.0.1:8099" + target);
+                req.Method = method;
+                req.Timeout = req.ReadWriteTimeout = 10000;
+                req.Proxy = null;
+                if (method == "POST")
+                {
+                    req.ContentType = "application/json";
+                    req.ContentLength = body.Length;
+                    using (var w = req.GetRequestStream()) w.Write(body, 0, body.Length);
+                }
+                using (var resp = (HttpWebResponse)req.GetResponse())
+                using (var r = new StreamReader(resp.GetResponseStream(), Encoding.UTF8))
+                {
+                    var text = r.ReadToEnd();
+                    // Mark it as coming from the game, so the page knows it's connected.
+                    return JsonText(text.StartsWith("{") ? "{\"connected\":true," + text.Substring(1).TrimStart() : text);
+                }
+            }
+            catch (WebException e)
+            {
+                var msg = e.Status == WebExceptionStatus.ConnectFailure
+                    ? "The game isn't running (or NPCLoader 1.2 isn't installed)."
+                    : "The game didn't answer: " + e.Message;
+                return JsonObj(new Dictionary<string, object> { { "connected", false }, { "error", msg } });
+            }
+        }
 
         // ------------------------------------------------------------ files
         string ModsDir(params string[] parts) { return Path.Combine(new[] { game, "Mods" }.Concat(parts).ToArray()); }
