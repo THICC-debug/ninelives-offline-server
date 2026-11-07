@@ -184,6 +184,7 @@ function renderEditor() {
         : `${qs.length ? `<ul class="plain">${qs.map(q => `<li>${esc(q.title || "?")} <span class="hint">#${q.id} · ${q.giver === n.id ? "gives" : ""}${q.giver === n.id && q.ender === n.id ? " and " : ""}${q.ender === n.id ? "takes it back" : ""} · ${q.where === "game" ? "game quest" : "pack " + esc(q.where)}</span></li>`).join("")}</ul>`
                       : '<p class="hint">No quests use this NPC yet.</p>'}
           <button class="primary" id="newQuest">New quest for ${esc(n.name || "this NPC")}</button>
+          <button id="newTalk">Give ${esc(n.name || "them")} a dialogue</button>
           ${role !== "quest" ? '<p class="hint">Set the job to "quest" so clicking the NPC offers its quests.</p>' : ""}`}
     </fieldset>`;
 
@@ -200,6 +201,7 @@ function renderEditor() {
   $("#dup").onclick = () => { const c = JSON.parse(JSON.stringify(n)); c.id = nextId(); c.name += " (copy)"; c.x = r1(c.x + 1.5); pack.npcs.push(c); sel = pack.npcs.length - 1; setDirty(); renderList(); renderEditor(); };
   $("#del").onclick = () => { if (confirm(`Delete ${n.name}?`)) { removeLive(n.id); pack.npcs.splice(sel, 1); sel = Math.min(sel, pack.npcs.length - 1); setDirty(); renderList(); renderEditor(); } };
   const shop = $("#shop"); if (shop) shop.onclick = () => parent.postMessage({ nav: "shops", msg: { cmd: "openShop", id: n.id } }, "*");
+  const nt = $("#newTalk"); if (nt) nt.onclick = async () => { if (dirty) await save(true); parent.postMessage({ nav: "dialogs", msg: { cmd: "newDialog", npc: n.id } }, "*"); };
   const nq = $("#newQuest"); if (nq) nq.onclick = async () => {
     if (dirty) await save(true);   // the quest tab needs to know this NPC
     parent.postMessage({ nav: "quests", msg: { cmd: "newQuest", giver: n.id } }, "*");

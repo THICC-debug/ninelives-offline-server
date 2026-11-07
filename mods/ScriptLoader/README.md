@@ -1,6 +1,6 @@
 # ScriptLoader for Nine Lives
 
-**Version 1.0.0** · a mod for *Ninelives* 0.24.3 (offline) · build scripts in the [Nine Lives Editor](../../editor)
+**Version 1.1.0** · a mod for *Ninelives* 0.24.3 (offline) · build scripts in the [Nine Lives Editor](../../editor)
 
 > [!NOTE]
 > This mod was made with AI (Anthropic's Claude, in Claude Code) and tested by a human player.
@@ -8,6 +8,7 @@
 Make things happen in the game:
 
 - **Rules**, no code: *when* something happens, check a few things, *then* do something.
+- **Dialogues**: conversations with answers to choose from, for an NPC or started by a rule.
 - **Lua scripts** for anything rules can't do (Lua 5.2 via [MoonSharp](https://www.moonsharp.org/), MIT).
 
 ## Requirements
@@ -42,6 +43,21 @@ A rule can run **only once per character**, or wait a number of seconds between 
 **▶ Run now in the game** runs a rule's actions straight away (to try them).
 Saving reloads the scripts in the game.
 
+## Dialogues
+
+In the editor's **Dialogue** tab: **New dialogue** (or **Give … a dialogue** on an NPC in the NPCs tab).
+
+- A dialogue is **lines** (what the NPC says) and **answers** (what the player can say).
+- Each answer goes to another line, or ends the conversation. It can be shown **only if** something
+  is true, and can **also do** things: give an item, start a quest, set a flag… (the same actions as rules).
+- A line can also do things when it's shown.
+- Pick an NPC and talking to them opens it. Give an NPC who only talks the job "none" (NPCs tab), so
+  the quest window doesn't open as well. Rules start dialogues with **Start a dialogue**, Lua with
+  `game.dialog("id")`.
+- **▶ Preview here** walks through it in the editor; **Play in the game** shows it in the game.
+
+In the game it's a box at the bottom of the screen: click an answer or press 1–9; Esc or walking away closes it.
+
 ## Lua
 
 **New Lua script** gives you a code editor and a **console** that runs Lua in the game.
@@ -72,7 +88,7 @@ end)
 | `game.player()` | `{x, y, z, facing, zone, name, gold}` |
 | `game.teleport(x, y, z)`, `game.zone()`, `game.time()` | |
 | `game.npc(id, show)`, `game.thing(id, show)` | your NPCs ([NPCLoader](../NPCLoader)) and placed things ([WorldLoader](../WorldLoader)) |
-| `game.startQuest(id)` | |
+| `game.startQuest(id)`, `game.dialog(id)` | |
 | `log(...)`, `print(...)` | to the editor's console and `Mods\ModLoader.log` |
 
 Lua is sandboxed: it can't read or write files or start programs. It runs inside the game, so an
@@ -90,6 +106,15 @@ endless loop freezes the game: use `every()` instead of loops that wait.
       "when": { "type": "enterArea", "zone": "Zone_CrimsonIsles", "x": 1282.5, "y": 145, "z": 1121.1, "radius": 8 },
       "if":   [ { "type": "flag", "flag": 9100, "on": false } ],
       "then": [ { "type": "message", "text": "Welcome, {name}!" }, { "type": "giveItem", "item": 600000001, "count": 2 } ] }
+  ],
+  "dialogs": [
+    { "id": "bram-talk", "name": "Old Bram", "npc": 90001, "start": "hello",
+      "nodes": [
+        { "id": "hello", "text": "Hello, {name}! Got any berries?",
+          "choices": [ { "text": "Here you go.", "if": [ { "type": "item", "item": 600000001, "count": 1 } ],
+                         "do": [ { "type": "takeItem", "item": 600000001, "count": 1 }, { "type": "gold", "amount": 20 } ], "goto": "thanks" },
+                       { "text": "Not today." } ] },
+        { "id": "thanks", "text": "Lovely! Here, for your trouble.", "choices": [ { "text": "Bye." } ] } ] }
   ],
   "scripts": [ { "id": "main", "name": "Main", "code": "log('hello')" } ]
 }

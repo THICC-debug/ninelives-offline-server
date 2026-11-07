@@ -74,6 +74,7 @@
   <button data-tab="shops"><svg viewBox="0 0 24 24"><path d="M4 9h16l-1 11H5z"/><path d="M8 9V7a4 4 0 0 1 8 0v2"/></svg>Shops<span class="dot"></span></button>
   <button data-tab="npcs"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg>NPCs<span class="dot"></span></button>
   <button data-tab="world"><svg viewBox="0 0 24 24"><path d="M3 21h18"/><path d="M5 21V10l7-5 7 5v11"/><path d="M10 21v-6h4v6"/></svg>World<span class="dot"></span></button>
+  <button data-tab="dialogs"><svg viewBox="0 0 24 24"><path d="M4 5h16v10H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg>Dialogue<span class="dot"></span></button>
   <button data-tab="scripts"><svg viewBox="0 0 24 24"><path d="m8 7-5 5 5 5"/><path d="m16 7 5 5-5 5"/><path d="m14 4-4 16"/></svg>Scripts<span class="dot"></span></button>
   <div class="navgroup">Manage</div>
   <button data-tab="overview"><svg viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>Packs &amp; mods<span class="dot"></span></button>
@@ -84,8 +85,8 @@
 <script>
 // Each tab is its own page in an iframe, made on first visit and kept, so unsaved work survives
 // switching tabs. Items, Monster loot and Shops share one page (content packs).
-const PAGE = { home: "/home", overview: "/overview", quests: "/quests", items: "/content", loot: "/content", shops: "/content", npcs: "/npcs", world: "/world", scripts: "/scripts", map: "/map" };
-const NAME = { home: "Home", overview: "Packs & mods", quests: "Quests", items: "Items", loot: "Monster loot", shops: "Shops", npcs: "NPCs", world: "World", scripts: "Scripts", map: "Map" };
+const PAGE = { home: "/home", overview: "/overview", quests: "/quests", items: "/content", loot: "/content", shops: "/content", npcs: "/npcs", world: "/world", scripts: "/scripts", map: "/map", dialogs: "/dialogs" };
+const NAME = { home: "Home", overview: "Packs & mods", quests: "Quests", items: "Items", loot: "Monster loot", shops: "Shops", npcs: "NPCs", world: "World", scripts: "Scripts", map: "Map", dialogs: "Dialogue" };
 const frames = {}, ready = {}, queue = {}, dirty = {};
 let current = null;
 const $ = s => document.querySelector(s);
@@ -152,6 +153,7 @@ const KIND = {
   npc: ["My NPC", h => ["npcs", { cmd: "select", id: h.id }]],
   obj: ["World", h => ["world", { cmd: "select", id: h.id }]],
   rule: ["Rule", h => ["scripts", { cmd: "select", id: h.id }]],
+  dlg: ["Dialogue", h => ["dialogs", { cmd: "openPack", name: h.pack, then: { cmd: "select", id: h.id } }]],
   giver: ["NPC", h => ["quests", { cmd: "search", q: h.n }]],
 };
 async function loadIndex() {

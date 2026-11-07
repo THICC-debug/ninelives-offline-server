@@ -34,7 +34,7 @@ namespace NineLivesEditor
         static readonly Dictionary<string, string> Pages = new Dictionary<string, string>
         {
             { "/", "index.html" }, { "/index.html", "index.html" }, { "/home", "home.html" }, { "/overview", "overview.html" },
-            { "/quests", "quests.html" }, { "/content", "content.html" }, { "/npcs", "npcs.html" }, { "/world", "world.html" }, { "/scripts", "scripts.html" }, { "/map", "map.html" }, { "/style.css", "style.css" },
+            { "/quests", "quests.html" }, { "/content", "content.html" }, { "/npcs", "npcs.html" }, { "/world", "world.html" }, { "/scripts", "scripts.html" }, { "/map", "map.html" }, { "/dialogs", "dialogs.html" }, { "/steps.js", "steps.js" }, { "/style.css", "style.css" },
         };
 
         readonly string game;
@@ -280,7 +280,7 @@ namespace NineLivesEditor
             {
                 var bytes = Resources.Web(page);
                 if (bytes == null) return Error(404, "missing page " + page);
-                return new Response { Body = bytes, Type = page.EndsWith(".css") ? "text/css; charset=utf-8" : "text/html; charset=utf-8" };
+                return new Response { Body = bytes, Type = page.EndsWith(".css") ? "text/css; charset=utf-8" : page.EndsWith(".js") ? "application/javascript; charset=utf-8" : "text/html; charset=utf-8" };
             }
             var parts = path.Trim('/').Split('/');
             if (parts.Length < 2 || parts[0] != "api") return Error(404, "not found");
@@ -344,6 +344,14 @@ namespace NineLivesEditor
                     foreach (var p in Packs("world")) foreach (var o in PackItems("world", p.Key))
                         things.Add(new Dictionary<string, object> { { "id", Json.Str(o, "id") }, { "name", Json.Str(o, "name") }, { "zone", Json.Str(o, "zone") } });
                     raw("things", Json.Write(things));
+                    // Every dialogue (for "Start a dialogue").
+                    var dlgs = new List<object>();
+                    foreach (var p in Packs("scripts"))
+                    {
+                        var l = Json.List(Json.Get(Json.Load(PackFile("scripts", p.Key)), "dialogs"));
+                        if (l != null) foreach (var d in l) dlgs.Add(new Dictionary<string, object> { { "id", Json.Str(d, "id") }, { "name", Json.Str(d, "name") }, { "pack", p.Key }, { "npc", Json.Get(d, "npc") } });
+                    }
+                    raw("dialogs", Json.Write(dlgs));
                 }
                 else if (kind == "world")
                 {
@@ -428,8 +436,17 @@ namespace NineLivesEditor
                 foreach (var k in shops.Keys) { long id; long.TryParse(k, out id); add("shop", k, who(id) ?? "Shop " + k, "Shop " + k); }
             foreach (var n in custom) add("npc", n["cid"], (string)n["name"], "Your NPC · pack " + n["pack"]);
             foreach (var p in Packs("scripts"))
+            {
                 foreach (var o in PackItems("scripts", p.Key))
                     add("rule", Json.Str(o, "id"), Json.Str(o, "name") ?? Json.Str(o, "id"), "Script rule · pack " + p.Key);
+                var dl = Json.List(Json.Get(Json.Load(PackFile("scripts", p.Key)), "dialogs"));
+                if (dl != null)
+                    foreach (var d in dl)
+                    {
+                        add("dlg", Json.Str(d, "id"), Json.Str(d, "name") ?? Json.Str(d, "id"), "Dialogue · pack " + p.Key + (Json.Num(d, "npc") > 0 ? " · " + (who(Json.Num(d, "npc")) ?? "") : ""));
+                        idx[idx.Count - 1]["pack"] = p.Key;
+                    }
+            }
             foreach (var p in Packs("world"))
                 foreach (var o in PackItems("world", p.Key))
                     add("obj", Json.Str(o, "id"), Json.Str(o, "name") ?? Json.Str(o, "id"), (true.Equals(Json.Get(o, "hide")) ? "Hidden thing" : "Placed thing") + " · pack " + p.Key + " · " + (Json.Str(o, "zone") ?? "").Replace("Zone_", ""));

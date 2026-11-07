@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dialogue</title>
+<link rel="stylesheet" href="/style.css">
+<script src="/steps.js"></script>
+<style>
+  #live { margin-left: 6px; font-size: 12px; padding: 2px 9px; }
+  #live.on { color: var(--ok); border: 1px solid var(--ok); }
+  .line { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin: 0 0 14px; background: var(--panel); }
+  .line.start { border-color: var(--accent); }
+  .line .top { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+  .line .top .tag { font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--accent); }
+  .line .top .sp { flex: 1; }
+  .line .top button { padding: 2px 9px; font-size: 12px; }
+  .line textarea { min-height: 64px; }
+  .choice { display: grid; grid-template-columns: 22px 1fr 220px auto; gap: 8px; align-items: center; margin: 6px 0; }
+  .choice .n { color: var(--muted); font-weight: 700; text-align: right; }
+  .choice button { padding: 2px 8px; font-size: 12px; }
+  .more { margin: 2px 0 8px 30px; padding: 6px 10px; border-left: 2px solid var(--line); }
+  .step { border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px; margin: 6px 0; background: var(--bg); }
+  .step .head { display: flex; gap: 8px; align-items: center; } .step .head .sp { flex: 1; } .step .head button { padding: 1px 7px; font-size: 12px; }
+  .step .grid { margin-top: 6px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  textarea.snippet { font: 12px/1.45 Consolas, monospace; min-height: 60px; }
+  /* preview */
+  #pv { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: none; place-items: end center; padding-bottom: 60px; z-index: 5; }
+  #pv.on { display: grid; }
+  #pv .box { width: min(760px, 94vw); background: #1d1c1a; color: #f3efe8; border: 1px solid #555; border-radius: 10px; padding: 16px 20px; box-shadow: 0 10px 40px rgba(0,0,0,.5); }
+  #pv .who { color: #ffc773; font-weight: 700; font-size: 16px; margin-bottom: 4px; }
+  #pv .txt { font-size: 16px; white-space: pre-wrap; margin-bottom: 12px; }
+  #pv .ch { display: block; width: 100%; text-align: left; margin: 5px 0; background: #2c2a27; color: #f3efe8; border-color: #4a4640; padding: 8px 12px; }
+  #pv .did { color: #9fd49a; font-size: 12px; margin: 0 0 8px; }
+  #pv .x { float: right; background: none; border: 0; color: #aaa; font-size: 18px; }
+</style>
+</head>
+<body>
+<header>
+  <label>Pack <select id="packSel"></select></label>
+  <button id="newPack">New pack</button>
+  <button id="newDlg">New dialogue</button>
+  <button id="save" class="primary" title="Ctrl+S">Save pack</button>
+  <span id="status">Loading…</span>
+  <span id="live" class="badge off">○ Game not running</span>
+</header>
+<main>
+  <aside>
+    <input id="search" type="search" placeholder="Search dialogues…">
+    <div id="list"></div>
+  </aside>
+  <section id="editor"></section>
+</main>
+<div id="pv"><div class="box"><button class="x" id="pvX" title="Close">✕</button><div id="pvBody"></div></div></div>
+<datalist id="npcList"></datalist><datalist id="itemList"></datalist><datalist id="questList"></datalist>
+<datalist id="monsterList"></datalist><datalist id="zoneList"></datalist><datalist id="keyList"></datalist>
+<script>
+let D = {}, pack = null, packName = null, sel = -1, dirty = false, G = { connected: false };
+const names = { npc: {}, item: {}, quest: {} };
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const parseId = v => { const m = String(v).match(/^\s*(-?\d+)/); return m ? +m[1] : 0; };
+const zoneName = z => String(z || "").replace(/^Zone_/, "").replace(/([a-z])([A-Z])/g, "$1 $2");
+const short = t => { t = String(t || "").replace(/\s+/g, " ").trim(); return t.length > 38 ? t.slice(0, 36) + "…" : t || "(empty)"; };
+function status(msg, cls) { const s = $("#status"); s.textContent = msg; s.className = cls || ""; }
+function setDirty(v = true) { dirty = v; status(v ? "Unsaved changes" : "Saved", v ? "" : "ok"); parent.postMessage({ dirty: v }, "*"); }
+async function api(path, opts) { const r = await fetch(path, opts); const j = await r.json(); if (!r.ok) throw new Error(j.error || r.statusText); return j; }
+async function liveGet(p) { try { return await (await fetch("/api/live" + p)).json(); } catch (e) { return { connected: false }; } }
+async function livePost(p, b) { try { return await (await fetch("/api/live" + p, { method: "POST", body: JSON.stringify(b || {}) })).json(); } catch (e) { return { connected: false, error: e.message }; } }
+
+async function boot() {
+  D = await api("/api/scripts/data");
+  D.npcs.forEach(n => { if (!names.npc[n.cid]) names.npc[n.cid] = n.name + (n.custom ? " (yours)" : ""); });
+  D.items.forEach(i => names.item[i.id] = i.name);
+  D.quests.forEach(q => names.quest[q.id] = q.title + (q.pack ? " (yours)" : ""));
+  $("#npcList").innerHTML = Object.keys(names.npc).map(id => `<option value="${id} · ${esc(names.npc[id])}">`).join("");
+  $("#itemList").innerHTML = D.items.map(i => `<option value="${i.id} · ${esc(i.name)}">`).join("");
+  $("#questList").innerHTML = D.quests.map(q => `<option value="${q.id} · ${esc(names.quest[q.id])}">`).join("");
+  $("#monsterList").innerHTML = [...new Set((D.monsters || []).map(m => m.name))].sort().map(n => `<option value="${esc(n)}">`).join("");
+  $("#zoneList").innerHTML = [...new Set(D.npcs.map(n => n.zone).filter(Boolean))].sort().map(z => `<option value="${esc(z)}">`).join("");
+  $("#keyList").innerHTML = KEYS.map(k => `<option value="${k}">`).join("");
+  const packs = D.packs.length ? D.packs : ["my-scripts"];
+  $("#packSel").innerHTML = packs.map(p => `<option value="${esc(p)}">${esc(p)}${(D.packsOff || []).includes(p) ? " (off)" : ""}</option>`).join("");
+  await openPack(packs.find(p => !(D.packsOff || []).includes(p)) || packs[0]);
+}
+function ensurePack(n) { if (![...$("#packSel").options].some(o => o.value === n)) $("#packSel").insertAdjacentHTML("beforeend", `<option value="${esc(n)}">${esc(n)}</option>`); $("#packSel").value = n; }
+async function openPack(name) {
+  if (dirty && !confirm("Discard unsaved changes?")) { $("#packSel").value = packName; return; }
+  pack = await api("/api/scripts/pack?name=" + encodeURIComponent(name));
+  pack.dialogs = pack.dialogs || [];
+  packName = name; sel = pack.dialogs.length ? 0 : -1; dirty = false; parent.postMessage({ dirty: false }, "*");
+  status(`Pack "${name}": ${pack.dialogs.length} dialogue(s)`);
+  renderList(); renderEditor();
+}
+const uid = (list, base) => { for (let i = 1; ; i++) if (!list.some(x => x.id === base + i)) return base + i; };
+
+function newDialog(npc) {
+  const d = { id: uid(pack.dialogs, "talk-"), name: "New dialogue", start: "hello", nodes: [
+    { id: "hello", text: "Hello there, {name}! What brings you here?", choices: [
+      { text: "Who are you?", goto: "who" }, { text: "Goodbye." } ] },
+    { id: "who", text: "Just someone who lives here. Safe travels!", choices: [{ text: "Bye." }] } ] };
+  if (npc) d.npc = npc;
+  pack.dialogs.push(d); sel = pack.dialogs.length - 1; setDirty(); renderList(); renderEditor();
+}
+
+// ---------------------------------------------------------------- list
+function renderList() {
+  const term = $("#search").value.trim().toLowerCase();
+  const html = pack.dialogs.map((d, i) => {
+    if (term && !JSON.stringify(d).toLowerCase().includes(term)) return "";
+    return `<div class="item${i === sel ? " sel" : ""}" data-i="${i}"><b>${esc(d.name || d.id)}</b>${d.enabled === false ? '<span class="badge off">off</span>' : ""}
+      <small>${d.npc ? "Talking to " + esc(names.npc[d.npc] || "NPC " + d.npc) : "Started by a rule or Lua"} · ${(d.nodes || []).length} line(s)</small></div>`;
+  }).join("");
+  $("#list").innerHTML = html || `<div class="empty">${pack.dialogs.length ? "Nothing matches." : "No dialogues in this pack yet."}</div>`;
+  $("#list").querySelectorAll(".item").forEach(el => el.onclick = () => { sel = +el.dataset.i; renderList(); renderEditor(); });
+}
+
+// ---------------------------------------------------------------- conditions and actions (from steps.js)
+function stepsBox(list, kind, dl, li, ci) {
+  const defs = kind === "if" ? IF : THEN, key = t => kind === "if" ? "if:" + t : t;
+  return list.map((s, i) => `<div class="step" data-steps="${kind}" data-l="${li}" data-c="${ci}" data-i="${i}"><div class="head">
+      <b>${esc(defs[s.type] || s.type)}</b><span class="sp"></span>
+      ${kind === "if" ? `<label class="checks"><label><input type="checkbox" data-not ${s.not ? "checked" : ""}>NOT</label></label>` : ""}
+      ${s.type === "teleport" ? '<button data-here="1">Use where I\'m standing</button>' : ""}
+      <button class="danger" data-rm="1">✕</button></div>
+      <div class="grid">${(FIELDS[key(s.type)] || []).map(f => field(s, f)).join("")}</div></div>`).join("")
+    + `<select data-add="${kind}" data-l="${li}" data-c="${ci}"><option value="">${kind === "if" ? "+ Only show this choice if…" : "+ Also do…"}</option>${Object.entries(defs).filter(([k]) => k !== "dialog" || kind === "if" || true).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select>`;
+}
+
+// ---------------------------------------------------------------- the editor
+function problemsOf(d) {
+  const p = [], ids = new Set((d.nodes || []).map(n => n.id));
+  if (!d.nodes || !d.nodes.length) p.push("has no lines");
+  if (d.start && !ids.has(d.start)) p.push(`starts at "${d.start}", which doesn't exist`);
+  const reached = new Set([d.start || (d.nodes[0] || {}).id]);
+  (d.nodes || []).forEach(n => (n.choices || []).forEach(c => { if (c.goto) { reached.add(c.goto); if (!ids.has(c.goto)) p.push(`a choice in "${n.id}" goes to "${c.goto}", which doesn't exist`); } }));
+  (d.nodes || []).forEach(n => { if (!reached.has(n.id)) p.push(`nothing leads to "${n.id}"`); });
+  if (pack.dialogs.filter(x => x.id === d.id).length > 1) p.push("id " + d.id + " is used twice");
+  return p;
+}
+
+function renderEditor() {
+  const ed = $("#editor");
+  if (sel < 0 || !pack.dialogs[sel]) {
+    ed.innerHTML = `<div class="empty"><p class="title">Conversations with choices</p>
+      <p>A dialogue is a few lines and the player's answers. Each answer can lead to another line, give items, start quests, set flags…
+      Give it to an NPC and it opens when you talk to them, or start it from a rule or Lua.</p>
+      <p><button class="primary" id="mk">New dialogue</button></p>
+      <p class="hint">Saved in the pack's file in <code>Mods\\Scripts</code>. Needs the ScriptLoader mod (1.1 or newer).</p></div>`;
+    $("#mk").onclick = () => newDialog(); return;
+  }
+  const d = pack.dialogs[sel]; d.nodes = d.nodes || [];
+  if (!d.start && d.nodes[0]) d.start = d.nodes[0].id;
+  const live = G.connected && G.inWorld;
+  const gotoOpts = (cur) => `<option value="">— end the conversation —</option>${d.nodes.map(n => `<option value="${esc(n.id)}" ${n.id === cur ? "selected" : ""}>→ ${esc(n.id)}: ${esc(short(n.text))}</option>`).join("")}<option value="__new">+ a new line…</option>`;
+  ed.innerHTML = `
+    <div class="actions"><button class="primary" id="preview">▶ Preview here</button>
+      <button id="play" ${live ? "" : "disabled"} title="${live ? "Show it in the game now" : "Start the game to try it there"}">Play in the game</button>
+      <button id="dup">Duplicate</button><button class="danger" id="del">Delete</button></div>
+    <div class="problems" id="problems"></div>
+    <fieldset><legend>Dialogue</legend><div class="grid">
+      <label>Name<input data-d="name" value="${esc(d.name || "")}"></label>
+      <label>Id<input data-d="id" value="${esc(d.id)}"></label>
+      <label>Talking to this NPC opens it (optional)<input list="npcList" data-d="npc" value="${esc(d.npc ? d.npc + " · " + (names.npc[d.npc] || "?") : "")}" placeholder="blank: only from a rule or Lua"></label>
+      <label>Starts with<select data-d="start">${d.nodes.map(n => `<option value="${esc(n.id)}" ${n.id === d.start ? "selected" : ""}>${esc(n.id)}: ${esc(short(n.text))}</option>`).join("")}</select></label>
+    </div>
+    <div class="checks" style="margin-top:8px"><label><input type="checkbox" data-d="enabled" ${d.enabled === false ? "" : "checked"}>on</label></div>
+    <p class="hint">Tip: give an NPC who only talks the job “none” (NPCs tab), so the quest window doesn't open as well. In the text, {name} is the player's name.</p></fieldset>
+    ${d.nodes.map((n, li) => `<div class="line${n.id === d.start ? " start" : ""}" data-line="${li}">
+      <div class="top">${n.id === d.start ? '<span class="tag">Starts here</span>' : ""}
+        <label style="display:flex;gap:6px;align-items:center">Line id <input data-n="id" value="${esc(n.id)}" style="width:110px"></label>
+        <label style="display:flex;gap:6px;align-items:center">Speaker <input data-n="speaker" value="${esc(n.speaker || "")}" placeholder="the NPC" style="width:150px"></label>
+        <span class="sp"></span>
+        <button data-mv="-1" title="Move up">▲</button><button data-mv="1" title="Move down">▼</button><button class="danger" data-rmline="1">Delete line</button>
+      </div>
+      <textarea data-n="text" placeholder="What the NPC says">${esc(n.text || "")}</textarea>
+      <details ${(n.do || []).length ? "open" : ""} style="margin-top:6px"><summary class="hint">When this line shows, also do… (${(n.do || []).length})</summary>
+        <div class="more">${stepsBox(n.do || [], "do", li, li, -1)}</div></details>
+      <div class="hint" style="margin-top:10px">The player can answer:</div>
+      ${(n.choices || []).map((c, ci) => `
+        <div class="choice" data-c="${ci}"><span class="n">${ci + 1}.</span>
+          <input data-ch="text" value="${esc(c.text || "")}" placeholder="What the player says">
+          <select data-ch="goto">${gotoOpts(c.goto)}</select>
+          <span><button data-chmv="-1" title="Up">▲</button><button data-chmv="1" title="Down">▼</button><button class="danger" data-chrm="1">✕</button></span>
+        </div>
+        <details class="more" ${(c.if || []).length || (c.do || []).length ? "open" : ""}><summary class="hint">Only if… / also do… (${(c.if || []).length + (c.do || []).length})</summary>
+          ${stepsBox(c.if || [], "if", li, li, ci)}<div style="height:6px"></div>${stepsBox(c.do || [], "do", li, li, ci)}</details>`).join("")
+        || '<p class="hint">No answers: the player just closes it.</p>'}
+      <button data-addch="1" style="margin-top:4px">+ Add an answer</button>
+    </div>`).join("")}
+    <button id="addLine">+ Add a line</button>`;
+
+  const changed = (re = true) => { setDirty(); renderList(); if (re) renderEditor(); else showProblems(d); };
+  ed.querySelectorAll("[data-d]").forEach(el => el.onchange = () => {
+    const k = el.dataset.d;
+    if (k === "enabled") { if (el.checked) delete d.enabled; else d.enabled = false; }
+    else if (k === "npc") { const id = parseId(el.value); if (id) d.npc = id; else delete d.npc; }
+    else if (k === "id") d.id = el.value.trim() || d.id;
+    else d[k] = el.value;
+    changed(k === "start");
+  });
+  ed.querySelectorAll(".line").forEach(box => {
+    const li = +box.dataset.line, n = d.nodes[li];
+    box.querySelectorAll("[data-n]").forEach(el => el.onchange = () => {
+      const k = el.dataset.n, v = el.value;
+      if (k === "id") {   // keep links pointing at it
+        const old = n.id, nu = v.trim(); if (!nu || nu === old) return;
+        d.nodes.forEach(x => (x.choices || []).forEach(c => { if (c.goto === old) c.goto = nu; }));
+        if (d.start === old) d.start = nu;
+        n.id = nu; changed(); return;
+      }
+      if (v) n[k] = v; else delete n[k];
+      changed(k !== "text" && k !== "speaker");
+    });
+    box.querySelector("[data-rmline]").onclick = () => {
+      if (!confirm(`Delete the line "${n.id}"?`)) return;
+      d.nodes.splice(li, 1);
+      d.nodes.forEach(x => (x.choices || []).forEach(c => { if (c.goto === n.id) delete c.goto; }));
+      if (d.start === n.id) d.start = d.nodes[0] ? d.nodes[0].id : undefined;
+      changed();
+    };
+    box.querySelectorAll("[data-mv]").forEach(b => b.onclick = () => { const j = li + +b.dataset.mv; if (j < 0 || j >= d.nodes.length) return; [d.nodes[li], d.nodes[j]] = [d.nodes[j], d.nodes[li]]; changed(); });
+    box.querySelector("[data-addch]").onclick = () => { (n.choices = n.choices || []).push({ text: "" }); changed(); };
+    box.querySelectorAll(".choice").forEach(row => {
+      const ci = +row.dataset.c, c = n.choices[ci];
+      row.querySelector('[data-ch="text"]').onchange = e => { c.text = e.target.value; changed(false); };
+      row.querySelector('[data-ch="goto"]').onchange = e => {
+        let v = e.target.value;
+        if (v === "__new") {
+          const id = uid(d.nodes, "line-");
+          d.nodes.push({ id, text: "", choices: [] }); v = id;
+        }
+        if (v) c.goto = v; else delete c.goto;
+        changed();
+      };
+      row.querySelector("[data-chrm]").onclick = () => { n.choices.splice(ci, 1); changed(); };
+      row.querySelectorAll("[data-chmv]").forEach(b => b.onclick = () => { const j = ci + +b.dataset.chmv; if (j < 0 || j >= n.choices.length) return; [n.choices[ci], n.choices[j]] = [n.choices[j], n.choices[ci]]; changed(); });
+    });
+  });
+  // conditions and actions
+  const listOf = (kind, li, ci) => {
+    const n = d.nodes[li];
+    if (ci < 0) return (n.do = n.do || []);
+    const c = n.choices[ci];
+    return kind === "if" ? (c.if = c.if || []) : (c.do = c.do || []);
+  };
+  ed.querySelectorAll("[data-add]").forEach(s => s.onchange = () => {
+    if (!s.value) return;
+    const kind = s.dataset.add, list = listOf(kind, +s.dataset.l, +s.dataset.c), step = { type: s.value };
+    (FIELDS[kind === "if" ? "if:" + step.type : step.type] || []).forEach(([k]) => { if (k in DEFAULTS) step[k] = DEFAULTS[k]; });
+    list.push(step); changed();
+  });
+  ed.querySelectorAll("[data-steps]").forEach(box => {
+    const kind = box.dataset.steps, list = listOf(kind, +box.dataset.l, +box.dataset.c), i = +box.dataset.i, obj = list[i];
+    box.querySelectorAll("[data-f]").forEach(el => el.onchange = () => { readField(obj, el); changed(false); });
+    const not = box.querySelector("[data-not]"); if (not) not.onchange = () => { if (not.checked) obj.not = true; else delete obj.not; changed(false); };
+    box.querySelector("[data-rm]").onclick = () => { list.splice(i, 1); changed(); };
+    const here = box.querySelector("[data-here]");
+    if (here) here.onclick = async () => { const s = await liveGet("/status"); if (!s.connected || !s.inWorld) return alert("Start the game and enter the world first."); obj.x = s.x; obj.y = s.y; obj.z = s.z; changed(); };
+  });
+  $("#addLine").onclick = () => { d.nodes.push({ id: uid(d.nodes, "line-"), text: "", choices: [] }); changed(); };
+  $("#preview").onclick = () => preview(d);
+  $("#play").onclick = async () => { const r = await livePost("/scripts/dialog?pack=" + encodeURIComponent(packName), d); status(r.error || "Showing it in the game.", r.error ? "bad" : "ok"); };
+  $("#dup").onclick = () => { const c = JSON.parse(JSON.stringify(d)); c.id = uid(pack.dialogs, "talk-"); c.name = (d.name || "") + " (copy)"; delete c.npc; pack.dialogs.push(c); sel = pack.dialogs.length - 1; changed(); };
+  $("#del").onclick = () => { if (confirm(`Delete the dialogue "${d.name || d.id}"?`)) { pack.dialogs.splice(sel, 1); sel = Math.min(sel, pack.dialogs.length - 1); changed(); } };
+  showProblems(d);
+}
+function showProblems(d) { const p = problemsOf(d); $("#problems").textContent = p.length ? "Check: " + p.join(" · ") : ""; }
+
+// ---------------------------------------------------------------- preview (in the editor, nothing happens in the game)
+function describe(s) {
+  const n = k => names.item[s[k]] || s[k];
+  switch (s.type) {
+    case "giveItem": return `gives ${s.count || 1} × ${n("item")}`;
+    case "takeItem": return `takes ${s.count || 1} × ${n("item")}`;
+    case "gold": return `${s.amount >= 0 ? "gives" : "takes"} ${Math.abs(s.amount)} gold`;
+    case "exp": return `gives ${s.amount} experience`;
+    case "setFlag": return `sets flag ${s.flag} ${s.on === false ? "off" : "on"}`;
+    case "startQuest": return `starts the quest "${names.quest[s.quest] || s.quest}"`;
+    default: return (THEN[s.type] || s.type).toLowerCase();
+  }
+}
+function preview(d, nodeId, did) {
+  const node = d.nodes.find(n => n.id === (nodeId || d.start)) || d.nodes[0];
+  if (!node) return;
+  const doing = [...(did || []), ...(node.do || []).map(describe)];
+  const who = node.speaker || (d.npc ? (names.npc[d.npc] || "").replace(" (yours)", "") : "");
+  const txt = (node.text || "").replace(/\{name\}/g, "Mitchette");
+  const ch = node.choices || [];
+  $("#pvBody").innerHTML = `${doing.length ? `<div class="did">The game would: ${doing.map(esc).join(" · ")}</div>` : ""}
+    ${who ? `<div class="who">${esc(who)}</div>` : ""}<div class="txt">${esc(txt)}</div>
+    ${ch.length ? ch.map((c, i) => `<button class="ch" data-i="${i}">${i + 1}. ${esc(c.text || "…")}${(c.if || []).length ? ' <span style="opacity:.6">(only if…)</span>' : ""}</button>`).join("")
+                : '<button class="ch" data-end="1">Close</button>'}`;
+  $("#pv").classList.add("on");
+  $("#pvBody").querySelectorAll("[data-i]").forEach(b => b.onclick = () => {
+    const c = ch[+b.dataset.i], acts = (c.do || []).map(describe);
+    if (!c.goto) { $("#pvBody").innerHTML = `${acts.length ? `<div class="did">The game would: ${acts.map(esc).join(" · ")}</div>` : ""}<div class="txt">(The conversation ends.)</div><button class="ch" data-end="1">Close</button>`; $("#pvBody").querySelector("[data-end]").onclick = closePv; return; }
+    preview(d, c.goto, acts);
+  });
+  const end = $("#pvBody").querySelector("[data-end]"); if (end) end.onclick = closePv;
+}
+function closePv() { $("#pv").classList.remove("on"); }
+$("#pvX").onclick = closePv;
+
+// ---------------------------------------------------------------- live, save
+async function pollGame() {
+  G = await liveGet("/status");
+  const b = $("#live");
+  if (G.connected && G.inWorld) { b.className = "badge on"; b.textContent = "● In game: " + zoneName(G.zone); }
+  else if (G.connected) { b.className = "badge"; b.textContent = "● Game running, not in the world yet"; }
+  else { b.className = "badge off"; b.textContent = "○ Game not running"; }
+  const st = (G.connected ? "c" : "") + (G.inWorld ? "w" : "");
+  const typing = document.activeElement && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName);
+  if (st !== pollGame.last && !typing && pack) { pollGame.last = st; renderEditor(); }
+}
+async function save() {
+  try {
+    // Only dialogues are this tab's: keep the pack's rules and Lua as they are on disk.
+    const disk = await api("/api/scripts/pack?name=" + encodeURIComponent(packName));
+    const out = Object.assign({ name: packName, rules: [] }, disk, { dialogs: pack.dialogs });
+    if (!out.rules) out.rules = [];
+    await api("/api/scripts/pack?name=" + encodeURIComponent(packName), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(out) });
+    setDirty(false);
+    let note = "";
+    if (G.connected && G.inWorld) { const l = await livePost("/scripts/reload"); note = l.error ? " (game: " + l.error + ")" : " and reloaded in the game"; }
+    status("Saved" + note + ".", "ok");
+    parent.postMessage({ broadcast: { cmd: "packsChanged", kind: "scripts" } }, "*");
+  } catch (e) { status("Save failed: " + e.message, "bad"); }
+}
+$("#save").onclick = save; $("#newDlg").onclick = () => newDialog();
+$("#packSel").onchange = e => openPack(e.target.value);
+$("#newPack").onclick = () => { const n = prompt("Name for the new pack (letters, numbers, spaces, - and _):", "my-scripts"); if (n) { ensurePack(n); openPack(n); } };
+$("#search").oninput = renderList;
+window.addEventListener("message", async e => {
+  const m = e.data || {};
+  if (m.cmd === "openPack") { if (m.name !== packName) { ensurePack(m.name); await openPack(m.name); } if (m.then) window.postMessage(m.then, "*"); }
+  if (m.cmd === "newDialog") newDialog(m.npc);
+  if (m.cmd === "select") { const i = pack.dialogs.findIndex(x => x.id === m.id); if (i >= 0) { sel = i; renderList(); renderEditor(); } }
+});
+document.addEventListener("keydown", e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === "s") { e.preventDefault(); save(); }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); parent.postMessage({ key: "ctrl-k" }, "*"); }
+  if (e.key === "Escape") closePv();
+});
+window.addEventListener("beforeunload", e => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
+setInterval(pollGame, 2500);
+boot().then(() => { parent.postMessage({ ready: true }, "*"); pollGame(); }).catch(e => status("Couldn't load: " + e.message, "bad"));
+</script>
+</body>
+</html>

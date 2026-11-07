@@ -170,6 +170,7 @@ namespace ScriptLoader
             Fn(game, "npc", a => { ScriptLoader.SetShown("ModNPC_" + (int)Num(a, 0, 0) + "_", true, Bool(a, 1, true)); return null; });
             Fn(game, "thing", a => { ScriptLoader.SetShown("WorldObj_" + Str(a, 0, ""), false, Bool(a, 1, true)); return null; });
             Fn(game, "startQuest", a => { var q = QuestController.GetQuestCtrl(); return DynValue.NewBoolean(q != null && q.questReceive((int)Num(a, 0, 0))); });
+            Fn(game, "dialog", a => { var why = ScriptLoader.Instance.OpenDialog(Str(a, 0, ""), pack); if (why != null) throw new ScriptRuntimeException(why); return null; });
             Fn(game, "zone", a => DynValue.NewString(Game.Zone));
             Fn(game, "time", a => DynValue.NewNumber(Time.realtimeSinceStartup));
             Fn(game, "player", a =>

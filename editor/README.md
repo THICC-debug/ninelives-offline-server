@@ -8,11 +8,15 @@ nothing goes online, and it needs nothing else installed (no Python).
 
 | Tab | What you do there | Needs |
 |---|---|---|
+| **Map** | Every zone from above (taken by the game the first time you're there): NPCs, your things, script areas, you. Drag to move, click a spot to put something there | mod loader 2.3 |
 | **Home** | "What do you want to do?": one click to each task, plus where you stand | |
 | **Quests** | Make quests, or change the game's own (copy one of the 345 as a starting point) | [QuestLoader](../mods/QuestLoader) |
 | **Items** | Prices and stats (damage, armor, health, stack size…), names and descriptions | [ContentLoader](../mods/ContentLoader) |
 | **Monster loot** | What monsters drop and how often, with a "roll 10 kills" preview | ContentLoader |
 | **Shops** | What each vendor sells | ContentLoader |
+| **Dialogue** | Conversations with answers: each answer leads on, and can give items, start quests, set flags | [ScriptLoader](../mods/ScriptLoader) 1.1 |
+| **Scripts** | Rules (when this happens, then do that) and Lua scripts, with a console that runs in the game | ScriptLoader |
+| **World** | Copy houses, fences, trees and props and place them, or hide things | [WorldLoader](../mods/WorldLoader) |
 | **NPCs** | Add people to the world: look, place, job, their quests and shop stock | [NPCLoader](../mods/NPCLoader) |
 | **Packs & mods** | See which mods are installed, switch mods and packs on and off, start new packs | |
 

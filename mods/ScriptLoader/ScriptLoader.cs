@@ -16,9 +16,9 @@ namespace ScriptLoader
     /// Event rules ("when … only if … then …") and Lua scripts from script packs in Mods\Scripts.
     /// A pack: { "name", "rules": [ {id, name, enabled, once, cooldown, when, if, then} ], "scripts": [ {id, name, code, enabled} ] }
     /// </summary>
-    [ModInfo("scriptloader", "ScriptLoader", "1.0.0", Author = "Nine Lives offline project",
-        Description = "Event rules and Lua scripts from script packs in Mods\\Scripts (Scripts tab in the editor).")]
-    public class ScriptLoader : Mod
+    [ModInfo("scriptloader", "ScriptLoader", "1.1.0", Author = "Nine Lives offline project",
+        Description = "Event rules, dialogues and Lua scripts from script packs in Mods\\Scripts (Scripts and Dialogue tabs in the editor).")]
+    public partial class ScriptLoader : Mod
     {
         internal static ScriptLoader Instance;
         string packsDir, statePath;
@@ -76,7 +76,7 @@ namespace ScriptLoader
         // ------------------------------------------------------------ loading
         internal string Reload()
         {
-            rules.Clear(); running.Clear(); problems.Clear();
+            rules.Clear(); running.Clear(); problems.Clear(); dialogs.Clear(); Close();
             foreach (var l in lua.Values) l.Stop();
             lua.Clear();
             foreach (var f in Directory.GetFiles(packsDir, "*.json").OrderBy(f => f))
@@ -99,6 +99,7 @@ namespace ScriptLoader
                             Cooldown = t.Value<float?>("cooldown") ?? 0, When = when, If = t["if"] as JArray ?? new JArray(), Then = t["then"] as JArray ?? new JArray(),
                         });
                     }
+                LoadDialogs(pack, p);
                 var scripts = p["scripts"] as JArray;
                 bool needsLua = scripts != null && scripts.Count > 0 || (rs != null && rs.ToString().Contains("\"lua\""));
                 if (needsLua)
@@ -110,7 +111,7 @@ namespace ScriptLoader
             loaded = true;
             foreach (var p in problems) Log(p);
             if (Game.InWorld) Fire("zone", new Dictionary<string, object> { { "zone", Game.Zone } });
-            return "scripts: " + rules.Count + " rule(s), " + lua.Count + " Lua pack(s)" + (problems.Count > 0 ? "; " + problems.Count + " problem(s): " + problems[0] : "");
+            return "scripts: " + rules.Count + " rule(s), " + dialogs.Count + " dialogue(s), " + lua.Count + " Lua pack(s)" + (problems.Count > 0 ? "; " + problems.Count + " problem(s): " + problems[0] : "");
         }
 
         // Separate method: if MoonSharp is missing, only this call fails (and is caught above).
@@ -132,6 +133,7 @@ namespace ScriptLoader
             if (!loaded || !Game.InWorld) return;
 
             foreach (var l in lua.Values) l.Tick(now);
+            DialogUpdate();
             // Keys
             foreach (var r in rules.Where(r => r.When.Value<string>("type") == "key").ToList())
             {
@@ -268,6 +270,7 @@ namespace ScriptLoader
                 case "teleport": Game.Teleport(new Vector3(s.Value<float?>("x") ?? 0, s.Value<float?>("y") ?? 0, s.Value<float?>("z") ?? 0)); break;
                 case "showNpc": SetShown("ModNPC_" + s.Value<int?>("npc") + "_", true, s.Value<bool?>("show") ?? true); break;
                 case "showThing": SetShown("WorldObj_" + s.Value<string>("thing"), false, s.Value<bool?>("show") ?? true); break;
+                case "dialog": { var why = OpenDialog(s.Value<string>("dialog") ?? "", run.Rule != null ? run.Rule.Pack : null); if (why != null) Log(why); break; }
                 case "hidePath": { var t = FindPath(s.Value<string>("path")); if (t != null) t.gameObject.SetActive(!(s.Value<bool?>("hide") ?? true)); break; }
                 case "lua":
                 {
@@ -372,6 +375,12 @@ namespace ScriptLoader
                     RunSteps(then, r.Get("pack") ?? "editor");
                     return "{\"ok\":true,\"conditions\":" + (failed.Count == 0 ? "\"all met\"" : LiveLink.Quote("not met now: " + string.Join(", ", failed.ToArray()))) + "}";
                 }
+                case "/scripts/dialog":   // play a dialogue now (body: the dialogue, as in the editor)
+                {
+                    if (!Game.InWorld) return "{\"error\":\"Not in the world yet.\"}";
+                    OpenRaw(JObject.Parse(r.Body), r.Get("pack") ?? "editor");
+                    return "{\"ok\":true}";
+                }
                 case "/scripts/lua":   // the editor's Lua console (body: code)
                 {
                     var pack = r.Get("pack") ?? "console";
@@ -400,9 +409,10 @@ namespace ScriptLoader
         {
             var me = ScriptLoader.Instance; if (me == null) return;
             var st = Stats.GetValue(__instance) as CommonStats;
-            if (st == null || st == Game.Stats || st.getCID() <= 0 || st.selectedGUILink == SelectedGUILinkType.none) return;
+            if (st == null || st == Game.Stats || st.getCID() <= 0) return;
             if (Vector3.Distance(st.transform.position, Game.PlayerPosition) > 6f) return;
             me.Fire("talk", new Dictionary<string, object> { { "npc", st.getCID() }, { "name", st.dispName } });
+            me.OpenForNpc(st.getCID());
         }
     }
 
