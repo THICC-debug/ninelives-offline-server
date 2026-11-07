@@ -49,13 +49,17 @@ Your changes are saved as packs:
 | Quest packs | `Mods\Quests\<name>.json` |
 | Content packs (items, loot, shops) | `Mods\Content\<name>.json` |
 | NPC packs | `Mods\NPCs\<name>.json` |
+| World packs (placed and hidden things) | `Mods\World\<name>.json` |
+| Script packs (rules, Lua, dialogues) | `Mods\Scripts\<name>.json` |
 
 A pack switched off on the **Packs & mods** tab is renamed to `<name>.json.disabled`, so the game
 skips it. The examples that come with the mods start switched off. Each save keeps the previous
 version as `<name>.json.bak`.
 
-Load changes in game without restarting: `reloadquests`, `reloadcontent` and `npcreload` in the
-DevTools command box (F7). Otherwise restart the game.
+With the game running, NPC, World and Script packs reload in game by themselves when you save. For
+quests and content use `reloadquests` and `reloadcontent` in the DevTools command box (F7), or restart
+the game. A switched-off pack does nothing in game; the tab shows a bar with **Switch it on** when the
+open pack is off.
 
 ## How it's built
 
