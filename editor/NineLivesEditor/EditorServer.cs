@@ -35,7 +35,7 @@ namespace NineLivesEditor
         static readonly Dictionary<string, string> Pages = new Dictionary<string, string>
         {
             { "/", "index.html" }, { "/index.html", "index.html" }, { "/home", "home.html" }, { "/overview", "overview.html" },
-            { "/quests", "quests.html" }, { "/content", "content.html" }, { "/npcs", "npcs.html" }, { "/enemies", "enemies.html" }, { "/monsters.js", "monsters.js" }, { "/world", "world.html" }, { "/scripts", "scripts.html" }, { "/map", "map.html" }, { "/dialogs", "dialogs.html" }, { "/steps.js", "steps.js" }, { "/gameview.js", "gameview.js" }, { "/outliner", "outliner.html" }, { "/assets", "assets.html" }, { "/popout", "popout.html" }, { "/style.css", "style.css" },
+            { "/quests", "quests.html" }, { "/content", "content.html" }, { "/npcs", "npcs.html" }, { "/enemies", "enemies.html" }, { "/monsters.js", "monsters.js" }, { "/world", "world.html" }, { "/scripts", "scripts.html" }, { "/map", "map.html" }, { "/dialogs", "dialogs.html" }, { "/steps.js", "steps.js" }, { "/gameview.js", "gameview.js" }, { "/outliner", "outliner.html" }, { "/assets", "assets.html" }, { "/popout", "popout.html" }, { "/test", "test.html" }, { "/style.css", "style.css" },
         };
 
         readonly string game;
@@ -353,6 +353,8 @@ namespace NineLivesEditor
             }
             if (parts[1] == "index") return JsonObj(SearchIndex());
             if (parts[1] == "share") return ShareGet(parts, q);   // export a mod (Share.cs)
+            if (parts[1] == "test") return TestGet(parts, q);     // save backups (TestApi.cs)
+            if (parts[1] == "update") return JsonObj(UpdateInfo(Q(q, "force") == "1"));   // a newer release on GitHub? (TestApi.cs)
             if (parts[1] == "prefs")   // the editor's own settings (layout, panel sizes…), kept in a file
             {
                 var f = PrefsFile;
@@ -690,7 +692,8 @@ namespace NineLivesEditor
                 if (parts[2] == "stop") return JsonObj(GameRunner.Stop(game));
                 if (parts[2] == "show") return JsonObj(GameRunner.Show(game, Q(q, "on") == "1"));
             }
-            if (parts[1] == "share") return SharePost(parts, q, body);   // look inside / import a mod (Share.cs)
+            if (parts[1] == "share") return SharePost(parts, q, body);
+            if (parts[1] == "test") return TestPost(parts, q);   // back up / restore the save (TestApi.cs)   // look inside / import a mod (Share.cs)
             if (parts[1] == "packs" && parts[2] == "toggle")
             {
                 string kind = Q(q, "kind"), name = Q(q, "name"); bool on = Q(q, "on") == "1";

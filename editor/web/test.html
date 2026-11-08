@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Test tools</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+  body { overflow: auto; }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 18px 22px 50px; }
+  fieldset { margin: 0 0 14px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 6px 0; }
+  .row input[type=search], .row input.wide { flex: 1; min-width: 200px; }
+  .row input.num { width: 90px; }
+  .state { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; }
+  .chip { background: var(--chip); border-radius: 999px; padding: 2px 10px; font-size: 12px; }
+  .chip.on { background: color-mix(in srgb, var(--accent) 25%, var(--chip)); color: var(--ink); }
+  .msg { font-size: 13px; min-height: 18px; margin-top: 4px; } .msg.ok { color: var(--ok, #4caf50); } .msg.bad { color: var(--bad); }
+  #live { font-size: 13px; margin: 0 0 12px; } #live.off { color: var(--muted); }
+  .bk { display: flex; gap: 8px; align-items: center; padding: 5px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+  .bk .grow { flex: 1; min-width: 0; } .bk:last-child { border-bottom: 0; }
+  .goals { margin: 4px 0 0 18px; padding: 0; font-size: 13px; }
+  body.compact .wrap { padding: 10px 12px 30px; } body.compact .title { display: none; }
+  body.compact .row input[type=search], body.compact .row input.wide { min-width: 140px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="title">Test tools</p>
+  <p id="live" class="off">Checking the game…</p>
+
+  <fieldset><legend>Test a quest</legend>
+    <div class="row"><input type="search" id="qPick" list="qList" placeholder="Find a quest by name or number…"><datalist id="qList"></datalist></div>
+    <div id="qBox" class="hint">Pick a quest to see where it stands for your character, take it, or reset it to play it again.</div>
+    <div class="msg" id="qMsg"></div>
+  </fieldset>
+
+  <fieldset><legend>Give yourself</legend>
+    <div class="row"><input type="search" id="itPick" list="itList" placeholder="An item, by name or number…"><datalist id="itList"></datalist>
+      <input class="num" type="number" id="itCount" value="1" min="1" max="999" title="How many"><button id="itGo" class="primary">Give</button></div>
+    <div class="row"><input class="num" type="number" id="goldAmt" value="1000" step="100" title="Gold (negative takes it away)"><button id="goldGo">Gold</button>
+      <input class="num" type="number" id="expAmt" value="1000" step="100" title="Exp (negative takes it away)"><button id="expGo">Exp</button></div>
+    <div class="msg" id="giveMsg"></div>
+  </fieldset>
+
+  <fieldset><legend>Go to an NPC</legend>
+    <div class="row"><input type="search" id="npcPick" list="npcList" placeholder="An NPC, by name or number…"><datalist id="npcList"></datalist><button id="npcGo">Go there</button></div>
+    <div class="msg" id="npcMsg"></div>
+  </fieldset>
+
+  <fieldset><legend>Save backups</legend>
+    <p class="hint" style="margin-top:0">Back up your save before testing, and put it back afterwards: characters, bags, gold and quest progress all go back to how they were.
+      Putting one back needs the game closed.</p>
+    <div class="row"><button id="bkGo" class="primary">Back up my save now</button><span class="hint" id="bkWhere"></span></div>
+    <div id="bkList"></div>
+    <div class="msg" id="bkMsg"></div>
+  </fieldset>
+</div>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+async function api(path, opts) { const r = await fetch(path, opts); const j = await r.json(); if (!r.ok) throw new Error(j.error || r.statusText); return j; }
+async function live(path, body) {
+  try {
+    const j = await (await fetch("/api/live" + path, body === undefined ? undefined : { method: "POST", body: JSON.stringify(body) })).json();
+    if (j.connected === false) throw new Error("The game isn't running: start it (▶ Start at the top) and go into the world.");
+    if (j.error) throw new Error(j.error);
+    return j;
+  } catch (e) { throw e instanceof TypeError ? new Error("Couldn't reach the editor") : e; }
+}
+function say(el, text, cls) { const m = $(el); m.className = "msg " + (cls || ""); m.textContent = text; }
+
+let QUESTS = [], ITEMS = [], NPCS = [], PACKQ = {}, current = null, pendingQuest = null;
+function pickQuest(id) { const q = QUESTS.find(q => q.id === id); if (q) { $("#qPick").value = qLabel(q); showQuest(q); } }
+const qLabel = q => `${q.title || "(no title)"} · ${q.id}${q.pack ? " · " + q.pack : ""}`;
+const npcName = id => { const n = NPCS.find(n => n.cid === id); return n ? n.name : id ? "#" + id : "nobody"; };
+const idOf = v => { const m = String(v).match(/(\d{3,})\s*$/) || String(v).match(/·\s*(\d+)/) || String(v).match(/^\s*(\d+)/); return m ? +m[1] : 0; };
+
+async function boot() {
+  const D = await api("/api/quests/data");
+  ITEMS = D.items || [];
+  NPCS = (D.npcs || []).map(n => ({ cid: +n.cid, name: n.name, zone: n.zone || "" }));
+  // pack quests (with their flags, for Reset) over the game's own
+  for (const p of D.packs || []) {
+    try { const pk = await api("/api/quests/pack?name=" + encodeURIComponent(p)); (pk.quests || []).forEach(q => PACKQ[q.id] = { ...q, pack: p }); } catch (e) {}
+  }
+  const byId = {};
+  (D.originals || []).forEach(q => byId[q.id] = { id: q.id, title: q.title, giver: q.giver, ender: q.ender });
+  Object.values(PACKQ).forEach(q => byId[q.id] = { id: q.id, title: q.title, giver: q.giver, ender: q.ender, pack: q.pack });
+  QUESTS = Object.values(byId).sort((a, b) => (b.pack ? 1 : 0) - (a.pack ? 1 : 0) || a.id - b.id);
+  $("#qList").innerHTML = QUESTS.map(q => `<option value="${esc(qLabel(q))}">`).join("");
+  $("#itList").innerHTML = ITEMS.map(i => `<option value="${esc(i.name)} · ${i.id}">`).join("");
+  $("#npcList").innerHTML = NPCS.map(n => `<option value="${esc(n.name)} · ${n.cid}">`).join("");
+  pollLive(); setInterval(pollLive, 5000);
+  backups();
+  if (pendingQuest) pickQuest(pendingQuest);
+}
+
+async function pollLive() {
+  try {
+    const s = await live("/test/state");
+    $("#live").className = ""; $("#live").innerHTML = `● In game as <b>${esc(s.name)}</b> in ${esc(String(s.zone).replace(/^Zone_/, "").replace(/([a-z])([A-Z])/g, "$1 $2"))} · ${s.gold.toLocaleString()} gold · ${s.exp.toLocaleString()} exp`;
+  } catch (e) { $("#live").className = "off"; $("#live").textContent = /older|unknown request/i.test(e.message) ? "The game needs the mod loader 2.5 for these tools (run Setup.exe to update)." : e.message; }
+  if (current) showQuest(current, true);
+}
+
+// ---------------------------------------------------------------- quests
+$("#qPick").onchange = () => { const id = idOf($("#qPick").value); const q = QUESTS.find(q => q.id === id); if (q) showQuest(q); };
+let shown = "";
+async function showQuest(q, quiet) {
+  current = q;
+  let st = null, err = null;
+  try { st = await live("/test/quest?id=" + q.id); } catch (e) { err = e.message; }
+  if (current !== q) return;   // another quest was picked meanwhile
+  const key = q.id + "|" + JSON.stringify(st) + "|" + err;
+  if (quiet && key === shown) return;   // nothing changed: keep the buttons as they are
+  shown = key;
+  const goals = (PACKQ[q.id] && PACKQ[q.id].targets) || [];
+  $("#qBox").innerHTML = `<div><b>${esc(q.title)}</b> <span class="hint">${q.id}${q.pack ? " · pack " + esc(q.pack) : " · the game's own"}</span></div>
+    <div class="hint">Given by ${esc(npcName(q.giver))} · handed in to ${esc(npcName(q.ender))}</div>
+    ${st ? `<div class="state">${st.received ? '<span class="chip on">In your quest log</span>' : ""}${st.cleared ? '<span class="chip on">Done</span>' : ""}${st.blocked && !st.cleared ? '<span class="chip">Its requirements aren\'t met yet</span>' : ""}${!st.received && !st.cleared && !st.blocked ? '<span class="chip">Not taken yet</span>' : ""}</div>
+      ${st.progress && goals.length ? `<ul class="goals">${goals.map((g, i) => `<li>${esc(g.monster ? "Defeat " + g.monster : g.item ? "Bring item " + g.item : "Goal " + (i + 1))}: ${st.progress[i] ?? 0}${g.count ? " / " + g.count : ""}</li>`).join("")}</ul>` : ""}`
+      : `<p class="hint">${esc(err || "")}</p>`}
+    <div class="row">
+      <button data-q="take" ${st && !st.received && !st.cleared ? "" : "disabled"} title="Put it in your quest log now (its requirements still apply)">Take it</button>
+      <button data-q="reset" ${st && (st.received || st.cleared) ? "" : "disabled"} title="Off the quest log and its done-flags cleared: as if you never did it">↺ Reset it</button>
+      <button data-q="giver" ${q.giver ? "" : "disabled"}>Go to the giver</button>
+      <button data-q="ender" ${q.ender && q.ender !== q.giver ? "" : "disabled"}>Go to the ender</button>
+      ${q.pack ? `<button data-q="open">Open in Quests</button>` : ""}
+    </div>`;
+  if (!quiet) say("#qMsg", "");
+}
+// one listener for the quest's buttons, so a click still counts while the box is being redrawn
+$("#qBox").addEventListener("click", e => { const b = e.target.closest("[data-q]"); if (b && !b.disabled && current) questAction(current, b.dataset.q); });
+async function questAction(q, what) {
+  if (what !== "open") { say("#qMsg", "Working… (the game saves your quest log, which can take a few seconds)"); $("#qBox").querySelectorAll("[data-q]").forEach(b => b.disabled = true); }
+  try {
+    if (what === "take") { await live("/test/quest/take", { id: q.id }); say("#qMsg", "Taken: it's in your quest log.", "ok"); }
+    if (what === "reset") {
+      const def = PACKQ[q.id] || {};
+      const r = await live("/test/quest/reset", { id: q.id, flags: (def.setFlagsOnClear || []).map(f => f.flag).filter(Boolean) });
+      say("#qMsg", "Reset: you can take it again" + (r.flagsCleared && r.flagsCleared.length ? ` (flags cleared: ${r.flagsCleared.join(", ")})` : "") + ".", "ok");
+    }
+    if (what === "giver" || what === "ender") { const cid = what === "giver" ? q.giver : q.ender; await goNpc(cid, "#qMsg"); }
+    if (what === "open") parent.postMessage({ nav: "quests", msg: { cmd: "openPack", name: q.pack, quest: q.id } }, "*");
+  } catch (e) { say("#qMsg", e.message, "bad"); }
+  if (what !== "open") { shown = ""; showQuest(q, true); }
+}
+
+// ---------------------------------------------------------------- give
+$("#itGo").onclick = async () => {
+  const id = idOf($("#itPick").value);
+  if (!id) { say("#giveMsg", "Pick an item first.", "bad"); return; }
+  try { const r = await live("/test/give", { item: id, count: +$("#itCount").value || 1 }); say("#giveMsg", `Gave you ${r.count} × ${r.name}.`, "ok"); }
+  catch (e) { say("#giveMsg", e.message, "bad"); }
+};
+for (const [btn, input, what] of [["#goldGo", "#goldAmt", "gold"], ["#expGo", "#expAmt", "exp"]])
+  $(btn).onclick = async () => {
+    try { const r = await live("/test/" + what, { amount: +$(input).value || 0 }); say("#giveMsg", `${what === "gold" ? "Gold" : "Exp"} is now ${(r[what] || 0).toLocaleString()}.`, "ok"); pollLive(); }
+    catch (e) { say("#giveMsg", e.message, "bad"); }
+  };
+
+// ---------------------------------------------------------------- go to an NPC
+async function goNpc(cid, msgEl) {
+  const n = NPCS.find(n => n.cid === cid);
+  try { const r = await live("/test/tonpc", { cid }); say(msgEl, `You're next to ${r.name}.`, "ok"); }
+  catch (e) { say(msgEl, e.message + (n && n.zone ? ` It's in ${n.zone.replace(/^Zone_/, "").replace(/([a-z])([A-Z])/g, "$1 $2")}.` : ""), "bad"); }
+}
+$("#npcGo").onclick = () => { const cid = idOf($("#npcPick").value); if (cid) goNpc(cid, "#npcMsg"); else say("#npcMsg", "Pick an NPC first.", "bad"); };
+
+// ---------------------------------------------------------------- save backups
+async function backups() {
+  let b; try { b = await api("/api/test/backups"); } catch (e) { say("#bkMsg", e.message, "bad"); return; }
+  $("#bkWhere").textContent = b.exists ? "Save: " + b.save : "No save yet: play once first.";
+  $("#bkGo").disabled = !b.exists;
+  $("#bkList").innerHTML = b.backups.length ? b.backups.map(x => `<div class="bk"><div class="grow"><b>${esc(x.time)}</b> <span class="hint">${esc(x.name.includes("before-restore") ? "(your save before a restore)" : "")} ${(x.size / 1024).toFixed(0)} KB</span></div>
+      <button data-restore="${esc(x.name)}" ${b.busy ? "disabled title=\"Close the game first\"" : ""}>Put it back</button><button class="danger" data-del="${esc(x.name)}" title="Delete this backup">✕</button></div>`).join("")
+    : `<p class="hint">No backups yet.</p>`;
+  if (b.busy && b.backups.length) $("#bkList").insertAdjacentHTML("beforeend", `<p class="hint">Close the game (Stop at the top) to put a backup back.</p>`);
+  $("#bkList").querySelectorAll("[data-restore]").forEach(x => x.onclick = async () => {
+    if (!confirm(`Put the backup from ${x.closest(".bk").querySelector("b").textContent} back?\n\nYour save now is kept as a backup too, so you can change your mind.`)) return;
+    try { await api("/api/test/restore?name=" + encodeURIComponent(x.dataset.restore), { method: "POST" }); say("#bkMsg", "Done: that's your save now.", "ok"); } catch (e) { say("#bkMsg", e.message, "bad"); }
+    backups();
+  });
+  $("#bkList").querySelectorAll("[data-del]").forEach(x => x.onclick = async () => {
+    if (!confirm("Delete this backup? This can't be undone.")) return;
+    try { await api("/api/test/deletebackup?name=" + encodeURIComponent(x.dataset.del), { method: "POST" }); } catch (e) { say("#bkMsg", e.message, "bad"); }
+    backups();
+  });
+}
+$("#bkGo").onclick = async () => {
+  try { const r = await api("/api/test/backup", { method: "POST" }); say("#bkMsg", "Backed up.", "ok"); } catch (e) { say("#bkMsg", e.message, "bad"); }
+  backups();
+};
+
+window.addEventListener("message", e => {
+  const m = e.data || {};
+  if (m.cmd === "layout") document.body.classList.toggle("compact", !!m.compact);
+  if (m.cmd === "testQuest") { if (!QUESTS.length) { pendingQuest = +m.id; return; } pickQuest(+m.id); }
+});
+document.addEventListener("keydown", e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); parent.postMessage({ key: "ctrl-k" }, "*"); } });
+boot().then(() => parent.postMessage({ ready: true }, "*")).catch(e => { $("#live").textContent = "Couldn't load: " + e.message; parent.postMessage({ ready: true, error: e.message }, "*"); });
+</script>
+</body>
+</html>

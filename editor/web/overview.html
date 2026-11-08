@@ -42,7 +42,10 @@
   #added .mod { padding: 8px 0; border-bottom: 1px solid var(--line); } #added .mod:last-child { border-bottom: 0; }
   #added .mod p { margin: 4px 0; } #added .packs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
   #added .packs button { font-size: 12px; padding: 2px 8px; }
-  #added .warn { color: var(--warn); font-size: 12px; } #added .new { border-left: 3px solid var(--accent); padding-left: 10px; }
+  #added .warn { color: var(--warn); font-size: 12px; }
+  #added .mhead { display: flex; align-items: center; gap: 10px; } #added .mhead .grow { flex: 1; min-width: 0; }
+  #added .mod.off .packs, #added .mod.off p { opacity: .55; }
+  .line .from { font-size: 11px; color: var(--muted); margin-left: 6px; } #added .new { border-left: 3px solid var(--accent); padding-left: 10px; }
   @media (max-width: 600px) { .modal .grid2 { grid-template-columns: 1fr; } }
 </style>
 </head>
@@ -119,7 +122,7 @@ async function load() {
       ${mod.installed ? "" : `<p class="hint">${K.mod} isn't installed, so these do nothing in game.</p>`}
       ${list.map(p => `<div class="line">
           <label class="switch" title="${p.enabled ? "On: the game loads it" : "Off: the game ignores it"}"><input type="checkbox" data-kind="${k}" data-name="${esc(p.name)}" ${p.enabled ? "checked" : ""}></label>
-          <div class="name"><b title="${esc(p.name)}">${esc(p.name)}</b>${p.enabled ? "" : ' <span class="badge off">off</span>'}<small>${p.size} ${K.unit}${p.size === 1 ? "" : "s"}${p.dialogs ? ` · ${p.dialogs} dialogue${p.dialogs === 1 ? "" : "s"}` : ""}</small></div>
+          <div class="name"><b title="${esc(p.name)}">${esc(p.name)}</b>${p.enabled ? "" : ' <span class="badge off">off</span>'}${modOf(k, p.name) ? `<span class="from">from ${esc(modOf(k, p.name))}</span>` : ""}<small>${p.size} ${K.unit}${p.size === 1 ? "" : "s"}${p.dialogs ? ` · ${p.dialogs} dialogue${p.dialogs === 1 ? "" : "s"}` : ""}</small></div>
           <button data-open="${k}|${esc(p.name)}">Edit</button><button class="danger" data-del="${k}|${esc(p.name)}" title="Delete (to the Recycle Bin)">Delete</button></div>`).join("") || '<p class="hint">No packs yet.</p>'}
       <div class="actions" style="margin:10px 0 0"><button data-new="${k}">New pack</button><span class="hint">${esc(K.folder)}</span></div>
     </fieldset>`;
@@ -135,7 +138,9 @@ async function load() {
     try {
       await api(`/api/packs/toggle?kind=${el.dataset.kind}&name=${encodeURIComponent(el.dataset.name)}&on=${el.checked ? 1 : 0}`, { method: "POST" });
       parent.postMessage({ broadcast: { cmd: "packsChanged", kind: el.dataset.kind } }, "*");
+      const said = await reloadInGame([el.dataset.kind]);
       load();
+      showToast(`${el.dataset.name} is ${el.checked ? "on" : "off"}. ${said}`);
     } catch (e) { alert(e.message); load(); }
   });
   document.querySelectorAll("[data-mod]").forEach(el => el.onchange = async () => {
@@ -224,17 +229,19 @@ function renderAdded() {
   const added = (D.added || []).map(m => ({ ...m, new: m.new || announced.has(m.zip) }));   // "just installed" stays while the page is open
   if (!added.length) { $("#added").innerHTML = ""; return; }
   const said = { added: "new", replaced: "updated", same: "already had it", skipped: "left out" };
-  $("#added").innerHTML = `<fieldset><legend>Mods you've added</legend>${added.map(m => `<div class="mod${m.new ? " new" : ""}">
-      <b>${esc(m.name)}</b>${m.author ? ` <span class="hint">by ${esc(m.author)}</span>` : ""}${m.new ? ' <span class="badge">just installed</span>' : ""}
-      <span class="hint" style="float:right">${esc((m.installed || "").slice(0, 10))} · ${esc(m.zip)}</span>
+  $("#added").innerHTML = `<fieldset><legend>Mods you've added</legend>${added.map((m, mi) => { const st = modState(m); return `<div class="mod${m.new ? " new" : ""}${st === "off" ? " off" : ""}">
+      <div class="mhead"><label class="switch" title="${st === "off" ? "Off: the game ignores all of it" : st === "partly" ? "Partly on: some of its packs are switched off (below)" : "On: the game loads it"}"><input type="checkbox" data-modsw="${mi}" ${st !== "off" ? "checked" : ""} ${st === "gone" ? "disabled" : ""}></label>
+      <div class="grow"><b>${esc(m.name)}</b>${m.author ? ` <span class="hint">by ${esc(m.author)}</span>` : ""}${m.new ? ' <span class="badge">just installed</span>' : ""}${st === "off" ? ' <span class="badge off">off</span>' : st === "partly" ? ' <span class="badge">partly on</span>' : st === "gone" ? ' <span class="badge off">its packs are gone</span>' : ""}</div>
+      <span class="hint">${esc((m.installed || "").slice(0, 10))} · ${esc(m.zip)}</span></div>
       ${m.description ? `<p>${esc(m.description)}</p>` : ""}
       <div class="packs">${(m.packs || []).map(p => { const k = FOLDER_KIND[p.folder]; return p.result === "skipped"
         ? `<span class="hint">${esc(p.name)} (left out)</span>`
         : `<button data-open="${k}|${esc(p.name)}" title="Open it in the editor (${esc(said[p.result] || p.result)})">✎ ${esc(p.name)} <span class="hint">${esc(KIND[k].title.replace(/ packs$/, "").replace("&amp;", "&"))}</span></button>`; }).join("")}</div>
       ${(m.info || []).map(i => `<p class="hint">${esc(i)}</p>`).join("")}
-      ${(m.warnings || []).map(w => `<p class="warn">⚠ ${esc(w)}</p>`).join("")}</div>`).join("")}
+      ${(m.warnings || []).map(w => `<p class="warn">⚠ ${esc(w)}</p>`).join("")}</div>`; }).join("")}
     <p class="hint">The zips are kept in <code>Mods\\Installed</code>. Drop a newer version in the same way: it updates the packs (yours are kept as <code>.bak</code>).</p></fieldset>`;
   $("#added").querySelectorAll("[data-open]").forEach(b => b.onclick = () => { const [k, name] = b.dataset.open.split("|"); parent.postMessage({ nav: KIND[k].tab, msg: { cmd: "openPack", name } }, "*"); });
+  $("#added").querySelectorAll("[data-modsw]").forEach(cb => cb.onchange = () => switchMod(added[+cb.dataset.modsw], cb.checked, cb));
   // just installed while the editor is open: tell the other pages, and the game if it's running
   const fresh = (D.added || []).filter(m => m.new && !announced.has(m.zip));
   if (fresh.length) {
@@ -244,17 +251,56 @@ function renderAdded() {
     reloadInGame(kinds);
   }
 }
+// A mod's packs as they are on disk now: [{kind, name, enabled}] (ones left out, or deleted since, aren't there).
+function modPacks(m) {
+  return (m.packs || []).filter(p => p.result !== "skipped").map(p => {
+    const k = FOLDER_KIND[p.folder], have = (D.packs[k] || []).find(x => x.name.toLowerCase() === p.name.toLowerCase());
+    return have ? { kind: k, name: have.name, enabled: have.enabled } : null;
+  }).filter(Boolean);
+}
+function modState(m) {
+  const ps = modPacks(m);
+  if (!ps.length) return "gone";
+  const on = ps.filter(p => p.enabled).length;
+  return on === ps.length ? "on" : on === 0 ? "off" : "partly";
+}
+// The whole mod on or off: every one of its packs (the game ignores a switched-off pack; it stays on disk,
+// keeps its numbers, and comes back as it was).
+async function switchMod(m, on, cb) {
+  if (cb) cb.disabled = true;
+  const ps = modPacks(m).filter(p => p.enabled !== on);
+  try {
+    for (const p of ps) await api(`/api/packs/toggle?kind=${p.kind}&name=${encodeURIComponent(p.name)}&on=${on ? 1 : 0}`, { method: "POST" });
+  } catch (e) { alert(`Couldn't switch ${m.name} ${on ? "on" : "off"}: ${e.message}`); }
+  const kinds = [...new Set(ps.map(p => p.kind))];
+  kinds.forEach(k => parent.postMessage({ broadcast: { cmd: "packsChanged", kind: k } }, "*"));
+  const said = await reloadInGame(kinds);
+  await load();
+  showToast(`${m.name} is ${on ? "on" : "off"}. ${said}`);
+}
+// (which added mod a pack came from, for the pack lists)
+function modOf(kind, name) {
+  const m = (D.added || []).find(m => (m.packs || []).some(p => p.result !== "skipped" && FOLDER_KIND[p.folder] === kind && p.name.toLowerCase() === name.toLowerCase()));
+  return m ? m.name : null;
+}
+function showToast(text) {
+  let t = $("#toast");
+  if (!t) { t = document.createElement("div"); t.id = "toast"; t.style.cssText = "position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:9px 14px;box-shadow:0 6px 24px rgba(0,0,0,.35);z-index:60;max-width:min(640px,90vw);font-size:13px"; document.body.appendChild(t); }
+  t.textContent = text; t.style.display = "block";
+  clearTimeout(showToast.t); showToast.t = setTimeout(() => t.style.display = "none", 6000);
+}
+
 // Checks the Mods folder now and then while this page is open, so a dropped mod shows up by itself.
 setInterval(() => { if (document.visibilityState === "visible" && !$("#modal")) load().catch(() => {}); }, 4000);
 
 // Packs load when a zone loads; what the mods can reload while you play, they reload now.
 async function reloadInGame(kinds) {
   let st; try { st = await (await fetch("/api/live/status")).json(); } catch (e) { st = {}; }
-  if (!st.connected || !st.inWorld) return "It's in your game the next time you play.";
+  if (!st.connected || !st.inWorld) return "Your game picks up the change the next time you play.";
   const routes = { npcs: "/reload", enemies: "/enemy/reload", world: "/world/reload", scripts: "/scripts/reload" };
   for (const k of kinds) if (routes[k]) { try { await fetch("/api/live" + routes[k], { method: "POST", body: "{}" }); } catch (e) {} }
   const later = kinds.filter(k => !routes[k]);
-  return "Your game has it now" + (later.length ? ` (${later.map(k => KIND[k].title.toLowerCase().replace("&amp;", "&")).join(" and ")}: after the game restarts, or type ${later.map(k => k === "quests" ? "reloadquests" : "reloadcontent").join(" / ")} in the F7 box)` : "") + ".";
+  return "Your game has the change now" + (later.length ? ` (${later.map(k => KIND[k].title.toLowerCase().replace("&amp;", "&")).join(" and ")}: after the game restarts, or type ${later.map(k => k === "quests" ? "reloadquests" : "reloadcontent").join(" / ")} in the F7 box)` : "") + ".";
 }
 
 window.addEventListener("message", e => { if ((e.data || {}).cmd === "packsChanged") load(); });

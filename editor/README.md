@@ -66,6 +66,24 @@ that page in a window of its own. Move it anywhere (another screen too), maximis
 **Find anything:** the search box at the top (Ctrl+K) finds quests, items, monsters, shops and
 NPCs by name and opens them. A dot on a tab means it has unsaved changes.
 
+**Test tools** (the **Test** tab at the top; it can be dragged into a Build panel too), for playing what
+you make again and again with the game running:
+
+- **Test a quest:** see where it stands for your character (taken, done, its goals' progress), **Take it**
+  straight away, **↺ Reset it** (off the quest log and its done-flags cleared, as if you never did it), or
+  go to its giver or ender. Each quest in Quests has a **▶ Test** button that opens it here.
+- **Give yourself** any item (by name or number), gold or exp.
+- **Go to an NPC** in the zone you're in.
+- **Save backups:** back up your save before testing and put it back afterwards (characters, bags, gold
+  and quest progress all return). Putting one back needs the game closed; the save you had is kept as a
+  backup too. Backups are in `OfflineServer\backups`.
+
+The live ones need mod loader 2.5 (Setup.exe installs it).
+
+**Update notice:** when a newer Nine Lives Offline is out on GitHub, a **⬆ Update** button shows at the
+top, linking to its download page (run its Setup.exe; your save and packs are kept). The editor asks
+GitHub at most every 12 hours and sends nothing about you.
+
 ## Open it
 
 - **Installed with Setup.exe:** `Nine Lives Editor.exe` in the game folder, or the desktop shortcut.
@@ -116,6 +134,10 @@ does it before the game starts) or when the editor opens, and right away if Pack
 - the zip moves to `Mods\Installed`, with a note of what came from it; Packs & mods lists these under
   **Mods you've added**, with a ✎ button for each pack and a warning when one uses the same NPC, quest
   or spawn id as another of your packs
+- each added mod has an **on/off switch** that switches all its packs at once (it shows "partly on" when
+  only some are); its packs say "from <mod>" in the pack lists. A switched-off mod stays on disk and
+  keeps its numbers. With the game running, NPCs, enemies, world things and scripts change straight
+  away (single packs' switches do too); quests and content after a restart
 - a pack with the same name as one you have is replaced (yours is kept as `.bak`), so dropping in a
   newer version of a mod updates it
 - mods don't clash: an NPC number, quest number, quest flag, enemy spawn or world thing the mod brings

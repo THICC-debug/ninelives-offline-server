@@ -398,7 +398,7 @@ function renderEditor() {
       ${ro ? `<span class="badge">Original quest (read-only)</span>
               <button class="primary" id="cpNew">Copy as a new quest</button>
               <button id="cpSame" title="Same id: your version replaces the original in game">Replace this quest in my pack</button>`
-           : `<button id="mk">New quest</button><button class="danger" id="del">Delete from pack</button>
+           : `<button id="mk">New quest</button><button id="testQ" title="Open it in Test tools: take it, reset it, go to its giver">▶ Test</button><button class="danger" id="del">Delete from pack</button>
               ${isOrigId ? '<span class="badge warn">Same id as an original: this replaces it in game</span>' : ""}`}
     </div>
     <div class="problems" id="problems"></div>
@@ -467,6 +467,7 @@ function renderEditor() {
   $("#mk").onclick = newQuest;
   $("#del").onclick = () => { if (confirm(`Delete "${q.title}" from this pack?`)) { pack.quests.splice(sel.i, 1); sel = null; setDirty(); renderList(); renderEditor(); } };
   $("#freeFlag").onclick = () => { q.clearFlag = nextFlag(); setDirty(); renderEditor(); };
+  const tq = $("#testQ"); if (tq) tq.onclick = () => { if (dirty && !confirm("Save first? The game only knows the saved version of this quest.\n\nOK opens Test tools anyway.")) return; parent.postMessage({ nav: "test", msg: { cmd: "testQuest", id: q.id } }, "*"); };
   ed.querySelectorAll("[data-add]").forEach(b => b.onclick = () => {
     const k = b.dataset.add;
     if (k === "targets") (q.targets = q.targets || []).push({ kind: "item", item: 0, count: 1, includeBank: true });

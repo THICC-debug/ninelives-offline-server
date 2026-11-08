@@ -67,6 +67,7 @@ namespace NineLivesModLoader
             Route("/editor/zone", EditorTools.Zone);
             Route("/editor/toggle", EditorTools.Toggle);
             Route("/editor/tools", EditorTools.Tools);
+            TestTools.Register();   // the editor's Test tools (TestTools.cs)
             try
             {
                 listener = new TcpListener(IPAddress.Loopback, Port);
