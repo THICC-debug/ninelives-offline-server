@@ -50,7 +50,7 @@ Needs mod loader 2.4, [WorldLoader](../mods/WorldLoader) 1.1 and [NPCLoader](../
 with a price and how many for each (blank price = the game's usual one), or copy a game vendor's stock
 to start from. Needs [NPCLoader](../mods/NPCLoader) 1.3.
 
-**Arrange Build's panels** (like Premiere Pro): the left, right and bottom panels are rows of tabs. Drag a
+**Arrange Build's panels** (dynamic paneling): the left, right and bottom panels are rows of tabs. Drag a
 tab onto another panel to move it there (a bar shows where it goes), onto an empty side to open a panel there
 ("Dock left / right / below"), or onto the 3D view to open it in a window of its own. Tabs from the top row can
 be dragged in too. ✕ closes a tab; a panel with no tabs folds away. **⇤⇥** on the bottom panel stretches it
