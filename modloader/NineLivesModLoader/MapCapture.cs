@@ -34,21 +34,30 @@ namespace NineLivesModLoader
             LiveLink.Route("/map/capture", r => { try { return "{\"ok\":true,\"message\":" + LiveLink.Quote(Capture()) + "}"; } catch (Exception e) { return "{\"error\":" + LiveLink.Quote(e.Message) + "}"; } });
             LiveLink.Route("/map/height", r =>
             {
-                float x, z;
+                float x, z, from;
                 float.TryParse(r.Get("x"), NumberStyles.Float, CultureInfo.InvariantCulture, out x);
                 float.TryParse(r.Get("z"), NumberStyles.Float, CultureInfo.InvariantCulture, out z);
-                var y = Height(x, z);
+                RaycastHit hit;
+                // "from": the height it's at now: the floor just below that (inside a house: its floor, not the roof)
+                if (float.TryParse(r.Get("from"), NumberStyles.Float, CultureInfo.InvariantCulture, out from) &&
+                    Physics.Raycast(new Vector3(x, from + 3f, z), Vector3.down, out hit, 40f, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
+                    return "{\"y\":" + Math.Round(hit.point.y, 2).ToString(CultureInfo.InvariantCulture) + "}";
+                float y;
+                if (!TryHeight(x, z, out y)) return "{\"y\":null}";
                 return "{\"y\":" + Math.Round(y, 2).ToString(CultureInfo.InvariantCulture) + "}";
             });
         }
 
         /// <summary>Height of the ground (or a floor) at x, z.</summary>
-        public static float Height(float x, float z)
+        public static float Height(float x, float z) { float y; TryHeight(x, z, out y); return y; }
+
+        static bool TryHeight(float x, float z, out float y)
         {
             RaycastHit hit;
-            if (Physics.Raycast(new Vector3(x, 3000f, z), Vector3.down, out hit, 6000f, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore)) return hit.point.y;
+            if (Physics.Raycast(new Vector3(x, 3000f, z), Vector3.down, out hit, 6000f, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore)) { y = hit.point.y; return true; }
             var t = Terrain.activeTerrain;
-            return t != null ? t.SampleHeight(new Vector3(x, 0, z)) + t.GetPosition().y : 0;
+            if (t != null) { y = t.SampleHeight(new Vector3(x, 0, z)) + t.GetPosition().y; return true; }
+            y = 0; return false;
         }
 
         /// <summary>Photograph the zone from above.</summary>
@@ -97,11 +106,14 @@ namespace NineLivesModLoader
                 cam.Render();
                 RenderTexture.active = rt;
                 var tex = new Texture2D(Size, Size, TextureFormat.RGB24, false);
-                tex.ReadPixels(new Rect(0, 0, Size, Size), 0, 0);
-                tex.Apply();
-                Directory.CreateDirectory(Dir);
-                File.WriteAllBytes(Path.Combine(Dir, Game.Zone + ".png"), tex.EncodeToPNG());
-                UnityEngine.Object.Destroy(tex);
+                try
+                {
+                    tex.ReadPixels(new Rect(0, 0, Size, Size), 0, 0);
+                    tex.Apply();
+                    Directory.CreateDirectory(Dir);
+                    File.WriteAllBytes(Path.Combine(Dir, Game.Zone + ".png"), tex.EncodeToPNG());
+                }
+                finally { UnityEngine.Object.Destroy(tex); }
             }
             finally
             {

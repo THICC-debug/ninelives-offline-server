@@ -74,9 +74,16 @@ namespace NineLivesModLoader
             foreach (Action h in ev.GetInvocationList())
             {
                 try { h(); }
-                catch (Exception e) { if (name != null) ModLoader.Log(name + " handler failed: " + e); }
+                catch (Exception e)
+                {
+                    if (name != null) { ModLoader.Log(name + " handler failed: " + e); continue; }
+                    // every frame: say it once (per place and message), not 60 times a second, but never hide it
+                    var key = (h.Method.DeclaringType != null ? h.Method.DeclaringType.FullName : "?") + "." + h.Method.Name + ": " + e.Message;
+                    if (frameErrors.Count < 200 && frameErrors.Add(key)) ModLoader.Log("A mod failed in " + key + Environment.NewLine + e);
+                }
             }
         }
+        static readonly System.Collections.Generic.HashSet<string> frameErrors = new System.Collections.Generic.HashSet<string>();
     }
 
     /// <summary>Handy shortcuts into the game.</summary>

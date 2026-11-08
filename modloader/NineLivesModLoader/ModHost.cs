@@ -19,6 +19,7 @@ namespace NineLivesModLoader
             harmony = new Harmony("ninelives.modloader");
             harmony.Patch(AccessTools.Method(typeof(Universe), nameof(Universe.initResolution)),
                 postfix: new HarmonyMethod(typeof(ModHost), nameof(CreateAfterLogin)));
+            try { EditorTools.Init(harmony); } catch (Exception e) { ModLoader.Log("Editor tools are off: " + e.Message); }
         }
 
         static void CreateAfterLogin()
@@ -27,6 +28,7 @@ namespace NineLivesModLoader
             var go = new GameObject("NineLivesModHost");
             DontDestroyOnLoad(go);
             instance = go.AddComponent<ModHost>();
+            EditorMode.Init();
             ModLoader.Log("Game started: events and the F11 mod list are running");
             LiveLink.Start();
             MapCapture.Init();
@@ -41,6 +43,7 @@ namespace NineLivesModLoader
         void OnLevelWasLoaded(int level)
         {
             lastPlayer = null;
+            EditorTools.ZoneLoaded(); EditorMode.ZoneLoaded();
             Events.FireZoneLoaded(SceneManager.GetActiveScene().name);
         }
 
@@ -49,6 +52,8 @@ namespace NineLivesModLoader
             var p = Universe.getCurrentPlayerController();
             if (p != null && p != lastPlayer) { lastPlayer = p; Events.FirePlayerSpawned(); }
             if (Input.GetKeyDown(KeyCode.F11)) showList = !showList;
+            EditorMode.Update();
+            EditorTools.Update();
             LiveLink.Pump();
             Events.FireUpdate();
         }
@@ -56,6 +61,7 @@ namespace NineLivesModLoader
         void OnGUI()
         {
             Events.FireGUI();
+            EditorMode.OnGUI();
             DrawMessages();
             if (showList) window = GUI.Window(0x4E4C, window, DrawList, "Mods  (F11 to close)");
         }

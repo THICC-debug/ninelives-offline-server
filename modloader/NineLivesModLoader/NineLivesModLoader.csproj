@@ -7,7 +7,7 @@
     <TargetFramework>net35</TargetFramework>
     <AssemblyName>NineLivesModLoader</AssemblyName>
     <LangVersion>latest</LangVersion>
-    <Version>2.3.0</Version>
+    <Version>2.4.0</Version>
     <GameDir Condition="'$(GameDir)' == ''">$(MSBuildThisFileDirectory)..\..\..\Ninelives</GameDir>
     <Managed>$(GameDir)\Ninelives_Data\Managed</Managed>
     <!-- Compile against the untouched game code (the patcher's backup). -->
@@ -22,6 +22,7 @@
 
   <ItemGroup>
     <Reference Include="UnityEngine"><HintPath>$(Managed)\UnityEngine.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.UI"><HintPath>$(Managed)\UnityEngine.UI.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Assembly-UnityScript"><HintPath>$(GameCode)\Assembly-UnityScript.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Assembly-CSharp-firstpass"><HintPath>$(GameCode)\Assembly-CSharp-firstpass.dll</HintPath><Private>false</Private></Reference>
   </ItemGroup>

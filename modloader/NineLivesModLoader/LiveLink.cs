@@ -22,7 +22,7 @@ namespace NineLivesModLoader
             foreach (var part in (Query ?? "").Split('&'))
             {
                 int e = part.IndexOf('=');
-                if (e > 0 && Uri.UnescapeDataString(part.Substring(0, e)) == key) return Uri.UnescapeDataString(part.Substring(e + 1).Replace('+', ' '));
+                if (e > 0 && Uri.UnescapeDataString(part.Substring(0, e)) == key) return Uri.UnescapeDataString(part.Substring(e + 1).Replace("+", "%20"));
             }
             return null;
         }
@@ -41,6 +41,7 @@ namespace NineLivesModLoader
         class Job
         {
             public LiveRequest Req; public string Result;
+            public volatile bool Abandoned;   // the editor stopped waiting: don't run it late (it may be sent again)
             public readonly ManualResetEvent Done = new ManualResetEvent(false);
         }
 
@@ -61,6 +62,11 @@ namespace NineLivesModLoader
             Route("/status", Status);
             Route("/here", Here);
             Route("/goto", Goto);
+            Route("/editor/cam", EditorMode.Cam);
+            Route("/editor/look", EditorMode.Look);
+            Route("/editor/zone", EditorTools.Zone);
+            Route("/editor/toggle", EditorTools.Toggle);
+            Route("/editor/tools", EditorTools.Tools);
             try
             {
                 listener = new TcpListener(IPAddress.Loopback, Port);
@@ -80,6 +86,7 @@ namespace NineLivesModLoader
             {
                 Job j;
                 lock (jobs) { if (jobs.Count == 0) return; j = jobs.Dequeue(); }
+                if (j.Abandoned) continue;
                 try { j.Result = Dispatch(j.Req); }
                 catch (Exception e) { j.Result = "{\"error\":" + Quote(e.Message) + "}"; ModLoader.Log("live link " + j.Req.Path + ": " + e); }
                 j.Done.Set();
@@ -105,10 +112,11 @@ namespace NineLivesModLoader
         static string Status(LiveRequest r)
         {
             var mods = string.Join(",", ModLoader.Mods.Where(m => m.Loaded).Select(m => Quote(m.Id)).ToArray());
-            if (!Game.InWorld) return "{\"inWorld\":false,\"mods\":[" + mods + "]}";
-            var t = Game.Player.transform;
+            var ed = EditorMode.On ? ",\"editor\":" + Quote(EditorMode.State) : "";
+            if (!Game.InWorld) return "{\"inWorld\":false,\"mods\":[" + mods + "]" + ed + "}";
+            var t = EditorMode.Camera_ ?? Game.Player.transform;   // in editor mode you "are" the camera
             return "{\"inWorld\":true,\"zone\":" + Quote(Game.Zone) + ",\"x\":" + F(t.position.x) + ",\"y\":" + F(t.position.y) + ",\"z\":" + F(t.position.z) +
-                   ",\"facing\":" + F(t.eulerAngles.y) + ",\"mods\":[" + mods + "]}";
+                   ",\"facing\":" + F(t.eulerAngles.y) + ",\"mods\":[" + mods + "]" + ed + "}";
         }
 
         /// <summary>A spot 2.5 m in front of the player, on the ground, and the rotation that faces the player.</summary>
@@ -117,6 +125,16 @@ namespace NineLivesModLoader
             if (!Game.InWorld) return "{\"error\":\"Not in the world yet.\"}";
             var t = Game.Player.transform;
             var pos = Ground(t.position + t.forward * 2.5f);
+            var ec = EditorMode.Camera_;
+            if (ec != null)   // editor mode: the spot the camera looks at
+            {
+                RaycastHit hit;
+                var flat = Quaternion.Euler(0, ec.eulerAngles.y, 0) * Vector3.forward;
+                pos = Physics.Raycast(ec.position, ec.forward, out hit, 80f, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore)
+                    ? hit.point + Vector3.up * 0.05f : Ground(ec.position + flat * 8f);
+                return "{\"zone\":" + Quote(Game.Zone) + ",\"x\":" + F(pos.x) + ",\"y\":" + F(pos.y) + ",\"z\":" + F(pos.z) +
+                       ",\"rotation\":" + F((ec.eulerAngles.y + 180f) % 360f) + "}";
+            }
             return "{\"zone\":" + Quote(Game.Zone) + ",\"x\":" + F(pos.x) + ",\"y\":" + F(pos.y) + ",\"z\":" + F(pos.z) +
                    ",\"rotation\":" + F((t.eulerAngles.y + 180f) % 360f) + "}";
         }
@@ -127,6 +145,7 @@ namespace NineLivesModLoader
             if (!Game.InWorld) return "{\"error\":\"Not in the world yet.\"}";
             float x = Num(r.Body, "x"), y = Num(r.Body, "y"), z = Num(r.Body, "z"), rot = Num(r.Body, "rotation");
             var front = Quaternion.Euler(0, rot, 0) * Vector3.forward;
+            if (EditorMode.Camera_ != null) { EditorMode.LookAt(new Vector3(x, y, z)); return "{\"ok\":true}"; }
             Game.Teleport(Ground(new Vector3(x, y, z) + front * 3f));
             return "{\"ok\":true}";
         }
@@ -181,6 +200,7 @@ namespace NineLivesModLoader
         {
             try
             {
+                client.ReceiveTimeout = 5000; client.SendTimeout = 5000;   // a connection that never sends can't hold a thread
                 using (client)
                 using (var s = client.GetStream())
                 {
@@ -189,7 +209,9 @@ namespace NineLivesModLoader
                     var job = new Job { Req = req };
                     lock (jobs) jobs.Enqueue(job);
                     // Runs on the game's next frame; if the game is busy (loading a zone), say so.
-                    var json = job.Done.WaitOne(8000) ? job.Result : "{\"error\":\"The game is busy (loading?). Try again in a moment.\"}";
+                    bool done = job.Done.WaitOne(8000);
+                    if (!done) job.Abandoned = true;
+                    var json = done ? job.Result : "{\"error\":\"The game is busy (loading?). Try again in a moment.\"}";
                     var bytes = Encoding.UTF8.GetBytes(json ?? "{}");
                     var head = Encoding.ASCII.GetBytes("HTTP/1.1 200 OK\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: " + bytes.Length +
                                                        "\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n");
@@ -216,13 +238,25 @@ namespace NineLivesModLoader
             var lines = Encoding.UTF8.GetString(buf.ToArray()).Split(new[] { "\r\n" }, StringSplitOptions.None);
             var first = lines[0].Split(' ');
             if (first.Length < 2) return false;
-            int len = 0;
+            int len = 0; bool hostOk = false;
             foreach (var l in lines)
+            {
                 if (l.StartsWith("Content-Length:", StringComparison.OrdinalIgnoreCase)) int.TryParse(l.Substring(15).Trim(), out len);
+                // Only programs on this PC (the editor, tools): a web page in a browser can't drive the game.
+                // Browsers always send Origin or Sec-Fetch-*; the Host check stops DNS rebinding.
+                if (l.StartsWith("Origin:", StringComparison.OrdinalIgnoreCase) || l.StartsWith("Sec-Fetch-", StringComparison.OrdinalIgnoreCase)) return false;
+                if (l.StartsWith("Host:", StringComparison.OrdinalIgnoreCase))
+                {
+                    var h = l.Substring(5).Trim().ToLowerInvariant();
+                    hostOk = h == "127.0.0.1:" + Port || h == "localhost:" + Port;
+                }
+            }
+            if (!hostOk) return false;
             if (len < 0 || len > 4 * 1024 * 1024) return false;
             var data = new byte[len];
             int got = 0;
             while (got < len) { int r = s.Read(data, got, len - got); if (r <= 0) break; got += r; }
+            if (got < len) return false;   // cut short
             var target = first[1];
             int q = target.IndexOf('?');
             req = new LiveRequest
