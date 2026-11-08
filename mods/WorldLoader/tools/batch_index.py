@@ -53,20 +53,26 @@ def main():
                 d = o.read_typetree()
                 if d.get("m_SubsetIndices"): rend.append(d)
         world = {}
-        def pos(pid):
+        def mat(pid):
+            """The world matrix of a transform (4x4, row-major), parents included: exact even when a
+            parent is both scaled unevenly and turned."""
             if pid in world: return world[pid]
             d = tr[pid]; lp = d["m_LocalPosition"]; lr = d["m_LocalRotation"]; ls = d["m_LocalScale"]
-            p = (lp["x"], lp["y"], lp["z"]); q = (lr["x"], lr["y"], lr["z"], lr["w"]); s = (ls["x"], ls["y"], ls["z"])
+            x, y, z, w = lr["x"], lr["y"], lr["z"], lr["w"]
+            r = [[1 - 2*(y*y + z*z), 2*(x*y - z*w), 2*(x*z + y*w)],
+                 [2*(x*y + z*w), 1 - 2*(x*x + z*z), 2*(y*z - x*w)],
+                 [2*(x*z - y*w), 2*(y*z + x*w), 1 - 2*(x*x + y*y)]]
+            sc = (ls["x"], ls["y"], ls["z"])
+            m = [[r[i][0]*sc[0], r[i][1]*sc[1], r[i][2]*sc[2], (lp["x"], lp["y"], lp["z"])[i]] for i in range(3)] + [[0, 0, 0, 1]]
             father = d["m_Father"]["m_PathID"]
             if father and father in tr:
-                fp, fq, fs = pos(father)
-                sp = (p[0]*fs[0], p[1]*fs[1], p[2]*fs[2])
-                r = qrot(fq, sp)
-                res = ((fp[0]+r[0], fp[1]+r[1], fp[2]+r[2]), qmul(fq, q), (fs[0]*s[0], fs[1]*s[1], fs[2]*s[2]))
-            else:
-                res = (p, q, s)
-            world[pid] = res
-            return res
+                f = mat(father)
+                m = [[sum(f[i][k] * m[k][j] for k in range(4)) for j in range(4)] for i in range(4)]
+            world[pid] = m
+            return m
+        def pos(pid):
+            m = mat(pid)
+            return ((m[0][3], m[1][3], m[2][3]),)
         index = {}
         for d in rend:
             gid = d["m_GameObject"]["m_PathID"]

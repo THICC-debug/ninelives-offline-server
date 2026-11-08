@@ -39,9 +39,9 @@ namespace WorldLoader
         public bool enabled = true;
     }
 
-    [ModInfo("worldloader", "WorldLoader", "1.0.1", Author = "Nine Lives offline project",
+    [ModInfo("worldloader", "WorldLoader", "1.2.0", Author = "Nine Lives offline project",
         Description = "Place copies of houses, fences, trees and props, or hide things, from world packs in Mods\\World.")]
-    public class WorldLoader : Mod
+    public partial class WorldLoader : Mod
     {
         string packsDir;
         readonly Dictionary<string, GameObject> copies = new Dictionary<string, GameObject>();       // object id -> copy
@@ -59,28 +59,40 @@ namespace WorldLoader
             Log("ready - world packs go in Mods\\World");
         }
 
-        public override void OnZoneLoaded(string zone) { copies.Clear(); copySource.Clear(); hidden.Clear(); spawnAt = -1; }
+        public override void OnZoneLoaded(string zone) { DropNewCarry(); Copier.ClearCaches(); Deselect(); dragging = false; copies.Clear(); copySource.Clear(); hidden.Clear(); spawnAt = -1; }
         public override void OnPlayerSpawned() { spawnAt = Time.realtimeSinceStartup + 3f; }
 
         public override void OnUpdate()
         {
             float now = Time.realtimeSinceStartup;
             if (spawnAt > 0 && now >= spawnAt) { spawnAt = -1; try { Log(Reload()); } catch (Exception e) { Log("loading world packs failed: " + e); } }
+            try { BuildUpdate(); }
+            catch (Exception e)
+            {
+                EditorMode.MouseBusy = false;   // or zoom and orbit would stay dead
+                if (e.Message != lastBuildError) { lastBuildError = e.Message; Log("build mode failed: " + e); }
+            }
             for (int i = glows.Count - 1; i >= 0; i--)
                 if (now > glows[i].Key) { try { EffectController.clearForcusEffect(glows[i].Value); } catch { } glows.RemoveAt(i); }
             // A copy of baked scenery still uses the original's "hidden behind something" data, so it would
             // fade in and out as you turn. While this zone has such copies, the cameras skip that check.
             if (now >= nextBakedCheck) { nextBakedCheck = now + 1f; anyMovedBaked = copies.Values.Any(g => g != null && Copier.HasMovedBakedParts(g)); }
             bool want = occlusionMode == 1 || (occlusionMode == 0 && anyMovedBaked);
-            foreach (var cam in Camera.allCameras)
+            if (want || occlusionOff.Count > 0)   // (nothing to do, and no camera list to build, most of the time)
             {
-                if (want && cam.useOcclusionCulling) { cam.useOcclusionCulling = false; occlusionOff.Add(cam); }
-                else if (!want && occlusionOff.Contains(cam)) { cam.useOcclusionCulling = true; occlusionOff.Remove(cam); }
+                foreach (var cam in Camera.allCameras)
+                {
+                    if (want && cam.useOcclusionCulling) { cam.useOcclusionCulling = false; occlusionOff.Add(cam); }
+                    else if (!want && occlusionOff.Contains(cam)) { cam.useOcclusionCulling = true; occlusionOff.Remove(cam); }
+                }
+                occlusionOff.RemoveWhere(c => c == null);
             }
-            occlusionOff.RemoveWhere(c => c == null);
         }
 
-        float nextBakedCheck; bool anyMovedBaked;
+        float nextBakedCheck; bool anyMovedBaked; string lastBuildError;
+
+        public override void OnGUI() { try { BuildGUI(); } catch (Exception e) { if (!buildGuiFailed) { buildGuiFailed = true; Log("build mode screen failed: " + e); } } }
+        bool buildGuiFailed;
         int occlusionMode;   // 0 = automatic, 1 = always off, 2 = leave the game's setting
         readonly HashSet<Camera> occlusionOff = new HashSet<Camera>();
 
@@ -174,7 +186,7 @@ namespace WorldLoader
         // ------------------------------------------------------------ live link (Nine Lives Editor)
         static string F(float v) { return Math.Round(v, 2).ToString(System.Globalization.CultureInfo.InvariantCulture); }
 
-        static Dictionary<string, object> Describe(Transform t, Vector3 from)
+        internal static Dictionary<string, object> Describe(Transform t, Vector3 from)
         {
             var b = Copier.BoundsOf(t);
             var rs = t.GetComponentsInChildren<MeshRenderer>(true);
@@ -201,6 +213,8 @@ namespace WorldLoader
         {
             if (!Game.InWorld) return "{\"error\":\"Not in the world yet.\"}";
             var me = Game.PlayerPosition;
+            var built = BuildLive(r);
+            if (built != null) return built;
             switch (r.Path)
             {
                 case "/world/pick":   // what's in the middle of the game's view
@@ -221,7 +235,7 @@ namespace WorldLoader
                 }
                 case "/world/near":   // things around the player
                 {
-                    float radius = 20; float.TryParse(r.Get("radius") ?? "20", out radius);
+                    float radius; if (!float.TryParse(r.Get("radius") ?? "20", System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out radius)) radius = 20;
                     var found = new Dictionary<Transform, bool>();
                     foreach (var c in Physics.OverlapSphere(me, Mathf.Clamp(radius, 2, 80)))
                     {
@@ -276,6 +290,11 @@ namespace WorldLoader
                     occlusionMode = m == "off" ? 1 : m == "game" ? 2 : 0;
                     return "{\"ok\":true,\"mode\":" + LiveLink.Quote(m) + ",\"cameras\":" + Camera.allCameras.Length + "}";
                 }
+                case "/world/copytest":   // ?cut=0&twin=0&draw=0&box=0&col=0
+                    Copier.UseCut = r.Get("cut") != "0"; Copier.UseTwin = r.Get("twin") != "0"; Copier.UseDraw = r.Get("draw") != "0";
+                    Copier.UseBox = r.Get("box") != "0"; Copier.UseColliders = r.Get("col") != "0";
+                    Copier.DrawShadows = r.Get("shadows") == "1"; Copier.DrawReceive = r.Get("receive") != "0";
+                    return "{\"ok\":true}";
                 case "/world/remove": Remove(r.Get("id") ?? ""); return "{\"ok\":true}";
                 case "/world/reload": return "{\"ok\":true,\"message\":" + LiveLink.Quote(Reload()) + "}";
             }

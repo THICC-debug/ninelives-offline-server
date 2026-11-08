@@ -1,6 +1,6 @@
 # WorldLoader for Nine Lives
 
-**Version 1.0.1** · a mod for *Ninelives* 0.24.3 (offline) · build in the [Nine Lives Editor](../../editor)
+**Version 1.1.0** · a mod for *Ninelives* 0.24.3 (offline) · build in the [Nine Lives Editor](../../editor)
 
 > [!NOTE]
 > This mod was made with AI (Anthropic's Claude, in Claude Code) and tested by a human player.
@@ -10,22 +10,30 @@ it (turned, tilted, resized), or hide things that are in the way.
 
 ## Requirements
 
-- *Ninelives* 0.24.3 with Setup.exe (mod loader 2.2 or newer).
+- *Ninelives* 0.24.3 with Setup.exe (mod loader 2.2 or newer; 2.4 for the editor's 3D view tools).
 - The [Nine Lives Editor](../../editor) to build live (or write packs by hand).
 
 ## Building with the editor
 
-Start the game, enter the world, and open the editor's **World** tab (the badge says **● In game**).
+The Nine Lives Editor's **Build** tab shows the game in 3D (the editor runs it in the background as its
+3D view). WorldLoader provides the building tools there:
 
-1. Turn the camera so the thing you want is in the middle of the game window, then **Pick what I'm
-   looking at**. It glows in game. The editor lists it and the bigger things it belongs to (a wall,
-   its house, the whole street); the suggested one is marked.
-2. **Copy it here** puts a copy in front of you. **Hide it** hides the original instead.
-3. Move it from where you face (▲ ▼ ◀ ▶), up and down, **Drop to the ground**, turn ⟲ ⟳, tilt,
-   lean and resize. Every change shows in the game right away.
-4. **Save** keeps it (`Mods\World\<pack>.json`); **Discard changes** puts the game back as saved.
+- **Assets** (bottom panel): pictures of every kind of thing in the zone. Click one and it follows the
+  mouse in the 3D view; click to put it down (wheel or `,` `.` turns it, Shift+click keeps placing copies,
+  Esc cancels).
+- **Select, move, rotate, scale** (`Q` `W` `E` `R`, or the toolbar): drag the thing itself to slide it
+  along the ground, or its handles: red/green/blue arrows to move along one direction, rings to turn,
+  the cube to resize. A yellow box shows what's selected. **Snap** (toolbar) snaps to a grid and to angle
+  steps; hold Ctrl to flip it while dragging.
+- **Right-click** a thing (a quick click) for a menu: properties, move tools, pick up and carry, drop to
+  the ground, copy, frame, delete. `Ctrl+D` copies, `Del` deletes, double-click any scenery to see what
+  it is (to hide it, or copy a bigger part of it, in the inspector's full page).
+- Your NPCs (NPCLoader) and the monsters you spawned (EnemyLoader 1.0+) can be clicked, dragged, turned
+  and deleted the same way.
 
-**Things around me** lists what's within 20 m if aiming is awkward.
+Every change is an unsaved change of the pack in the editor: **Save** keeps it, **Undo** and **Discard**
+take it back. In a normal game, **F8** turns on a simpler build mode (click and drag your copies; `[` `]`
+turn, PgUp/PgDn raise, `+` `-` resize).
 
 ## World pack format
 
@@ -85,7 +93,10 @@ python tools/batch_index.py "<game folder>"     # writes batches\<scene>.json
 
 ## Known limits
 
+- Parts drawn from the baked index don't cast shadows (they still receive them): casting shadows from
+  pieces of the game's baked meshes crashes Unity 5.3. Parts rebuilt from a collision model are normal.
+
 - Copies come from the zone you're in. Copying from other zones isn't supported yet.
-- NPCs and monsters can't be copied here: use [NPCLoader](../NPCLoader).
+- NPCs and monsters can't be copied here: use [NPCLoader](../NPCLoader) and [EnemyLoader](../EnemyLoader).
 
 License: MIT (code only; the game belongs to SmokymonkeyS).

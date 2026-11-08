@@ -1,0 +1,23 @@
+{
+  "name": "example-enemies",
+  "description": "A Bone Warlord and his guards in the Crimson Isles. Turn it on in the Nine Lives Editor (Packs & mods).",
+  "enemies": [
+    {
+      "id": 1001,
+      "monster": "Bone Soldier",
+      "name": "Bone Warlord",
+      "zone": "Zone_CrimsonIsles",
+      "x": 1000, "y": 0, "z": 1000,
+      "respawn": false,
+      "health": 12, "damage": 2.4, "attackSpeed": 1.2, "defense": 2, "exp": 10, "gold": 8, "size": 1.7
+    },
+    {
+      "id": 1002,
+      "monster": "Bone Archer",
+      "zone": "Zone_CrimsonIsles",
+      "x": 1000, "y": 0, "z": 1000,
+      "count": 4, "spread": 8,
+      "health": 1.5, "damage": 1.2
+    }
+  ]
+}

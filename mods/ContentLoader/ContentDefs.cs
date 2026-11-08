@@ -75,9 +75,21 @@ namespace ContentLoader
     /// <summary>export\monsters.json</summary>
     public class MonsterInfo
     {
+        /// <summary>The name shown in game when an enemy pack renames it (EnemyLoader); null when it isn't.</summary>
+        public string shownAs;
         public string name;
         public string zone;
         public int dropId;
+        /// <summary>Most seen at once in the zone.</summary>
         public int seen;
+        /// <summary>The game's character id (kill quests can use it), -1 when it has none.</summary>
+        public int cid = -1;
+        public string title;
+        /// <summary>Base stats of one of them: health, damage, defense, exp, gold …</summary>
+        public Dictionary<string, float> stats;
+        /// <summary>Where they've been seen: [x, z] on a 5 m grid.</summary>
+        public List<int[]> spots;
+        /// <summary>Picture in export\monsters\ (without .png).</summary>
+        public string pic;
     }
 }

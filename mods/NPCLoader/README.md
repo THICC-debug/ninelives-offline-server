@@ -1,6 +1,6 @@
 # NPCLoader for Nine Lives
 
-**Version 1.2.2** · a mod for *Ninelives* 0.24.3 (offline)
+**Version 1.2.3** · a mod for *Ninelives* 0.24.3 (offline)
 
 > [!NOTE]
 > This mod was made with AI (Anthropic's Claude, in Claude Code) and tested by a human player.
@@ -28,12 +28,15 @@ Switch them on in the Nine Lives Editor (**Packs & mods**), or remove `.disabled
 
 ## Placing NPCs with the editor
 
-The Nine Lives Editor's **NPCs** tab: pick who the NPC looks like (any NPC in the same zone), put it
-next to an NPC or type a position, choose its job, and give it quests (**New quest for …**) or
-shop stock (**Edit the stock**).
+In the Nine Lives Editor's **Build** view (the game in 3D, run by the editor): **Assets → NPCs** shows
+everyone standing in the zone. Click one, then click in the 3D view to put down a new NPC who looks like
+them (Esc cancels). Drag it with the move and rotate tools like any placed thing; **right-click** it for
+a menu (give it a dialogue, make a quest for it, properties, move, delete).
 
-**Live in game:** with the game running (and you in the world), the NPCs tab connects to it by
-itself (the badge at the top says **● In game**). Every change shows in the world straight away:
+The NPC inspector (right side) sets its name, look, job, quests (**New quest for …**) and, for a
+vendor, what it sells (see [Vendors](#vendors)). It's connected to the game (the 3D view, or a game you started yourself: the badge
+at the top says **● In game**), so every change shows in the world straight away ("me" is the camera in
+the 3D view):
 
 - **Put here (in front of me)** places the NPC where you're standing in game, facing you.
 - **Take me there** teleports you in front of the NPC; **Turn to face me** turns it toward you.
@@ -63,10 +66,38 @@ NPCs you add this way are saved to `Mods\NPCs\my-npcs.json`.
 | Role | What clicking the NPC does |
 |---|---|
 | `quest` (default) | Talks: offers and accepts the quests whose giver/ender is this NPC's id |
-| `shop` | Opens a shop. Its stock is the shop table with this NPC's id. Make one with [ContentLoader](../ContentLoader) (`shops.drops.<id>`). Copy a vendor as the template. |
+| `shop` | Opens a shop with the NPC's `sells` list (see [Vendors](#vendors)). Without a list: the shop table with this NPC's id from [ContentLoader](../ContentLoader) (`shops.drops.<id>`). |
 | `alchemy` | Opens the alchemy window |
 | `bank`, `share` | Opens the bank / shared bank |
 | `none` | Nothing: just someone standing there |
+
+## Vendors
+
+Any of your NPCs can be a vendor. In the editor, click **🛒 Make … a vendor** in the NPC inspector (or
+pick **Shopkeeper** as its job), then type item names into **What … sells**:
+
+- **Price for one**: the gold the player pays. Leave it blank for the game's usual price (shown greyed out).
+- **How many**: how many they have. Each one takes a slot in the shop window, which has 54.
+- **Quick fill**: copy the stock of one of the game's vendors, or set every price to a percentage of the usual price.
+- ▲ changes the order the items appear in; ✕ removes one.
+
+Changes show in the 3D view's shop straight away. The shop holds exactly the list. Once the player has
+bought everything, it's stocked again the next time they open it. A bought item is worth its usual amount
+when the player sells it back, whatever they paid. The editor warns when you price something below that,
+because players could then buy it and sell it back at a profit.
+
+In the pack it's the `sells` list:
+
+```json
+{ "id": 90004, "name": "Mira", "role": "shop", "template": 1010, "zone": "Zone_CrimsonIsles", "x": 1290, "y": 145, "z": 1110,
+  "sells": [ { "id": 100201000, "price": 50, "stock": 3 }, { "id": 100101000 } ] }
+```
+
+| `sells` field | Notes |
+|---|---|
+| `id` | Item id |
+| `price` | Gold for one. Left out or 0: the game's usual price (base price × shop markup) |
+| `stock` | How many (default 1) |
 
 ## Giving your NPC a quest
 
@@ -102,6 +133,7 @@ Custom NPCs show up in the editor's NPC picker, marked "(custom)".
 | `x`, `y`, `z`, `rotation` | Position, and facing in degrees. DevTools `pos` shows where you stand. The NPC is set down on whatever surface is under that spot. |
 | `template` | Id of an NPC **in the same zone** to copy. `npcnear` lists them. |
 | `role` | See above |
+| `sells` | For a `shop`: what it sells and for how much (see [Vendors](#vendors)) |
 | `sit` | `true` to sit (if the template has sitting animations). Default: stand, even if the template sits. |
 | `enabled` | `false` hides the NPC without deleting it |
 

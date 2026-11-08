@@ -6,7 +6,7 @@
   <PropertyGroup>
     <TargetFramework>net35</TargetFramework>
     <AssemblyName>ContentLoader</AssemblyName>
-    <Version>1.3.0</Version>
+    <Version>1.4.1</Version>
     <LangVersion>latest</LangVersion>
     <GameDir Condition="'$(GameDir)' == ''">$(MSBuildThisFileDirectory)..\..\..\Ninelives</GameDir>
     <Managed>$(GameDir)\Ninelives_Data\Managed</Managed>

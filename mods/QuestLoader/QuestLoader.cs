@@ -104,7 +104,7 @@ namespace QuestLoader
                 try { pack = JsonConvert.DeserializeObject<QuestPack>(File.ReadAllText(file)); }
                 catch (Exception e) { problems.Add(Path.GetFileName(file) + ": " + e.Message); continue; }
                 if (pack == null || pack.quests == null) continue;
-                foreach (var def in pack.quests) defs.Add(new KeyValuePair<string, QuestDef>(Path.GetFileName(file), def));
+                foreach (var def in pack.quests) if (def != null) defs.Add(new KeyValuePair<string, QuestDef>(Path.GetFileName(file), def));
             }
             var ids = new HashSet<int>(defs.Select(kv => kv.Value.id));
 
@@ -120,7 +120,16 @@ namespace QuestLoader
                         ctrl.quests.Remove(id);
                         var qc = ctrl as QuestController;
                         if (qc != null && qc.receivedQuests != null && qc.receivedQuests.ContainsKey(id))
-                            problems.Add("quest " + id + " was removed but you'd accepted it; it stays in your log until you restart");
+                        {
+                            if (PackGone(id))
+                            {
+                                try { qc.questCancel(id); problems.Add("quest " + id + ": its pack was deleted, so it left your quest log"); }
+                                catch (Exception e) { problems.Add("quest " + id + " was removed but couldn't leave your quest log: " + e.Message); }
+                            }
+                            else problems.Add("quest " + id + " is in your quest log but its pack is off or has a problem: it comes back when the pack loads again");
+                            // (a stand-in keeps the game happy until then)
+                            Convert.Apply(ctrl, StandIn(id));
+                        }
                     }
                     NewQuestIds.Remove(id);
                     removed++;
@@ -146,12 +155,19 @@ namespace QuestLoader
                 {
                     bool isOriginal = OriginalDefs.Count > 0 ? OriginalDefs.ContainsKey(def.id) : ctrl.quests.ContainsKey(def.id) && !NewQuestIds.Contains(def.id);
                     bool wasThere = isOriginal ? ReplacedIds.Contains(def.id) : NewQuestIds.Contains(def.id);
+                    // An accepted quest keeps its progress per goal, by position: changed goals scramble it.
+                    Quest had; var rqc = ctrl as QuestController;
+                    if (reload && rqc != null && rqc.receivedQuests != null && rqc.receivedQuests.ContainsKey(def.id) && ctrl.quests.TryGetValue(def.id, out had)
+                        && (had.targets == null ? 0 : had.targets.Length) != (def.targets == null ? 0 : def.targets.Count(t => t != null)))
+                        problems.Add("\"" + def.title + "\" is in your quest log and its goals changed: abandon it and take it again so its progress matches");
                     Convert.Apply(ctrl, def);
-                    if (isOriginal) ReplacedIds.Add(def.id); else NewQuestIds.Add(def.id);
+                    if (isOriginal) ReplacedIds.Add(def.id); else { NewQuestIds.Add(def.id); PackOf[def.id] = kv.Key; }
                     if (reload && wasThere) updated++; else if (isOriginal) replaced++; else added++;
                 }
                 catch (Exception e) { problems.Add(kv.Key + ": quest " + def.id + " failed: " + e.Message); }
             }
+
+            try { KeepKnownIds(ctrl); } catch (Exception e) { problems.Add("remembering quest ids failed: " + e.Message); }
 
             var summary = "quest packs: " + added + " added, " + replaced + " replaced" +
                           (reload ? ", " + updated + " updated, " + removed + " removed, " + restored + " originals restored" : "");
@@ -167,11 +183,88 @@ namespace QuestLoader
             return summary;
         }
 
+        // ------------------------------------------------------------ quests whose pack was removed
+        // The server keeps the ids of accepted quests, and the game looks each one up when you log in with
+        // no check: an id that's gone stops the whole quest system starting. So every pack quest id ever
+        // loaded is remembered, a removed one gets a hidden stand-in, and the stand-in is then cancelled
+        // (the game tells the server, and it's gone for good).
+        // Only a quest whose pack file is gone for good is cancelled: a pack that's switched off, or that
+        // has a mistake in it right now, keeps the player's quest (and its progress) for when it's back.
+        static readonly HashSet<int> Placeholders = new HashSet<int>();
+        static readonly Dictionary<int, string> PackOf = new Dictionary<int, string>();   // quest id -> pack file name
+
+        static QuestDef StandIn(int id)
+        {
+            return new QuestDef
+            {
+                id = id, title = "(quest from a missing pack)", objective = "Its quest pack is deleted, switched off or has a problem.", enabled = false,
+                types = new List<string> { "Normal" }, targets = new List<Target>(), rewards = new List<Reward>(),
+            };
+        }
+
+        /// <summary>Was this quest's pack deleted (no file, on or off)? Unknown pack: no, never cancel.</summary>
+        bool PackGone(int id)
+        {
+            string pack;
+            if (!PackOf.TryGetValue(id, out pack) || string.IsNullOrEmpty(pack)) return false;
+            var f = Path.Combine(PacksDir, pack);
+            return !File.Exists(f) && !File.Exists(f + ".disabled");
+        }
+
+        void KeepKnownIds(QuestControllerBase ctrl)
+        {
+            var path = Path.Combine(ExportDir, "known_quests.json");   // { "id": "pack file" }
+            bool changed = !File.Exists(path);
+            if (File.Exists(path))
+            {
+                try
+                {
+                    foreach (var kv in JsonConvert.DeserializeObject<Dictionary<string, string>>(File.ReadAllText(path)) ?? new Dictionary<string, string>())
+                    {
+                        int i; if (int.TryParse(kv.Key, out i) && !PackOf.ContainsKey(i)) PackOf[i] = kv.Value;
+                    }
+                }
+                catch { changed = true; }   // damaged: rebuilt
+            }
+            var old = Path.Combine(ExportDir, "known_ids.json");   // the first version: ids only (their packs unknown: never cancelled)
+            if (File.Exists(old))
+            {
+                try { foreach (var i in JsonConvert.DeserializeObject<List<int>>(File.ReadAllText(old)) ?? new List<int>()) if (!PackOf.ContainsKey(i)) { PackOf[i] = null; changed = true; } }
+                catch { }
+            }
+            foreach (var i in NewQuestIds) if (!PackOf.ContainsKey(i)) changed = true;   // (PackOf already holds them; written below)
+            if (changed || NewQuestIds.Count > 0)
+            {
+                var tmp = path + ".tmp";
+                File.WriteAllText(tmp, JsonConvert.SerializeObject(PackOf.OrderBy(kv => kv.Key).ToDictionary(kv => kv.Key.ToString(), kv => kv.Value)));
+                if (File.Exists(path)) File.Delete(path);
+                File.Move(tmp, path);
+            }
+            foreach (var id in PackOf.Keys.ToList())
+            {
+                if (ctrl.quests.ContainsKey(id)) continue;
+                Convert.Apply(ctrl, StandIn(id));   // so logging in with it accepted doesn't stop the quest system
+                if (PackGone(id)) Placeholders.Add(id);
+            }
+        }
+
+        void CancelPlaceholders()
+        {
+            var qc = QuestController.GetQuestCtrl() as QuestController;
+            if (qc == null || !qc.initialized || qc.receivedQuests == null) return;
+            foreach (var id in Placeholders.ToList())
+            {
+                if (qc.receivedQuests.ContainsKey(id) && PackGone(id)) { try { qc.questCancel(id); Log("quest " + id + ": its pack was deleted, so it left your quest log"); } catch (Exception e) { Log("quest " + id + ": " + e.Message); } }
+                Placeholders.Remove(id);
+            }
+        }
+
         // ------------------------------------------------------------ NPC list for the editor
         public override void OnZoneLoaded(string zone) { scanNpcsAt = Time.realtimeSinceStartup + 8f; }   // let NPCs spawn
 
         public override void OnUpdate()
         {
+            if (Placeholders.Count > 0 && Time.frameCount % 30 == 0) CancelPlaceholders();
             if (scanNpcsAt < 0 || Time.realtimeSinceStartup < scanNpcsAt) return;
             scanNpcsAt = -1;
             try { ScanNpcs(); } catch (Exception e) { Log("NPC scan failed: " + e.Message); }
@@ -181,9 +274,9 @@ namespace QuestLoader
         {
             var path = Path.Combine(ExportDir, "npcs.json");
             var known = new Dictionary<string, NpcInfo>();
-            if (File.Exists(path))
-                foreach (var n in JsonConvert.DeserializeObject<List<NpcInfo>>(File.ReadAllText(path)) ?? new List<NpcInfo>())
-                    known[n.zone + "|" + n.cid] = n;
+            List<NpcInfo> old = null;
+            if (File.Exists(path)) { try { old = JsonConvert.DeserializeObject<List<NpcInfo>>(File.ReadAllText(path)); } catch { } }   // damaged: start a fresh list
+            foreach (var n in old ?? new List<NpcInfo>()) if (n != null) known[n.zone + "|" + n.cid] = n;
             int found = 0;
             foreach (var o in UnityEngine.Object.FindObjectsOfType(typeof(CommonStats)))
             {
@@ -217,6 +310,11 @@ namespace QuestLoader
     static class OfferPackQuests
     {
         static void Postfix(int cid_, ref ActiveQuestResultSet __result)
+        {
+            try { Offer(cid_, ref __result); }
+            catch (Exception e) { ModLoader.Log("QuestLoader: offering pack quests failed: " + e.Message); }
+        }
+        static void Offer(int cid_, ref ActiveQuestResultSet __result)
         {
             if (QuestLoader.NewQuestIds.Count == 0) return;
             if (__result.quest != null && !__result.isBlocked && !__result.isMessage) return;
@@ -297,13 +395,45 @@ namespace QuestLoader
             return d;
         }
 
+        /// <summary>
+        /// Things the game itself can't cope with (it would throw in its own loops, every second or on every
+        /// kill), checked before anything is changed: the quest is then reported, not half applied.
+        /// </summary>
+        static void Validate(QuestDef d)
+        {
+            var targets = (d.targets ?? new List<Target>()).Where(t => t != null).ToList();
+            bool kills = targets.Any(t => string.Equals(t.kind, "kill", StringComparison.OrdinalIgnoreCase));
+            bool items = targets.Any(t => !string.Equals(t.kind, "kill", StringComparison.OrdinalIgnoreCase));
+            if (kills && items) throw new ArgumentException("a quest can have item goals or kill goals, not both (make two quests)");
+            if (targets.Count > 8) throw new ArgumentException("at most 8 goals (it has " + targets.Count + ")");
+            foreach (var t in targets)
+                if (!string.IsNullOrEmpty(t.kind) && !t.kind.Equals("kill", StringComparison.OrdinalIgnoreCase) && !t.kind.Equals("item", StringComparison.OrdinalIgnoreCase))
+                    throw new ArgumentException("unknown goal kind \"" + t.kind + "\" (item or kill)");
+            Action<int, int, string> range = (v, max, what) => { if (v < 0 || v >= max) throw new ArgumentException(what + " " + v + " is out of range (0-" + (max - 1) + ")"); };
+            range(d.clearFlag, 10000, "clearFlag"); range(d.clearWorkFlag, 100000, "clearWorkFlag");
+            foreach (var f in d.setFlagsOnClear ?? new List<FlagValue>()) if (f != null) range(f.flag, 10000, "flag");
+            if (d.requires != null)
+            {
+                foreach (var f in (d.requires.flagsAll ?? new List<FlagValue>()).Concat(d.requires.flagsAny ?? new List<FlagValue>())) if (f != null) range(f.flag, 10000, "required flag");
+                foreach (var f in (d.requires.workFlagsAll ?? new List<FlagValue>()).Concat(d.requires.workFlagsAny ?? new List<FlagValue>())) if (f != null) range(f.flag, 100000, "required work flag");
+            }
+        }
+
         public static void Apply(QuestControllerBase ctrl, QuestDef d)
         {
+            Validate(d);
+            // (null entries in the lists are skipped, not crashed on halfway)
+            if (d.targets != null) d.targets.RemoveAll(x => x == null);
+            if (d.rewards != null) d.rewards.RemoveAll(x => x == null);
+            if (d.receives != null) d.receives.RemoveAll(x => x == null);
+            if (d.setFlagsOnClear != null) d.setFlagsOnClear.RemoveAll(x => x == null);
             Quest q;
             QuestType type = ParseTypes(d.types);
+            // Kill goals only count in Kill quests (QuestController.onKill).
+            if (d.targets != null && d.targets.Exists(t => string.Equals(t.kind, "kill", StringComparison.OrdinalIgnoreCase))) type |= QuestType.Kill;
             // The game only counts item goals for Collect quests (GUI_ActionDock), so a quest with
             // an item goal but no Collect type could never be handed in. Add it.
-            if (d.targets != null && d.targets.Exists(t => t.kind != "kill")) type |= QuestType.Collect;
+            if (d.targets != null && d.targets.Exists(t => !string.Equals(t.kind, "kill", StringComparison.OrdinalIgnoreCase))) type |= QuestType.Collect;
             if (ctrl.quests.TryGetValue(d.id, out q))
             {
                 Unlink(ctrl, q);
@@ -323,6 +453,14 @@ namespace QuestLoader
             q.descriptionForEnder = d.descriptionForEnder;
             q.message = d.messages;
             q.clearWorkFlagIndex = d.clearWorkFlag;
+            // Other languages: only what the pack says (otherwise a replaced quest would still tell the old
+            // story to a player whose game is in another language).
+            foreach (var l in Langs)
+            {
+                SetField(q, "description_" + l, "");
+                SetField(q, "descriptionForEnder_" + l, "");
+                SetField(q, "message_" + l, new string[0]);
+            }
             if (d.translations != null)
                 foreach (var kv in d.translations)
                 {

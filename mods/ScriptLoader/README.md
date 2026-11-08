@@ -45,18 +45,18 @@ Saving reloads the scripts in the game.
 
 ## Dialogues
 
-In the editor's **Dialogue** tab: **New dialogue** (or **Give … a dialogue** on an NPC in the NPCs tab).
+In the editor's **Dialogue** tab: **New dialogue** (or **Give … a dialogue** on an NPC: right-click it in the editor's 3D view).
 
 - A dialogue is **lines** (what the NPC says) and **answers** (what the player can say).
 - Each answer goes to another line, or ends the conversation. It can be shown **only if** something
   is true, and can **also do** things: give an item, start a quest, set a flag… (the same actions as rules).
 - A line can also do things when it's shown.
-- Pick an NPC and talking to them opens it. Give an NPC who only talks the job "none" (NPCs tab), so
+- Pick an NPC and talking to them opens it. Give an NPC who only talks the job "none" (NPC inspector in the editor), so
   the quest window doesn't open as well. Rules start dialogues with **Start a dialogue**, Lua with
   `game.dialog("id")`.
 - **▶ Preview here** walks through it in the editor; **Play in the game** shows it in the game.
 
-In the game it opens in a window drawn like the game's own quest window (next to it when the NPC's quest window is open too): click an answer or press 1–9; the X, Esc or walking away closes it.
+In the game it opens in a window drawn like the game's own quest window (next to it when the NPC's quest window is open too): click an answer or press 1–9; the X, Esc or walking away closes it. While it is open those keys only answer the dialogue (they don't also use your hotbar, jump or open the menu).
 
 ## Lua
 

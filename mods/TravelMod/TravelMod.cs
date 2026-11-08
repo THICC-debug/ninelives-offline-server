@@ -111,10 +111,17 @@ namespace TravelMod
             string key = Universe.characterSessionKey;
             if (string.IsNullOrEmpty(key)) return;
             var d = Read();
-            d[key] = Game.Zone + "|" + p.x.ToString("R") + "|" + p.y.ToString("R") + "|" + p.z.ToString("R");
+            var inv = System.Globalization.CultureInfo.InvariantCulture;   // the same on every PC (a comma locale too)
+            d[key] = Game.Zone + "|" + p.x.ToString("R", inv) + "|" + p.y.ToString("R", inv) + "|" + p.z.ToString("R", inv);
             var lines = new List<string>();
             foreach (var kv in d) lines.Add(kv.Key + "|" + kv.Value);
-            try { File.WriteAllLines(TravelMod.SavePath, lines.ToArray()); }
+            try
+            {
+                var tmp = TravelMod.SavePath + ".tmp";   // whole or not at all (a crash mid-write)
+                File.WriteAllLines(tmp, lines.ToArray());
+                if (File.Exists(TravelMod.SavePath)) File.Delete(TravelMod.SavePath);
+                File.Move(tmp, TravelMod.SavePath);
+            }
             catch (Exception e) { ModLoader.Log("TravelMod: couldn't save position: " + e.Message); }
         }
 
@@ -126,7 +133,12 @@ namespace TravelMod
             if (string.IsNullOrEmpty(key) || !Read().TryGetValue(key, out v)) return false;
             var f = v.Split('|');
             if (f.Length != 4 || f[0] != Game.Zone) return false;  // saved in another zone
-            p = new Vector3(float.Parse(f[1]), float.Parse(f[2]), float.Parse(f[3]));
+            var inv = System.Globalization.CultureInfo.InvariantCulture; var st = System.Globalization.NumberStyles.Float;
+            float x, y, z;
+            var cur = System.Globalization.CultureInfo.CurrentCulture;   // (saved by the first version, in this PC's format)
+            if (!(float.TryParse(f[1], st, inv, out x) && float.TryParse(f[2], st, inv, out y) && float.TryParse(f[3], st, inv, out z)) &&
+                !(float.TryParse(f[1], st, cur, out x) && float.TryParse(f[2], st, cur, out y) && float.TryParse(f[3], st, cur, out z))) return false;
+            p = new Vector3(x, y, z);
             return true;
         }
     }
@@ -141,7 +153,7 @@ namespace TravelMod
     // On entering the world the game asks the graveyard keeper for the start point, then
     // that point's respawn position. Swap in the saved position for that one call.
     [HarmonyPatch(typeof(WorldRoot_GraveyardKeeper), nameof(WorldRoot_GraveyardKeeper.getStartGraveyard))]
-    static class MarkEntering { internal static bool entering; static void Postfix() => entering = true; }
+    static class MarkEntering { internal static bool entering; static void Postfix(object __result) => entering = __result != null; }
 
     [HarmonyPatch(typeof(Graveyard), nameof(Graveyard.getRespawnPosition))]
     static class RestorePosition
@@ -150,12 +162,16 @@ namespace TravelMod
         {
             if (!MarkEntering.entering) return;
             MarkEntering.entering = false;
-            Vector3 saved;
-            if (Positions.TryGet(out saved))
+            try
             {
-                __result = saved;
-                ModLoader.Log("TravelMod: restored last position " + saved);
+                Vector3 saved;
+                if (Positions.TryGet(out saved))
+                {
+                    __result = saved;
+                    ModLoader.Log("TravelMod: restored last position " + saved);
+                }
             }
+            catch (Exception e) { ModLoader.Log("TravelMod: couldn't restore the position: " + e.Message); }   // (never stop the player spawning)
         }
     }
 }

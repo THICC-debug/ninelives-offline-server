@@ -53,21 +53,35 @@ namespace ScriptLoader
 
         void Call(DynValue fn, string where, params object[] args)
         {
-            try { script.Call(fn, args.Select(a => a is DynValue ? (DynValue)a : DynValue.FromObject(script, a)).ToArray()); }
+            try { Run(fn, args.Select(a => a is DynValue ? (DynValue)a : DynValue.FromObject(script, a)).ToArray()); }
             catch (Exception e) { Fail(where, e); }
         }
 
         // ------------------------------------------------------------ running
+        /// <summary>
+        /// Run Lua with a budget: an endless loop (while true do end) is stopped instead of freezing the game,
+        /// which waits for Lua on its main thread.
+        /// </summary>
+        const long Budget = 20000000;   // instructions (well under a second)
+        DynValue Run(DynValue fn, params DynValue[] args)
+        {
+            if (fn.Type != DataType.Function) return script.Call(fn, args);   // a built-in (C#) function: nothing to loop
+            var co = script.CreateCoroutine(fn).Coroutine;
+            co.AutoYieldCounter = Budget;
+            var r = co.Resume(args);
+            if (co.State == CoroutineState.ForceSuspended || co.State == CoroutineState.Suspended || r.Type == DataType.YieldRequest) throw new ScriptRuntimeException("took too long (an endless loop?), so it was stopped");
+            return r;
+        }
         public void RunFile(string id, string code)
         {
-            try { script.DoString(code, null, pack + "/" + id); }
+            try { Run(script.LoadString(code, null, pack + "/" + id)); }
             catch (Exception e) { Fail(id, e); }
         }
 
         public void RunSnippet(string code, Dictionary<string, object> e)
         {
             script.Globals["event"] = ToTable(e);
-            try { script.DoString(code, null, pack + " (rule)"); }
+            try { Run(script.LoadString(code, null, pack + " (rule)")); }
             catch (Exception ex) { Fail("rule", ex); }
         }
 
@@ -79,8 +93,8 @@ namespace ScriptLoader
             try
             {
                 DynValue v;
-                try { v = script.DoString("return " + code, null, "console"); }   // an expression: show its value
-                catch (SyntaxErrorException) { v = script.DoString(code, null, "console"); }
+                try { v = Run(script.LoadString("return " + code, null, "console")); }   // an expression: show its value
+                catch (SyntaxErrorException) { v = Run(script.LoadString(code, null, "console")); }
                 if (v != null && !v.IsNil()) capture.Add("= " + v.ToPrintString());
             }
             catch (Exception e) { ok = false; Fail("console", e); }

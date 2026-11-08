@@ -59,8 +59,10 @@ A few seconds after you enter the world, ContentLoader writes the game's **origi
 | `items.json` | Every item: name, price, and the stats that differ from a blank item |
 | `loot.json` | Every loot table (drop id → what drops) and the shared item groups |
 | `shops.json` | Every shop's stock (drop id = the shop NPC's id) |
-| `monsters.json` | Which monster uses which loot table, added as you visit zones |
+| `monsters.json` | Every monster met in each zone: its loot table, id, base stats (health, damage, defense, exp, gold…) and where it was seen (on a 5 m grid). Added to as you play: checked when a zone loads and every minute after. Monsters renamed by an EnemyLoader pack are listed under the game's name, with `shownAs`; EnemyLoader's own spawns are left out. A picture is taken the first time you're near one |
+| `monsters\` | A picture of each monster (`m_<hash>.png`), taken the first time you're near one. The editor shows them when you pick an enemy for a quest |
 | `variants.json` | Item variants ("Fine Knife") and their base item |
+| `icons.json`, `icons\` | Each item's icon as a PNG, and which icon each item uses (the editor shows them) |
 
 ## Content packs
 

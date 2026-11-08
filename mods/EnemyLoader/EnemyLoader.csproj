@@ -1,0 +1,56 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- EnemyLoader: spawn monsters where you like, with tweaked stats, and rename the game's own, from JSON enemy packs in Mods\Enemies.
+       Build:    dotnet build -c Release            (also installs into the game)
+       Release:  dotnet build -c Release -t:Package  (makes release\EnemyLoader-<version>.zip) -->
+  <PropertyGroup>
+    <TargetFramework>net35</TargetFramework>
+    <AssemblyName>EnemyLoader</AssemblyName>
+    <Version>1.1.0</Version>
+    <LangVersion>latest</LangVersion>
+    <GameDir Condition="'$(GameDir)' == ''">$(MSBuildThisFileDirectory)..\..\..\Ninelives</GameDir>
+    <Managed>$(GameDir)\Ninelives_Data\Managed</Managed>
+    <!-- Compile against the untouched game code (the patcher's backup) when it exists. -->
+    <GameCode Condition="Exists('$(GameDir)\Ninelives_Data\OfflineBackup\Assembly-UnityScript.dll')">$(GameDir)\Ninelives_Data\OfflineBackup</GameCode>
+    <GameCode Condition="'$(GameCode)' == ''">$(Managed)</GameCode>
+    <Loader>$(MSBuildThisFileDirectory)..\..\modloader\NineLivesModLoader\bin\Release\net35\NineLivesModLoader.dll</Loader>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies.net35" Version="1.0.3" PrivateAssets="all" />
+    <PackageReference Include="Lib.Harmony" Version="2.2.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="NineLivesModLoader"><HintPath>$(Loader)</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine"><HintPath>$(Managed)\UnityEngine.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Assembly-UnityScript"><HintPath>$(GameCode)\Assembly-UnityScript.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Assembly-CSharp-firstpass"><HintPath>$(GameCode)\Assembly-CSharp-firstpass.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+
+  <!-- Install into the game's Mods folder. -->
+  <Target Name="InstallMod" AfterTargets="Build" Condition="Exists('$(GameDir)\Mods') and '$(NoInstall)' != 'true'">
+    <!-- If the game is running its files are locked: warn instead of failing. -->
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(GameDir)\Mods" ContinueOnError="WarnAndContinue" />
+    <Copy SourceFiles="$(OutDir)0Harmony.dll" DestinationFolder="$(GameDir)\Mods\lib" ContinueOnError="WarnAndContinue" />
+  </Target>
+
+  <!-- Release zip, laid out to unzip straight into the game folder:
+       Mods\EnemyLoader.dll, Mods\EnemyLoader-README.md, Mods\Enemies\example-enemies.json.disabled -->
+  <Target Name="Package" DependsOnTargets="Build">
+    <PropertyGroup>
+      <Stage>$(BaseIntermediateOutputPath)package\</Stage>
+      <ReleaseDir>$(MSBuildThisFileDirectory)release\</ReleaseDir>
+    </PropertyGroup>
+    <RemoveDir Directories="$(Stage)" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(Stage)Mods" />
+    <Copy SourceFiles="$(OutDir)0Harmony.dll" DestinationFolder="$(Stage)Mods\lib" />
+    <Copy SourceFiles="README.md" DestinationFiles="$(Stage)Mods\$(AssemblyName)-README.md" />
+    <!-- The example ships switched off: turn it on in the Nine Lives Editor (Packs & mods). -->
+    <Copy SourceFiles="example-enemies.json" DestinationFiles="$(Stage)Mods\Enemies\example-enemies.json.disabled" Condition="Exists('example-enemies.json')" />
+    <MakeDir Directories="$(ReleaseDir)" />
+    <ZipDirectory SourceDirectory="$(Stage)" DestinationFile="$(ReleaseDir)$(AssemblyName)-$(Version).zip" Overwrite="true" />
+    <Message Importance="high" Text="Release: $(ReleaseDir)$(AssemblyName)-$(Version).zip" />
+  </Target>
+
+</Project>

@@ -80,14 +80,24 @@ namespace ScriptLoader
         {
             node = n;
             var steps = n["do"] as JArray;
-            if (steps != null && steps.Count > 0) RunSteps(steps, open.Pack);
-            shown = (n["choices"] as JArray ?? new JArray()).OfType<JObject>()
+            if (steps != null && steps.Count > 0) { RunSteps(steps, open.Pack); refilterAt = Time.frameCount + 2; }
+            Refilter();
+        }
+
+        // The line's actions run on the next frame: answers that depend on them (a flag it sets, an item it
+        // gives) are checked again then.
+        int refilterAt;
+        void Refilter()
+        {
+            if (node == null) return;
+            shown = (node["choices"] as JArray ?? new JArray()).OfType<JObject>()
                 .Where(c => (c["if"] as JArray ?? new JArray()).OfType<JObject>().All(Check)).ToList();
         }
 
         void Choose(int i)
         {
             if (open == null) return;
+            if (refilterAt > 0) return;   // (answers are being checked again this moment)
             if (shown.Count == 0) { Close(); return; }      // just "Close"
             if (i < 0 || i >= shown.Count) return;
             var c = shown[i];
@@ -99,13 +109,17 @@ namespace ScriptLoader
             if (n == null) Close(); else Show(n);
         }
 
-        void Close() { open = null; node = null; shown.Clear(); if (mouseHeld) { try { ReleaseMouse(); } catch { } } }
+        // (the frame it closes too: Esc that closed it mustn't open the game's menu as well)
+        int closedFrame = -1;
+        internal bool DialogOpen { get { return open != null || Time.frameCount == closedFrame; } }
+        void Close() { if (open != null) closedFrame = Time.frameCount; open = null; node = null; shown.Clear(); if (mouseHeld) { try { ReleaseMouse(); } catch { } } }
 
         /// <summary>Keys, and closing when the player walks away. Called every frame.</summary>
         void DialogUpdate()
         {
             if (open == null) return;
             if (!Game.InWorld || Vector3.Distance(Game.PlayerPosition, openedAt) > 8f) { Close(); return; }
+            if (refilterAt > 0 && Time.frameCount >= refilterAt) { refilterAt = 0; Refilter(); }
             if (Input.GetKeyDown(KeyCode.Escape)) { Close(); return; }
             for (int k = 0; k < 9; k++)
                 if (Input.GetKeyDown(KeyCode.Alpha1 + k) || Input.GetKeyDown(KeyCode.Keypad1 + k)) { Choose(shown.Count == 0 ? 0 : k); return; }
@@ -117,7 +131,7 @@ namespace ScriptLoader
 
         public override void OnGUI()
         {
-            if (open == null || node == null) return;
+            if (open == null || node == null || !Game.InWorld) return;
             try { DrawDialog(); }
             catch (Exception e)
             {
@@ -137,7 +151,7 @@ namespace ScriptLoader
             var root = Universe.GetGUIRootCtrl();
             var qp = GUI_QuestPanel.getGUIInstance();
             if (root == null || root.CommonSkin == null || qp == null || qp.transitionButtonStyle == null) { DrawPlain(); return; }
-            if (root.forceDisableGUIs) return;   // the game's UI is hidden (F11)
+            if (root.forceDisableGUIs) { if (mouseHeld) ReleaseMouse(); return; }   // the game's UI is hidden (F11)
             if (windowId < 0) windowId = root.GetNextWindowID();
 
             var oldMatrix = GUI.matrix; var oldSkin = GUI.skin;

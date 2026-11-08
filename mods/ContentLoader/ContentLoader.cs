@@ -11,7 +11,7 @@ using UnityEngine;
 
 namespace ContentLoader
 {
-    [ModInfo("contentloader", "ContentLoader", "1.3.0", Author = "Nine Lives offline project",
+    [ModInfo("contentloader", "ContentLoader", "1.4.1", Author = "Nine Lives offline project",
         Description = "Change item prices and stats, loot tables and shop stock with JSON content packs in Mods\\Content.")]
     public class ContentLoader : Mod
     {
@@ -56,6 +56,7 @@ namespace ContentLoader
                     foreach (var kv in p.items)
                     {
                         int id;
+                        if (kv.Value == null) continue;   // ("123": null)
                         if (!int.TryParse(kv.Key, out id)) { problems.Add(Path.GetFileName(file) + ": item id '" + kv.Key + "' isn't a number"); continue; }
                         ItemOverride cur;
                         if (!Items.TryGetValue(id, out cur)) Items[id] = cur = new ItemOverride();
@@ -92,13 +93,15 @@ namespace ContentLoader
                 {
                     int gid;
                     if (!int.TryParse(kv.Key, out gid)) { problems.Add("group id '" + kv.Key + "' isn't a number"); continue; }
+                    if (kv.Value == null) continue;
                     var g = new ItemDropRateGroupEx(0);
-                    foreach (var s in kv.Value) g.addID(s.id, Math.Max(1, s.count));
+                    foreach (var s in kv.Value) if (s != null) g.addID(s.id, Math.Max(1, s.count));
                     table.groups[gid] = g;
                     // Drop lists copy a shared group's items when they're built: refresh those copies.
                     foreach (var list in table.dropLists.Values)
-                        foreach (var rg in list.groups)
-                            if (rg.commonGroupID == gid) { rg.ids.Clear(); rg.idSets.Clear(); foreach (var s in kv.Value) rg.addID(s.id, Math.Max(1, s.count)); }
+                        if (list != null && list.groups != null)
+                            foreach (var rg in list.groups)
+                                if (rg != null && rg.commonGroupID == gid) { rg.ids.Clear(); rg.idSets.Clear(); foreach (var s in kv.Value) if (s != null) rg.addID(s.id, Math.Max(1, s.count)); }
                     changes++;
                 }
             if (t.drops != null)
@@ -107,6 +110,7 @@ namespace ContentLoader
                     int did;
                     if (!int.TryParse(kv.Key, out did)) { problems.Add("drop id '" + kv.Key + "' isn't a number"); continue; }
                     var d = kv.Value;
+                    if (d == null) continue;
                     ItemDropRateGroupList list;
                     if (!table.dropLists.TryGetValue(did, out list) || list == null)
                     {
@@ -121,7 +125,7 @@ namespace ContentLoader
                     {
                         list.fixedGroups.Clear();
                         var fg = new ItemDropRateGroupEx(-1);
-                        foreach (var s in d.always) fg.addID(s.id, Math.Max(1, s.count));
+                        foreach (var s in d.always) if (s != null) fg.addID(s.id, Math.Max(1, s.count));
                         list.fixedGroups.Add(fg);
                     }
                     if (d.random != null)
@@ -130,6 +134,7 @@ namespace ContentLoader
                         list.fullRate = 0;
                         foreach (var r in d.random)
                         {
+                            if (r == null) continue;
                             var rg = new ItemDropRateGroupEx(Math.Max(1, r.rate));
                             var src = r.items;
                             if ((src == null || src.Count == 0) && r.group != 0)
@@ -139,7 +144,7 @@ namespace ContentLoader
                                 else problems.Add("drop " + did + ": no group " + r.group);
                                 rg.commonGroupID = r.group;
                             }
-                            else if (src != null) foreach (var s in src) rg.addID(s.id, Math.Max(1, s.count));
+                            else if (src != null) foreach (var s in src) if (s != null) rg.addID(s.id, Math.Max(1, s.count));
                             list.groups.Add(rg);
                             list.fullRate += rg.rate;
                         }
@@ -148,6 +153,8 @@ namespace ContentLoader
                 }
             return changes;
         }
+
+        internal static bool exporting;   // reading the game's own stats for the export: no pack stats on top
 
         internal static void ApplyPrices(ItemLibraryBase lib)
         {
@@ -164,6 +171,17 @@ namespace ContentLoader
                 if (!origPrices.ContainsKey(kv.Key)) origPrices[kv.Key] = new KeyValuePair<int, float>(e.price, e.buyPriceAmp);
                 if (kv.Value.price.HasValue) e.price = kv.Value.price.Value;
                 if (kv.Value.buyPriceAmp.HasValue) e.buyPriceAmp = kv.Value.buyPriceAmp.Value;
+            }
+            // Variants ("Fine Knife"...) copied their base item's price when the game loaded: a new price for
+            // the base reaches them too, unless a pack prices the variant itself.
+            foreach (var kv in lib.itemIDList)
+            {
+                var e = kv.Value; ItemOverride b;
+                if (e == null || e.baseItemID <= 0 || Items.ContainsKey(kv.Key) || !Items.TryGetValue(e.baseItemID, out b)) continue;
+                if (!b.price.HasValue && !b.buyPriceAmp.HasValue) continue;
+                if (!origPrices.ContainsKey(kv.Key)) origPrices[kv.Key] = new KeyValuePair<int, float>(e.price, e.buyPriceAmp);
+                if (b.price.HasValue) e.price = b.price.Value;
+                if (b.buyPriceAmp.HasValue) e.buyPriceAmp = b.buyPriceAmp.Value;
             }
         }
 
@@ -260,6 +278,7 @@ namespace ContentLoader
             {
                 if (NeedsExport("items.json")) { var e = ExportItems(lib); while (e.MoveNext()) yield return null; }
                 if (NeedsExport("variants.json")) { var e = ExportVariants(lib); while (e.MoveNext()) yield return null; }
+                if (NeedsExport("icons.json")) { var e = ExportIcons(lib); while (e.MoveNext()) yield return null; }
             }
             Log("exports done in " + sw.Elapsed.TotalSeconds.ToString("0.0") + " s (spread over frames)");
         }
@@ -312,6 +331,67 @@ namespace ContentLoader
             Log("exported " + t.drops.Count + " drop lists and " + t.groups.Count + " groups to " + file);
         }
 
+        /// <summary>
+        /// Every item's icon as a PNG (export\icons\icon_set_n.png), and which icon each item uses (icons.json),
+        /// for the editor's lists. Many items share an icon, so each picture is saved once.
+        /// </summary>
+        System.Collections.IEnumerator ExportIcons(ItemLibraryBase lib)
+        {
+            var dir = Path.Combine(ExportDir, "icons");
+            Directory.CreateDirectory(dir);
+            var map = new SortedDictionary<int, string>();
+            var done = new Dictionary<string, bool>();
+            var hasData = new HashSet<int>(Item.getItemXMLIDList());
+            int n = 0, saved = 0;
+            foreach (var kv in lib.itemIDList.ToList())
+            {
+                var e = kv.Value;
+                if (e == null || !hasData.Contains(kv.Key)) continue;
+                if (e.baseItemID > 0 && e.baseItemID != kv.Key) continue;   // a variant: it has its base item's icon
+                if (e.setNumber < 0 || e.number < 0) continue;
+                var name = "icon_" + e.setNumber + "_" + e.number;
+                bool ok;
+                if (!done.TryGetValue(name, out ok))
+                {
+                    ok = false;
+                    try { ok = SaveIcon(GUI_ActionButtonTypes.getIconFilename(e.setNumber, e.number), Path.Combine(dir, name + ".png")); }
+                    catch (Exception ex) { if (saved == 0 && n < 3) Log("icon " + name + ": " + ex.Message); }
+                    done[name] = ok;
+                    if (ok) saved++;
+                    if (++n % 10 == 0) yield return null;
+                }
+                if (ok) map[kv.Key] = name;
+            }
+            File.WriteAllText(Path.Combine(ExportDir, "icons.json"), ToJson(map.ToDictionary(k => k.Key.ToString(), k => k.Value)));
+            Log("exported " + saved + " item icons for " + map.Count + " items");
+        }
+
+        /// <summary>A game texture (not readable as it is) copied to a PNG through a render texture.</summary>
+        static bool SaveIcon(string resource, string file)
+        {
+            var src = Resources.Load<Texture>(resource);
+            if (src == null) return false;
+            int w = Mathf.Clamp(src.width, 8, 128), h = Mathf.Clamp(src.height, 8, 128);
+            var rt = RenderTexture.GetTemporary(w, h, 0, RenderTextureFormat.ARGB32);
+            var was = RenderTexture.active;
+            var tex = new Texture2D(w, h, TextureFormat.ARGB32, false);
+            try
+            {
+                Graphics.Blit(src, rt);
+                RenderTexture.active = rt;
+                tex.ReadPixels(new Rect(0, 0, w, h), 0, 0);
+                tex.Apply();
+                File.WriteAllBytes(file, tex.EncodeToPNG());
+                return true;
+            }
+            finally
+            {
+                RenderTexture.active = was;
+                RenderTexture.ReleaseTemporary(rt);
+                UnityEngine.Object.Destroy(tex);
+            }
+        }
+
         List<ItemStack> Stacks(ItemDropRateGroupEx g)
         {
             return g.idSets.Select(s => new ItemStack { id = s.id, count = s.stackMax, name = NameOf(s.id) }).ToList();
@@ -327,9 +407,14 @@ namespace ContentLoader
             {
                 var e = kv.Value;
                 if (e == null || !hasData.Contains(kv.Key)) continue;
-                var o = new ItemOverride { price = e.price, buyPriceAmp = e.buyPriceAmp };
+                // The game's own values (packs may already have changed these)
+                KeyValuePair<int, float> orig;
+                var o = origPrices.TryGetValue(kv.Key, out orig) ? new ItemOverride { price = orig.Key, buyPriceAmp = orig.Value }
+                                                                : new ItemOverride { price = e.price, buyPriceAmp = e.buyPriceAmp };
                 ItemStats st = null;
+                exporting = true;
                 try { st = Item.LoadFromResource(kv.Key, true); } catch { }
+                finally { exporting = false; }
                 if (st != null)
                 {
                     o.name = st.dispName;
@@ -393,33 +478,18 @@ namespace ContentLoader
                 }
                 catch (Exception e) { Log("export failed: " + e.Message); exportJob = null; }
             }
+            try { Monsters.Update(ToJson); } catch (Exception e) { Log("monster picture: " + e.Message); }
             if (scanAt < 0 || now < scanAt) return;
             scanAt = -1;
             Try("monster scan", ScanMonsters);
         }
 
+        // Every monster kind here: id, stats, where it's seen, a picture (see Monsters.cs). Again every minute.
         void ScanMonsters()
         {
-            var path = Path.Combine(ExportDir, "monsters.json");
-            var known = new Dictionary<string, MonsterInfo>();
-            if (File.Exists(path))
-                foreach (var m in JsonConvert.DeserializeObject<List<MonsterInfo>>(File.ReadAllText(path)) ?? new List<MonsterInfo>())
-                    known[m.zone + "|" + m.name + "|" + m.dropId] = m;
-            int found = 0;
-            var counted = new Dictionary<string, int>();
-            foreach (var o in UnityEngine.Object.FindObjectsOfType(typeof(CommonStats)))
-            {
-                var s = (CommonStats)o;
-                if (s == null || s.itemDropGroupID <= 0) continue;
-                var key = Game.Zone + "|" + s.dispName + "|" + s.itemDropGroupID;
-                counted[key] = (counted.ContainsKey(key) ? counted[key] : 0) + 1;
-                if (!known.ContainsKey(key)) known[key] = new MonsterInfo { name = s.dispName, zone = Game.Zone, dropId = s.itemDropGroupID };
-                found++;
-            }
-            foreach (var kv in counted) known[kv.Key].seen = Math.Max(known[kv.Key].seen, kv.Value);
-            var list = known.Values.OrderBy(m => m.zone).ThenBy(m => m.dropId).ThenBy(m => m.name).ToList();
-            File.WriteAllText(path, ToJson(list));
-            Log("monsters: " + counted.Count + " kinds with loot in " + Game.Zone + ", " + list.Count + " known in total");
+            scanAt = Time.realtimeSinceStartup + 60f;
+            if (!Game.InWorld) return;
+            Monsters.Scan(ToJson);
         }
     }
 
@@ -429,7 +499,8 @@ namespace ContentLoader
     {
         static void Postfix(ItemLibraryBase __instance)
         {
-            if (ContentLoader.Instance != null) ContentLoader.Instance.OnLibraryReady(__instance);
+            try { if (ContentLoader.Instance != null) ContentLoader.Instance.OnLibraryReady(__instance); }
+            catch (Exception e) { ModLoader.Log("ContentLoader: applying item packs failed: " + e); }   // (never breaks the game's item library)
         }
     }
 
@@ -441,7 +512,8 @@ namespace ContentLoader
         {
             if (__result == null || ReferenceEquals(__result, seen)) return;
             seen = __result;
-            if (ContentLoader.Instance != null) ContentLoader.Instance.OnShopListCreated(__result);
+            try { if (ContentLoader.Instance != null) ContentLoader.Instance.OnShopListCreated(__result); }
+            catch (Exception e) { ModLoader.Log("ContentLoader: applying loot/shop packs failed: " + e); }
         }
     }
 
@@ -450,7 +522,8 @@ namespace ContentLoader
     {
         static void Postfix(int id_, Item_LoadFromResource_ResultSet __result)
         {
-            if (__result != null && ContentLoader.Items.Count > 0) ContentLoader.ApplyStats(id_, __result.statsResult);
+            try { if (__result != null && ContentLoader.Items.Count > 0 && !ContentLoader.exporting) ContentLoader.ApplyStats(id_, __result.statsResult); }
+            catch (Exception e) { ModLoader.Log("ContentLoader: item " + id_ + " stats: " + e.Message); }
         }
     }
 }

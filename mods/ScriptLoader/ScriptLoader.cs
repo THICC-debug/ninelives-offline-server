@@ -31,7 +31,9 @@ namespace ScriptLoader
             public float LastRun = -9999;
             public bool Inside;        // areas: is the player in it now
             public bool LastBool;      // flags/items: last seen state
+            public bool Primed;        // flags/items: first look taken (what's already true then doesn't count)
             public float NextTimer;
+            public bool Broken;        // logged its error once
         }
 
         /// <summary>A running list of actions (it can wait).</summary>
@@ -68,8 +70,12 @@ namespace ScriptLoader
             else Fire("zone", new Dictionary<string, object> { { "zone", Game.Zone } });
         }
 
+        float primeAfter;
+        internal float mouseDownAt;   // a click is short; releasing a long camera drag over an NPC isn't talking
         public override void OnZoneLoaded(string zone)
         {
+            Close();
+            primeAfter = Time.realtimeSinceStartup + 3f;
             foreach (var r in rules) r.Inside = false;
             running.Clear();
         }
@@ -88,18 +94,29 @@ namespace ScriptLoader
                 catch (Exception e) { problems.Add(pack + ": " + e.Message); continue; }
                 var rs = p["rules"] as JArray;
                 if (rs != null)
+                {
+                    int ruleNo = 0;
+                    // (the first version keyed id-less rules as "pack/": a pack with just one keeps that key, so it doesn't run again)
+                    int idless = rs.OfType<JObject>().Count(x => x["id"] == null || x["id"].Type == JTokenType.Null || (x["id"].Type == JTokenType.String && string.IsNullOrEmpty((string)x["id"])));
                     foreach (var t in rs.OfType<JObject>())
                     {
-                        if (t.Value<bool?>("enabled") == false) continue;
-                        var when = t["when"] as JObject;
-                        if (when == null) { problems.Add(pack + ": a rule has no \"when\""); continue; }
-                        rules.Add(new Rule
+                        ruleNo++;
+                        try
                         {
-                            Pack = pack, Id = t.Value<string>("id") ?? Guid.NewGuid().ToString("N"), Name = t.Value<string>("name"),
-                            Key = pack + "/" + (t.Value<string>("id") ?? ""), Once = t.Value<bool?>("once") ?? false,
-                            Cooldown = t.Value<float?>("cooldown") ?? 0, When = when, If = t["if"] as JArray ?? new JArray(), Then = t["then"] as JArray ?? new JArray(),
-                        });
+                            if (t.Value<bool?>("enabled") == false) continue;
+                            var when = t["when"] as JObject;
+                            if (when == null) { problems.Add(pack + ": a rule has no \"when\""); continue; }
+                            var rid = t.Value<string>("id");
+                            rules.Add(new Rule
+                            {
+                                Pack = pack, Id = rid ?? "rule" + ruleNo, Name = t.Value<string>("name"),
+                                Key = pack + "/" + (string.IsNullOrEmpty(rid) ? (idless == 1 ? "" : "#" + ruleNo) : rid), Once = t.Value<bool?>("once") ?? false,
+                                Cooldown = t.Value<float?>("cooldown") ?? 0, When = when, If = t["if"] as JArray ?? new JArray(), Then = t["then"] as JArray ?? new JArray(),
+                            });
+                        }
+                        catch (Exception e) { problems.Add(pack + ": rule " + (t.Value<string>("id") ?? "#" + ruleNo) + ": " + e.Message); }
                     }
+                }
                 LoadDialogs(pack, p);
                 var scripts = p["scripts"] as JArray;
                 bool needsLua = scripts != null && scripts.Count > 0 || (rs != null && rs.ToString().Contains("\"lua\""));
@@ -130,7 +147,9 @@ namespace ScriptLoader
         public override void OnUpdate()
         {
             float now = Time.realtimeSinceStartup;
+            if (Input.GetMouseButtonDown(0) || Input.GetMouseButtonDown(1)) mouseDownAt = now;
             if (loadAt > 0 && now >= loadAt) { loadAt = -1; try { Log(Reload()); } catch (Exception e) { Log("loading scripts failed: " + e); } }
+            if (!Game.InWorld && open != null) Close();
             if (!loaded || !Game.InWorld) return;
 
             foreach (var l in lua.Values) l.Tick(now);
@@ -149,6 +168,8 @@ namespace ScriptLoader
                 var me = Game.PlayerPosition;
                 foreach (var r in rules.ToList())
                 {
+                  try
+                  {
                     var w = r.When; var type = w.Value<string>("type");
                     if (type == "enterArea" || type == "leaveArea")
                     {
@@ -162,12 +183,14 @@ namespace ScriptLoader
                     else if (type == "flag")
                     {
                         bool on = Game.GetFlag(w.Value<int?>("flag") ?? 0) == (w.Value<bool?>("on") ?? true);
+                        if (!r.Primed) { r.Primed = true; r.LastBool = on; continue; }
                         if (on && !r.LastBool) Trigger(r, new Dictionary<string, object> { { "flag", w.Value<int?>("flag") ?? 0 } });
                         r.LastBool = on;
                     }
                     else if (type == "item")
                     {
                         bool has = ItemCount(w.Value<int?>("item") ?? 0) >= (w.Value<int?>("count") ?? 1);
+                        if (!r.Primed) { if (Time.realtimeSinceStartup < primeAfter) continue; r.Primed = true; r.LastBool = has; continue; }   // (the bag fills in after the zone loads)
                         if (has && !r.LastBool) Trigger(r, new Dictionary<string, object> { { "item", w.Value<int?>("item") ?? 0 } });
                         r.LastBool = has;
                     }
@@ -178,6 +201,8 @@ namespace ScriptLoader
                         if (r.NextTimer == 0) r.NextTimer = now + every;
                         else if (now >= r.NextTimer) { r.NextTimer = now + every; Trigger(r, new Dictionary<string, object>()); }
                     }
+                  }
+                  catch (Exception e) { if (!r.Broken) { r.Broken = true; Log(r.Key + ": " + e.Message); } }
                 }
             }
 
@@ -202,7 +227,10 @@ namespace ScriptLoader
         {
             if (!loaded) return;
             foreach (var r in rules.Where(r => r.When.Value<string>("type") == type).ToList())
-                if (Matches(r.When, type, e)) Trigger(r, e);
+            {
+                try { if (Matches(r.When, type, e)) Trigger(r, e); }
+                catch (Exception x) { Log(r.Key + ": " + x.Message); }
+            }
             foreach (var l in lua.Values) l.Fire(type, e);
         }
 
@@ -216,9 +244,10 @@ namespace ScriptLoader
                 case "questAccepted":
                 case "questDone": return (w.Value<int?>("quest") ?? 0) == 0 || w.Value<int?>("quest") == Convert.ToInt32(ev("quest"));
                 case "kill":
-                    var name = w.Value<string>("monster");
-                    return string.IsNullOrEmpty(name) || string.Equals(name, (string)ev("monster"), StringComparison.OrdinalIgnoreCase)
-                           || (w.Value<int?>("monsterId") ?? 0) == Convert.ToInt32(ev("monsterId") ?? 0);
+                    var name = w.Value<string>("monster"); int mid = w.Value<int?>("monsterId") ?? 0;
+                    if (!string.IsNullOrEmpty(name) && !string.Equals(name, (string)ev("monster"), StringComparison.OrdinalIgnoreCase)) return false;
+                    if (mid > 0 && mid != Convert.ToInt32(ev("monsterId") ?? 0)) return false;
+                    return true;   // (neither given: any kill)
             }
             return true;
         }
@@ -409,10 +438,15 @@ namespace ScriptLoader
         static readonly System.Reflection.FieldInfo Stats = AccessTools.Field(typeof(CharacterSelector), "statsSet");
         static void Postfix(CharacterSelector __instance)
         {
+            try { Talk(__instance); } catch (Exception e) { ModLoader.Log("ScriptLoader: talk rule failed: " + e.Message); }
+        }
+        static void Talk(CharacterSelector __instance)
+        {
             var me = ScriptLoader.Instance; if (me == null) return;
             var st = Stats.GetValue(__instance) as CommonStats;
             if (st == null) { me.lastTalk = "clicked something with no stats"; return; }
             if (st == Game.Stats || st.getCID() <= 0) return;
+            if (Time.realtimeSinceStartup - me.mouseDownAt > 0.6f) { me.lastTalk = st.dispName + ": a long press (camera drag), not a click"; return; }
             var dist = Vector3.Distance(st.transform.position, Game.PlayerPosition);
             me.lastTalk = st.dispName + " (" + st.getCID() + ") at " + dist.ToString("0.0") + " m";
             if (dist > 6f) { me.lastTalk += ": too far to talk"; return; }
@@ -428,7 +462,8 @@ namespace ScriptLoader
     {
         static void Postfix(int id_, bool __result)
         {
-            if (__result && ScriptLoader.Instance != null) ScriptLoader.Instance.Fire("questAccepted", new Dictionary<string, object> { { "quest", id_ } });
+            try { if (__result && ScriptLoader.Instance != null) ScriptLoader.Instance.Fire("questAccepted", new Dictionary<string, object> { { "quest", id_ } }); }
+            catch (Exception e) { ModLoader.Log("ScriptLoader: questAccepted rule failed: " + e.Message); }
         }
     }
 
@@ -437,7 +472,8 @@ namespace ScriptLoader
     {
         static void Postfix(int id_, bool __result)
         {
-            if (__result && ScriptLoader.Instance != null) ScriptLoader.Instance.Fire("questDone", new Dictionary<string, object> { { "quest", id_ } });
+            try { if (__result && ScriptLoader.Instance != null) ScriptLoader.Instance.Fire("questDone", new Dictionary<string, object> { { "quest", id_ } }); }
+            catch (Exception e) { ModLoader.Log("ScriptLoader: questDone rule failed: " + e.Message); }
         }
     }
 
@@ -447,7 +483,8 @@ namespace ScriptLoader
         static void Postfix(CommonStats stats_)
         {
             if (stats_ == null || ScriptLoader.Instance == null) return;
-            ScriptLoader.Instance.Fire("kill", new Dictionary<string, object> { { "monster", stats_.dispName }, { "monsterId", stats_.getCID() }, { "dropId", stats_.itemDropGroupID } });
+            try { ScriptLoader.Instance.Fire("kill", new Dictionary<string, object> { { "monster", stats_.dispName }, { "monsterId", stats_.getCID() }, { "dropId", stats_.itemDropGroupID } }); }
+            catch (Exception e) { ModLoader.Log("ScriptLoader: kill rule failed: " + e.Message); }
         }
     }
 }

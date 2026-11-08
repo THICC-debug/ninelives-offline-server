@@ -38,9 +38,11 @@ namespace NPCLoader
         public bool enabled = true;
         /// <summary>Sit instead of standing (only if the template has sitting animations).</summary>
         public bool sit;
+        /// <summary>For role "shop": exactly what it sells, and for how much. Left out: the shop table with this id (ContentLoader).</summary>
+        public List<SellDef> sells;
     }
 
-    [ModInfo("npcloader", "NPCLoader", "1.2.2", Author = "Nine Lives offline project",
+    [ModInfo("npcloader", "NPCLoader", "1.3.0", Author = "Nine Lives offline project",
         Description = "Adds custom NPCs (quest givers, vendors, alchemists) from JSON NPC packs in Mods\\NPCs.")]
     public class NPCLoader : Mod
     {
@@ -69,8 +71,10 @@ namespace NPCLoader
             Commands.Register("npcreload", "npcreload", "reload NPC packs from Mods\\NPCs", a => Respawn());
             Commands.Register("npcnear", "npcnear", "list nearby NPCs you can use as a template", a => NpcNear());
             // The Nine Lives Editor's live link (run by the mod loader): show NPC changes in the world as they're made.
-            foreach (var path in new[] { "/npcs", "/npc", "/remove", "/reload", "/npcdebug" })
+            foreach (var path in new[] { "/npcs", "/npc", "/remove", "/reload", "/npcdebug", "/shopdebug" })
                 LiveLink.Route(path, r => HandleLive(r.Method, r.Path, r.Query, r.Body));
+            new Harmony("ninelives.npcloader").PatchAll(typeof(NPCLoader).Assembly);   // vendors' own lists and prices
+            LoadVendors();
             Log("ready - NPC packs go in Mods\\NPCs");
         }
 
@@ -106,7 +110,9 @@ namespace NPCLoader
             float now = Time.realtimeSinceStartup;
             if (spawnAt > 0 && now >= spawnAt)
             {
-                if (Game.InWorld && !TemplatesReady() && now < giveUpAt) spawnAt = now + 1f;   // try again in a second
+                bool wait = false;
+                try { wait = Game.InWorld && !TemplatesReady() && now < giveUpAt; } catch (Exception e) { Log("checking templates failed: " + e.Message); }
+                if (wait) spawnAt = now + 1f;   // try again in a second
                 else { spawnAt = -1; try { Log(Respawn()); } catch (Exception e) { Log("spawning failed: " + e); } }
             }
             if (now >= nextReadyCheck)
@@ -134,12 +140,23 @@ namespace NPCLoader
                 try
                 {
                     var p = JsonConvert.DeserializeObject<NpcPack>(File.ReadAllText(f));
-                    if (p != null && p.npcs != null) packs.Add(new KeyValuePair<string, NpcPack>(f, p));
+                    if (p != null && p.npcs != null) { p.npcs.RemoveAll(x => x == null); packs.Add(new KeyValuePair<string, NpcPack>(f, p)); }   // (a stray null in the list)
                 }
                 catch (Exception e) { problems.Add(Path.GetFileName(f) + ": " + e.Message); }
             }
             return packs;
         }
+
+        /// <summary>Every vendor with its own list (any zone: a list is only used when its NPC is clicked).</summary>
+        void LoadVendors()
+        {
+            Vendors.Clear();
+            foreach (var kv in ReadPacks(new List<string>()))
+                foreach (var d in kv.Value.npcs)
+                    if (d.enabled && IsShop(d) && d.sells != null) Vendors.Set(d.id, d.sells);
+        }
+
+        static bool IsShop(NpcDef d) { return string.Equals(d.role, "shop", StringComparison.OrdinalIgnoreCase); }
 
         NpcPack MyPack()
         {
@@ -154,6 +171,7 @@ namespace NPCLoader
         {
             foreach (var go in spawned) if (go != null) UnityEngine.Object.Destroy(go);
             spawned.Clear(); spawnedTemplate.Clear(); settle.Clear();
+            LoadVendors();
             if (!Game.InWorld) return "Not in the world yet.";
             var problems = new List<string>();
             int made = 0;
@@ -189,6 +207,8 @@ namespace NPCLoader
         string Spawn(NpcDef d)
         {
             if (d.id <= 0) return "needs an id";
+            if (d.template <= 0) return "needs a template (the NPC it looks like)";
+            if (FindNpc(d.id) != null) return "id " + d.id + " belongs to one of the game's NPCs: pick another (" + 90001 + " and up)";
             var tpl = FindNpc(d.template);
             if (tpl == null) return "template NPC " + d.template + " isn't in this zone (or is hidden right now)";
             if (tpl.gameObject.activeInHierarchy && (!tpl.initialized || !tpl.initializedCharacterModel)) return "template NPC " + d.template + " hasn't finished loading; try npcreload";
@@ -220,12 +240,23 @@ namespace NPCLoader
         }
 
         /// <summary>Stand on whatever is below (a platform, steps): the pack's height may be a little off.</summary>
-        static Vector3 Ground(Vector3 spot)
+        /// <summary>
+        /// The surface at a spot: of all the floors within 3 m above and 5 m below, the one nearest the spot's own
+        /// height (so an NPC put on a bridge or under a roof stays on the level it was put on), never the NPC itself.
+        /// </summary>
+        static Vector3 Ground(Vector3 spot, Transform ignore = null)
         {
-            RaycastHit hit;
-            if (Physics.Raycast(spot + Vector3.up * 3f, Vector3.down, out hit, 8f, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
-                return hit.point + Vector3.up * 0.05f;
-            return spot;
+            var player = Game.Player != null ? Game.Player.transform : null;
+            bool found = false; float bestY = 0, bestD = float.MaxValue;
+            foreach (var h in Physics.RaycastAll(spot + Vector3.up * 3f, Vector3.down, 8f, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
+            {
+                if (ignore != null && h.transform.IsChildOf(ignore)) continue;
+                if (player != null && h.transform.IsChildOf(player)) continue;
+                if (h.transform.name.StartsWith("ModNPC_", StringComparison.Ordinal) || (h.transform.root != null && h.transform.root.name.StartsWith("ModNPC_", StringComparison.Ordinal))) continue;
+                float d = Mathf.Abs(h.point.y - spot.y);
+                if (d < bestD) { bestD = d; bestY = h.point.y; found = true; }
+            }
+            return found ? new Vector3(spot.x, bestY + 0.05f, spot.z) : spot;
         }
 
         GameObject SpawnedNpc(int id)
@@ -260,6 +291,12 @@ namespace NPCLoader
                 return JsonConvert.SerializeObject(new Dictionary<string, object> {
                     { "npcs", spawned.Where(g => g != null).Select(g => Debug(g.GetComponent<CommonStats>())).ToList() },
                     { "mouseOver", MouseOver() } });
+
+            if (path == "/shopdebug")   // a vendor's shop window: what it holds and charges (?open=<id> opens it; nothing is bought)
+            {
+                int open; int.TryParse(new LiveRequest { Query = query }.Get("open") ?? "", out open);
+                return JsonConvert.SerializeObject(Vendors.Debug(open));
+            }
 
             if (path == "/npcs")   // everyone in this zone, nearest first
             {
@@ -302,13 +339,14 @@ namespace NPCLoader
             {
                 var d = JsonConvert.DeserializeObject<NpcDef>(body);
                 if (d == null || d.id <= 0) return "{\"error\":\"needs an id\"}";
+                Vendors.Set(d.id, d.enabled && IsShop(d) ? d.sells : null);   // its shop shows the list as it is in the editor
                 if (d.zone != Game.Zone || !d.enabled) { Despawn(d.id); return "{\"ok\":true,\"shown\":false}"; }
                 var go = SpawnedNpc(d.id);
                 int tpl;
                 if (go != null && spawnedTemplate.TryGetValue(d.id, out tpl) && tpl == d.template)
                 {
                     // Same look: just move, turn and rename it (no reload, no flicker).
-                    var spot = Ground(new Vector3(d.x, d.y, d.z));
+                    var spot = Ground(new Vector3(d.x, d.y, d.z), go.transform);
                     go.transform.position = spot;
                     go.transform.rotation = Quaternion.Euler(0, d.rotation, 0);
                     go.name = "ModNPC_" + d.id + "_" + d.name;
@@ -331,6 +369,7 @@ namespace NPCLoader
             {
                 int id; int.TryParse(new LiveRequest { Query = query }.Get("id") ?? "", out id);
                 Despawn(id);
+                Vendors.Set(id, null);
                 return "{\"ok\":true}";
             }
 
