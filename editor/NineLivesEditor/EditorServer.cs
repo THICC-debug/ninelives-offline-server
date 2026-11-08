@@ -391,6 +391,7 @@ namespace NineLivesEditor
                 if (kind == "quests")
                 {
                     raw("originals", ExportRaw("QuestLoader", "quests.json", "[]"));
+                    raw("taken", Json.Write(TakenQuestIds()));   // so new quests and flags get numbers no other pack uses
                     raw("monsters", ExportRaw("ContentLoader", "monsters.json", "[]"));
                     raw("maps", Json.Write(MapBounds()));
                     raw("items", ExportRaw("QuestLoader", "items.json", "[]"));

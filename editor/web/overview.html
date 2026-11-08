@@ -231,6 +231,7 @@ function renderAdded() {
       <div class="packs">${(m.packs || []).map(p => { const k = FOLDER_KIND[p.folder]; return p.result === "skipped"
         ? `<span class="hint">${esc(p.name)} (left out)</span>`
         : `<button data-open="${k}|${esc(p.name)}" title="Open it in the editor (${esc(said[p.result] || p.result)})">✎ ${esc(p.name)} <span class="hint">${esc(KIND[k].title.replace(/ packs$/, "").replace("&amp;", "&"))}</span></button>`; }).join("")}</div>
+      ${(m.info || []).map(i => `<p class="hint">${esc(i)}</p>`).join("")}
       ${(m.warnings || []).map(w => `<p class="warn">⚠ ${esc(w)}</p>`).join("")}</div>`).join("")}
     <p class="hint">The zips are kept in <code>Mods\\Installed</code>. Drop a newer version in the same way: it updates the packs (yours are kept as <code>.bak</code>).</p></fieldset>`;
   $("#added").querySelectorAll("[data-open]").forEach(b => b.onclick = () => { const [k, name] = b.dataset.open.split("|"); parent.postMessage({ nav: KIND[k].tab, msg: { cmd: "openPack", name } }, "*"); });

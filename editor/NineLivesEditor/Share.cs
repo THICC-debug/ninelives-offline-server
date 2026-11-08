@@ -20,16 +20,10 @@ namespace NineLivesEditor
     partial class EditorServer
     {
         const string ManifestName = "nine-lives-mod.json";
-        const long MaxPackBytes = 16L * 1024 * 1024;
         static readonly Dictionary<string, string> KindMod = new Dictionary<string, string>
         {
             { "quests", "QuestLoader" }, { "content", "ContentLoader" }, { "npcs", "NPCLoader" },
             { "enemies", "EnemyLoader" }, { "world", "WorldLoader" }, { "scripts", "ScriptLoader" },
-        };
-        // Things with ids of their own, which must be unique across packs: kind -> list key.
-        static readonly Dictionary<string, string> IdLists = new Dictionary<string, string>
-        {
-            { "quests", "quests" }, { "npcs", "npcs" }, { "enemies", "enemies" },
         };
 
         string ModVersion(string mod)
@@ -142,12 +136,10 @@ namespace NineLivesEditor
         }
 
         // ------------------------------------------------------------ mods dropped into the Mods folder
-        // A mod someone sent you: drop its .zip into <game>\Mods. When the editor opens (and whenever Packs & mods
-        // loads), and when the offline server starts (dropmods.py, the same rules), its packs are unpacked into the
-        // pack folders and the zip moves to Mods\Installed with a note of what came from it. The packs are then
-        // ordinary packs: they load in game and open in the editor. Only pack files, never code.
-        class Incoming { public string Kind, Name; public object Data; public string Problem; }
-        static readonly Regex CodeFile = new Regex(@"\.(dll|exe|bat|cmd|ps1|vbs|js|scr|msi)$", RegexOptions.IgnoreCase);
+        // A mod someone sent you: drop its .zip into <game>\Mods. The offline server installs it before the game
+        // starts (dropmods.py), and the editor runs the same dropmods.py when it opens and while Packs & mods is
+        // open: its packs go into the pack folders (renumbered where they'd clash with yours) and the zip moves to
+        // Mods\Installed with a note of what came from it. Only pack files, never code.
         string InstalledDir { get { return ModsDir("Installed"); } }
 
         Response SharePost(string[] parts, Dictionary<string, string> q, byte[] body)
@@ -161,76 +153,82 @@ namespace NineLivesEditor
             return Error(404, "not found");
         }
 
-        /// <summary>Unpack every zip dropped straight into Mods. Returns the notes of the ones installed now.</summary>
+        /// <summary>
+        /// Install every zip dropped straight into Mods. The rules (what's unpacked, renumbering so mods don't
+        /// clash) live in one place, the offline server's dropmods.py, run here with the server's own Python.
+        /// Returns the notes of the ones installed now.
+        /// </summary>
         List<Dictionary<string, object>> InstallDropped()
         {
             var now = new List<Dictionary<string, object>>();
-            string[] zips;
-            try { zips = Directory.Exists(ModsDir()) ? Directory.GetFiles(ModsDir(), "*.zip") : new string[0]; } catch { return now; }
+            try { if (!Directory.Exists(ModsDir()) || Directory.GetFiles(ModsDir(), "*.zip").Length == 0) return now; } catch { return now; }
+            var server = Path.Combine(game, "OfflineServer");
+            var py = Path.Combine(server, "python", "python.exe");
+            var script = Path.Combine(server, "dropmods.py");
+            if (!File.Exists(py) || !File.Exists(script)) return now;   // installed the next time you play instead
             lock (writeGate)
-                foreach (var z in zips.OrderBy(f => f))
+            {
+                var before = Notes().ToDictionary(n => Json.Str(n, "zip") ?? "", n => Json.Str(n, "installed") ?? "");
+                try
                 {
-                    try { var n = InstallZip(z); if (n != null) now.Add(n); }
-                    catch (IOException) { }   // still being copied in: next time
-                    catch (UnauthorizedAccessException) { }
-                    catch (Exception) { }
+                    using (var p = Process.Start(new ProcessStartInfo(py, "-I \"" + script + "\" \"" + game + "\"")
+                        { WorkingDirectory = server, UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true }))
+                    {
+                        p.StandardError.ReadToEndAsync();
+                        p.StandardOutput.ReadToEnd();
+                        if (!p.WaitForExit(30000)) try { p.Kill(); } catch { }
+                    }
                 }
+                catch { return now; }
+                foreach (var n in Notes())
+                {
+                    string was;
+                    if (!before.TryGetValue(Json.Str(n, "zip") ?? "", out was) || was != (Json.Str(n, "installed") ?? "")) now.Add(n);
+                }
+            }
             return now;
         }
 
-        Dictionary<string, object> InstallZip(string path)
+        IEnumerable<Dictionary<string, object>> Notes()
         {
-            var zname = Path.GetFileName(path);
-            byte[] bytes;
-            using (var f = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read)) { bytes = new byte[f.Length]; int got = 0; while (got < bytes.Length) { int r = f.Read(bytes, got, bytes.Length - got); if (r <= 0) break; got += r; } }
-            Dictionary<string, object> manifest; List<Incoming> packs; List<string> ignored;
-            try { Read(bytes, out manifest, out packs, out ignored); }
-            catch (InvalidDataException) { return null; }   // not a zip (or not finished copying)
-            if (ignored.Any(n => CodeFile.IsMatch(n)) || packs.Count == 0) return null;   // a code mod, or no packs: Setup's business, left alone
-            var done = new List<object>(); var warnings = new List<string>();
-            foreach (var p in packs)
+            if (!Directory.Exists(InstalledDir)) yield break;
+            foreach (var f in Directory.GetFiles(InstalledDir, "*.json"))
             {
-                var folder = Kinds[p.Kind][0];
-                if (p.Problem != null)
-                {
-                    done.Add(new Dictionary<string, object> { { "folder", folder }, { "name", p.Name }, { "result", "skipped" }, { "problem", p.Problem } });
-                    warnings.Add(folder + "\\" + p.Name + " " + p.Problem.Replace("it's ", "is ").Replace("it has ", "has ") + ", so it was left out");
-                    continue;
-                }
-                var on = Path.Combine(Folder(p.Kind), p.Name + ".json");
-                var mine = File.Exists(on) ? on : File.Exists(on + Off) ? on + Off : null;
-                if (mine != null && Json.Pretty(Json.Load(mine)) == Json.Pretty(p.Data))
-                {
-                    done.Add(new Dictionary<string, object> { { "folder", folder }, { "name", p.Name }, { "result", "same" } });
-                    continue;
-                }
-                if (mine != null) { File.Copy(mine, on + ".bak", true); if (mine != on) File.Delete(mine); }   // a newer version of it: yours is kept as .bak
-                var tmp = on + "." + Guid.NewGuid().ToString("N").Substring(0, 8) + ".tmp";
-                try { File.WriteAllText(tmp, Json.Pretty(p.Data), new UTF8Encoding(false)); if (File.Exists(on)) File.Replace(tmp, on, null); else File.Move(tmp, on); }
-                finally { try { if (File.Exists(tmp)) File.Delete(tmp); } catch { } }
-                done.Add(new Dictionary<string, object> { { "folder", folder }, { "name", p.Name }, { "result", mine != null ? "replaced" : "added" } });
-                var ids = new HashSet<long>(IdsIn(p.Kind, p.Data));
-                if (ids.Count > 0)
-                    foreach (var other in Packs(p.Kind).Select(x => x.Key).Where(x => !x.Equals(p.Name, StringComparison.OrdinalIgnoreCase)))
-                    {
-                        var same = IdsIn(p.Kind, Json.Load(PackFile(p.Kind, other))).Where(ids.Contains).Distinct().OrderBy(x => x).ToList();
-                        if (same.Count > 0) warnings.Add(folder + "\\" + p.Name + " uses the same id" + (same.Count > 1 ? "s" : "") + " as your pack " + other + " (" + string.Join(", ", same.Take(6).Select(x => x.ToString()).ToArray()) + "): one of them won't work in game while both are on");
-                    }
+                var n = Json.Obj(Json.Load(f));
+                if (n != null) yield return n;
             }
-            Directory.CreateDirectory(InstalledDir);
-            var note = new Dictionary<string, object>
+        }
+
+        /// <summary>
+        /// Quest numbers and flags other packs use: {packs: [{pack, quests, flags}], known: [quest ids the game has
+        /// seen from packs]}. The quest editor gives new quests numbers no pack uses (dropmods.py renumbers on install too).
+        /// </summary>
+        object TakenQuestIds()
+        {
+            var packs = new List<object>();
+            Func<object, long> num = o => { try { return Convert.ToInt64(o); } catch { return 0; } };
+            foreach (var p in Packs("quests"))
             {
-                { "name", Json.Str(manifest, "name") ?? Path.GetFileNameWithoutExtension(zname) }, { "author", Json.Str(manifest, "author") ?? "" },
-                { "description", Json.Str(manifest, "description") ?? "" }, { "made", Json.Str(manifest, "created") ?? "" },
-                { "madeWith", Json.Get(manifest, "mods") ?? new Dictionary<string, object>() }, { "zip", zname },
-                { "installed", DateTime.Now.ToString("yyyy-MM-dd'T'HH:mm:ss") }, { "packs", done }, { "warnings", warnings },
-                { "notUnpacked", ignored.Take(20).ToList() },
-            };
-            File.WriteAllText(Path.Combine(InstalledDir, Path.GetFileNameWithoutExtension(zname) + ".json"), Json.Pretty(note), new UTF8Encoding(false));
-            var dest = Path.Combine(InstalledDir, zname);
-            if (File.Exists(dest)) File.Delete(dest);
-            File.Move(path, dest);
-            return note;
+                var ids = new List<long>(); var flags = new List<long>();
+                foreach (var qu in PackItems("quests", p.Key))
+                {
+                    ids.Add(Json.Num(qu, "id"));
+                    var cf = Json.Num(qu, "clearFlag"); if (cf > 0) flags.Add(cf);
+                    foreach (var f in (Json.List(Json.Get(qu, "setFlagsOnClear")) ?? new object[0])) { var v = Json.Num(f, "flag"); if (v > 0) flags.Add(v); }
+                }
+                packs.Add(new Dictionary<string, object> { { "pack", p.Key }, { "quests", ids }, { "flags", flags } });
+            }
+            var scriptFlags = new List<long>();
+            foreach (var p in Packs("scripts"))
+            {
+                var text = Json.ReadText(PackFile("scripts", p.Key)) ?? "";
+                foreach (Match m in Regex.Matches(text, @"""type""\s*:\s*""setFlag""[^{}]*?""flag""\s*:\s*(\d+)|""flag""\s*:\s*(\d+)[^{}]*?""type""\s*:\s*""setFlag"""))
+                    scriptFlags.Add(long.Parse(m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value));
+            }
+            packs.Add(new Dictionary<string, object> { { "pack", "" }, { "quests", new List<long>() }, { "flags", scriptFlags } });
+            var known = Json.Obj(Json.Load(ExportPath("QuestLoader", "known_quests.json")));
+            return new Dictionary<string, object> { { "packs", packs },
+                { "known", known == null ? new List<object>() : known.Select(k => (object)new Dictionary<string, object> { { "id", num(k.Key) }, { "pack", Json.Str(known, k.Key) ?? "" } }).ToList() } };
         }
 
         /// <summary>The mods you've added (Mods\Installed\*.json), newest first, with the ones just installed marked.</summary>
@@ -245,56 +243,6 @@ namespace NineLivesEditor
                     list.Add(n);
                 }
             return list.OrderByDescending(n => Json.Str(n, "installed") ?? "").ToList();
-        }
-
-        static void Read(byte[] body, out Dictionary<string, object> manifest, out List<Incoming> packs, out List<string> ignored)
-        {
-            manifest = null; packs = new List<Incoming>(); ignored = new List<string>();
-            using (var zip = new ZipArchive(new MemoryStream(body ?? new byte[0]), ZipArchiveMode.Read))
-            {
-                foreach (var e in zip.Entries)
-                {
-                    if (e.FullName.EndsWith("/")) continue;
-                    var path = e.FullName.Replace('\\', '/').TrimStart('/');
-                    if (path.Equals(ManifestName, StringComparison.OrdinalIgnoreCase) || path.EndsWith("/" + ManifestName, StringComparison.OrdinalIgnoreCase))
-                    {
-                        try { manifest = Json.Obj(Json.Parse(ReadEntry(e))); } catch { }
-                        continue;
-                    }
-                    if (path.Equals("README.txt", StringComparison.OrdinalIgnoreCase)) continue;
-                    // Mods/<Folder>/<name>.json, or <Folder>/<name>.json; a zip of a folder may put it all one level down
-                    var m = Regex.Match(path, @"(?:^|/)(?:Mods/)?(Quests|Content|NPCs|Enemies|World|Scripts)/([^/]+)\.json(\.disabled)?$", RegexOptions.IgnoreCase);
-                    var kind = m.Success ? KindOfFolder(m.Groups[1].Value) : null;
-                    if (kind == null) { ignored.Add(path); continue; }
-                    // a name with other characters is tidied up (they become -)
-                    var nm = Regex.Replace(m.Groups[2].Value, @"[^A-Za-z0-9 _\-]", "-").Trim(' ', '-');
-                    if (nm.Length > 60) nm = nm.Substring(0, 60);
-                    var inc = new Incoming { Kind = kind, Name = nm.Length > 0 ? nm : "imported" };
-                    if (e.Length > MaxPackBytes) inc.Problem = "it's too big (over 16 MB)";
-                    else
-                    {
-                        try
-                        {
-                            inc.Data = Json.Parse(ReadEntry(e));
-                            if (Json.Obj(inc.Data) == null) throw new Exception("expected a JSON object");
-                            var lk = Kinds[kind][1];
-                            if (lk != null && Json.List(Json.Get(inc.Data, lk)) == null) throw new Exception("expected {name, " + lk + ": [...]}");
-                        }
-                        catch (Exception ex) { inc.Problem = "it has a mistake in it: " + ex.Message; }
-                    }
-                    if (packs.Any(p => p.Kind == inc.Kind && p.Name.Equals(inc.Name, StringComparison.OrdinalIgnoreCase))) continue;   // on and off copies: the first
-                    packs.Add(inc);
-                }
-            }
-        }
-
-        static string ReadEntry(ZipArchiveEntry e) { using (var r = new StreamReader(e.Open(), Encoding.UTF8)) return r.ReadToEnd(); }
-
-        static IEnumerable<long> IdsIn(string kind, object data)
-        {
-            string lk; if (!IdLists.TryGetValue(kind, out lk)) yield break;
-            var l = Json.List(Json.Get(data, lk)); if (l == null) yield break;
-            foreach (var it in l) { var id = Json.Num(it, "id"); if (id != 0) yield return id; }
         }
     }
 }

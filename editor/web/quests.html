@@ -343,8 +343,21 @@ function killRow(r, i, q, ro, dis) {
 }
 
 // ---------------------------------------------------------------- helpers
-const nextId = () => Math.max(FIRST_MOD_ID - 1, ...pack.quests.map(q => q.id).filter(i => i >= FIRST_MOD_ID)) + 1;
-const nextFlag = () => Math.max(FIRST_MOD_FLAG - 1, ...pack.quests.map(q => q.clearFlag || 0).filter(f => f >= FIRST_MOD_FLAG)) + 1;
+// New quests and flags get numbers no pack uses, this one or any other (D.taken), so packs and shared mods don't clash.
+const others = () => ((D.taken || {}).packs || []).filter(p => p.pack !== packName);
+function nextId() {
+  // (quest numbers the game has seen from another pack count too: a player's save may still hold them)
+  const known = ((D.taken || {}).known || []).filter(k => k.pack.toLowerCase() !== (packName + ".json").toLowerCase()).map(k => k.id);
+  const ids = [...pack.quests.map(q => q.id), ...others().flatMap(p => p.quests), ...known].filter(i => i >= FIRST_MOD_ID);
+  return ids.length ? Math.max(...ids) + 1 : FIRST_MOD_ID;
+}
+function nextFlag() {
+  const used = new Set([...pack.quests.flatMap(q => [q.clearFlag || 0, ...(q.setFlagsOnClear || []).map(f => f.flag)]), ...others().flatMap(p => p.flags)]);
+  const top = Math.max(FIRST_MOD_FLAG - 1, ...[...used].filter(f => f >= FIRST_MOD_FLAG && f <= 9999)) + 1;
+  if (top <= 9999) return top;
+  for (let f = FIRST_MOD_FLAG; f <= 9999; f++) if (!used.has(f)) return f;   // all used up to 9999: the first gap
+  return top;
+}
 const pickVal = (id, names) => id ? `${id} · ${names[id] || "?"}` : "";
 const parseId = v => { const m = String(v).match(/^\s*(-?\d+)/); return m ? +m[1] : 0; };
 const clone = o => JSON.parse(JSON.stringify(o));

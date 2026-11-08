@@ -118,11 +118,18 @@ does it before the game starts) or when the editor opens, and right away if Pack
   or spawn id as another of your packs
 - a pack with the same name as one you have is replaced (yours is kept as `.bak`), so dropping in a
   newer version of a mod updates it
+- mods don't clash: an NPC number, quest number, quest flag, enemy spawn or world thing the mod brings
+  that another of your packs already uses gets a free one, and everything in the mod that points at it
+  follows (quest givers, script and dialogue steps, shop lists, numbers in Lua code). Game NPCs, quests
+  and flags it points at are left alone. The numbers it got are kept in its note, so an update of the
+  same mod gets the same ones again and players keep their quest progress
 - only pack files are installed, never code: a zip with a `.dll` or `.exe` in it is left where it is
   (code mods go in with Setup.exe)
 
 `nine-lives-mod.json` inside the zip describes the mod (name, author, what's in it, which mods it was
-made with). The same rules are in `dropmods.py` (run by the server) and the editor's `Share.cs`.
+made with). The rules live in one place, `dropmods.py`: the server runs it before the game starts and the editor runs it too.
+
+New quests made in the editor also get quest numbers and flags no other pack uses, so your own packs don't clash either.
 
 ## How it's built
 
