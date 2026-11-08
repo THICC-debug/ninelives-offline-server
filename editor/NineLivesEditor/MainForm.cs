@@ -73,6 +73,7 @@ namespace NineLivesEditor
                     // the app's own boxes instead, which always come on top.
                     w.Settings.AreDefaultScriptDialogsEnabled = false;
                     w.ScriptDialogOpening += (o, a) => Dialogs.Handle(this, a);
+                    w.DownloadStarting += (o, a) => Dialogs.Download(this, a);
                     w.Navigate(this.url);
                 }
                 catch (Exception ex)

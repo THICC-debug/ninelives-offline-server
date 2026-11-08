@@ -8,7 +8,7 @@
     <TargetFramework>net48</TargetFramework>
     <AssemblyName>NineLivesEditor</AssemblyName>
     <RootNamespace>NineLivesEditor</RootNamespace>
-    <Version>1.0.0</Version>
+    <Version>1.2.0</Version>
     <Product>Nine Lives Editor</Product>
     <Description>Nine Lives Editor</Description>
     <LangVersion>latest</LangVersion>
@@ -24,6 +24,7 @@
     <Reference Include="System.Web.Extensions" />
     <Reference Include="Microsoft.VisualBasic" />
     <Reference Include="System.Net.Http" />
+    <Reference Include="System.IO.Compression" />
   </ItemGroup>
 
   <!-- Build everything into the one exe: the web pages, and WebView2's DLLs (see Resources.cs). -->

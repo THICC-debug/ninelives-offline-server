@@ -174,6 +174,10 @@ running, the NPCs, World, Map and Scripts tabs work live: changes show in the wo
 
 The examples that come with the mods start switched off; turn them on in the editor's Packs & mods tab.
 
+**Sharing mods:** Packs & mods ▸ **Export a mod** makes one .zip of your packs. To add a mod someone sent
+you, drop its .zip into the game's `Mods` folder: it's installed the next time you play or open the
+editor, and its packs can then be played and changed like your own.
+
 ## ⚗️ Alchemy recipes
 
 The recipe lists only ever lived on SmokymonkeyS' servers, so they were lost when the

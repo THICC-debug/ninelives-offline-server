@@ -39,7 +39,7 @@ MODS = [
     ("DevTools", False, "F7 command box for testing: teleport, give items and gold, set flags. Cheats!"),
 ]
 
-SERVER_FILES = ["ninelives_server.py", "aes.py", "recipes.json", "README.md", "LICENSE", "PROTOCOL.md", "ITEMS.md", "MODDING.md"]
+SERVER_FILES = ["ninelives_server.py", "aes.py", "dropmods.py", "recipes.json", "README.md", "LICENSE", "PROTOCOL.md", "ITEMS.md", "MODDING.md"]
 
 
 def run(cmd):

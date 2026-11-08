@@ -758,7 +758,20 @@ def watch_game(srv):
             return
 
 
+def install_dropped_mods():
+    """Mods (zips of packs from the editor) dropped into <game>/Mods: unpack them before the game starts."""
+    game = os.path.dirname(HERE)   # the server lives in <game>\OfflineServer
+    if not os.path.isdir(os.path.join(game, "Mods")):
+        return
+    try:
+        import dropmods
+        dropmods.install_dropped(game, log)
+    except Exception as e:
+        log("Mods: couldn't check for dropped mods: %s" % e)
+
+
 def main():
+    install_dropped_mods()
     try:
         srv = Server((HOST, PORT), Handler)
     except OSError:

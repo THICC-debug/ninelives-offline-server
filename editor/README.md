@@ -88,6 +88,7 @@ Your changes are saved as packs:
 | Quest packs | `Mods\Quests\<name>.json` |
 | Content packs (items, loot, shops) | `Mods\Content\<name>.json` |
 | NPC packs | `Mods\NPCs\<name>.json` |
+| Enemy packs (spawns and renames) | `Mods\Enemies\<name>.json` |
 | World packs (placed and hidden things) | `Mods\World\<name>.json` |
 | Script packs (rules, Lua, dialogues) | `Mods\Scripts\<name>.json` |
 
@@ -99,6 +100,29 @@ With the game running, NPC, World and Script packs reload in game by themselves 
 quests and content use `reloadquests` and `reloadcontent` in the DevTools command box (F7), or restart
 the game. A switched-off pack does nothing in game; the tab shows a bar with **Switch it on** when the
 open pack is off.
+
+## Sharing mods
+
+On **Packs & mods**, **⇪ Export a mod** puts the packs you pick into one `.zip`, with a name, author and
+a few words about it. If a quest's giver is one of your NPCs, it offers to add that NPC pack too. Send the
+zip to anyone with Nine Lives Offline.
+
+**To add a mod someone sent you, drop its .zip into the game's `Mods` folder** (Packs & mods has an
+**📂 Open the Mods folder** button). That's all. It's installed the next time you play (the offline server
+does it before the game starts) or when the editor opens, and right away if Packs & mods is open:
+
+- its packs go into the pack folders (`Mods\Quests`, `Mods\NPCs`…) and are ordinary packs from then
+  on: they load in game, and anyone can open and change them in the editor
+- the zip moves to `Mods\Installed`, with a note of what came from it; Packs & mods lists these under
+  **Mods you've added**, with a ✎ button for each pack and a warning when one uses the same NPC, quest
+  or spawn id as another of your packs
+- a pack with the same name as one you have is replaced (yours is kept as `.bak`), so dropping in a
+  newer version of a mod updates it
+- only pack files are installed, never code: a zip with a `.dll` or `.exe` in it is left where it is
+  (code mods go in with Setup.exe)
+
+`nine-lives-mod.json` inside the zip describes the mod (name, author, what's in it, which mods it was
+made with). The same rules are in `dropmods.py` (run by the server) and the editor's `Share.cs`.
 
 ## How it's built
 

@@ -15,7 +15,7 @@ namespace NineLivesEditor
     /// The editor's local web server: serves the pages (built into the exe) and the API the pages use
     /// to read the mods' exports and read/write packs. Listens on 127.0.0.1 only.
     /// </summary>
-    class EditorServer
+    partial class EditorServer
     {
         const string Off = ".disabled";
         static readonly Regex PackName = new Regex(@"^[A-Za-z0-9 _\-]{1,60}$");
@@ -49,6 +49,7 @@ namespace NineLivesEditor
             listener.Start();
             Port = ((IPEndPoint)listener.LocalEndpoint).Port;
             new Thread(Accept) { IsBackground = true, Name = "EditorServer" }.Start();
+            ThreadPool.QueueUserWorkItem(_ => InstallDropped());   // mods dropped into the Mods folder (Share.cs)
         }
 
         public string Url { get { return "http://127.0.0.1:" + Port + "/"; } }
@@ -98,6 +99,7 @@ namespace NineLivesEditor
                     catch (Exception e) { r = Error(500, e.Message); }
                     var head = "HTTP/1.1 " + r.Code + " " + (r.Code == 200 ? "OK" : "Error") + "\r\n" +
                                "Content-Type: " + r.Type + "\r\nContent-Length: " + r.Body.Length + "\r\n" +
+                               (r.Disposition != null ? "Content-Disposition: " + r.Disposition + "\r\n" : "") +
                                "Cache-Control: " + (r.Cache ? "max-age=3600" : "no-store") + "\r\nConnection: close\r\n\r\n";
                     var hb = Encoding.ASCII.GetBytes(head);
                     s.Write(hb, 0, hb.Length);
@@ -163,7 +165,7 @@ namespace NineLivesEditor
             return d;
         }
 
-        class Response { public int Code = 200; public string Type = "application/json; charset=utf-8"; public byte[] Body; public bool Cache; }
+        class Response { public int Code = 200; public string Type = "application/json; charset=utf-8"; public byte[] Body; public bool Cache; public string Disposition; }
         static Response JsonText(string json, int code = 200) { return new Response { Code = code, Body = Encoding.UTF8.GetBytes(json) }; }
         static Response JsonObj(object o, int code = 200) { return JsonText(Json.Write(o), code); }
         static Response Error(int code, string msg) { return JsonObj(new Dictionary<string, object> { { "error", msg } }, code); }
@@ -334,6 +336,7 @@ namespace NineLivesEditor
             }
             if (parts[1] == "overview")
             {
+                var justNow = InstallDropped();   // mods dropped into the Mods folder since (Share.cs)
                 var cfg = ModCfg();
                 return JsonObj(new Dictionary<string, object> {
                     { "game", game },
@@ -342,12 +345,14 @@ namespace NineLivesEditor
                     { "packs", Kinds.Keys.ToDictionary(k => k, k => (object)Packs(k).Select(p => new Dictionary<string, object> {
                         { "name", p.Key }, { "enabled", p.Value }, { "size", PackSize(k, p.Key) },
                         { "dialogs", k == "scripts" ? (object)((Json.List(Json.Get(Json.Load(PackFile(k, p.Key)), "dialogs")) ?? new object[0]).Count) : null } }).ToList()) },
+                    { "added", AddedMods(justNow) },
                     { "exported", new Dictionary<string, object> {
                         { "quests", File.Exists(ExportPath("QuestLoader", "quests.json")) },
                         { "content", File.Exists(ExportPath("ContentLoader", "loot.json")) } } },
                 });
             }
             if (parts[1] == "index") return JsonObj(SearchIndex());
+            if (parts[1] == "share") return ShareGet(parts, q);   // export a mod (Share.cs)
             if (parts[1] == "prefs")   // the editor's own settings (layout, panel sizes…), kept in a file
             {
                 var f = PrefsFile;
@@ -684,6 +689,7 @@ namespace NineLivesEditor
                 if (parts[2] == "stop") return JsonObj(GameRunner.Stop(game));
                 if (parts[2] == "show") return JsonObj(GameRunner.Show(game, Q(q, "on") == "1"));
             }
+            if (parts[1] == "share") return SharePost(parts, q, body);   // look inside / import a mod (Share.cs)
             if (parts[1] == "packs" && parts[2] == "toggle")
             {
                 string kind = Q(q, "kind"), name = Q(q, "name"); bool on = Q(q, "on") == "1";

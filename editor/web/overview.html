@@ -19,6 +19,31 @@
   .note.warn { color: var(--warn); }
   h2 { font-size: 15px; margin: 22px 0 10px; }
   .foot { color: var(--muted); font-size: 12px; margin-top: 26px; }
+  /* sharing */
+  .share { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .share .grow { flex: 1; min-width: 220px; }
+  .modal { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: flex; align-items: flex-start; justify-content: center; padding: 30px 16px; overflow: auto; z-index: 50; }
+  .modal .box { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; width: min(720px, 100%); padding: 18px 20px; box-shadow: 0 10px 40px rgba(0,0,0,.45); }
+  .modal .box h3 { margin: 0 0 4px; font-size: 17px; }
+  .modal .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0; }
+  .modal label.f { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+  .modal textarea { min-height: 54px; resize: vertical; }
+  .modal .kind { margin: 12px 0 4px; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  .modal .pk { display: flex; gap: 8px; align-items: center; padding: 5px 0; border-bottom: 1px solid var(--line); }
+  .modal .pk input[type=checkbox] { width: auto; flex: none; margin: 0 4px 0 0; }
+  .modal .pk .name { flex: 1; min-width: 0; } .modal .pk small { color: var(--muted); display: block; }
+  .modal .pk select { width: auto; }
+  .modal .foot2 { display: flex; gap: 8px; justify-content: flex-end; align-items: center; margin-top: 16px; }
+  .modal .foot2 .hint { margin-right: auto; }
+  .modal .sugg { background: var(--chip); border-radius: 8px; padding: 8px 12px; margin: 10px 0; font-size: 13px; }
+  .modal .bad { color: var(--bad); } .modal .warn { color: var(--warn); } .modal .ok { color: var(--ok, #4caf50); }
+  .modal .desc { white-space: pre-wrap; margin: 8px 0; }
+  #added fieldset { margin-top: 12px; }
+  #added .mod { padding: 8px 0; border-bottom: 1px solid var(--line); } #added .mod:last-child { border-bottom: 0; }
+  #added .mod p { margin: 4px 0; } #added .packs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  #added .packs button { font-size: 12px; padding: 2px 8px; }
+  #added .warn { color: var(--warn); font-size: 12px; } #added .new { border-left: 3px solid var(--accent); padding-left: 10px; }
+  @media (max-width: 600px) { .modal .grid2 { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
@@ -26,6 +51,18 @@
   <p class="title">Packs &amp; mods</p>
   <p class="hint" id="game"></p>
   <div id="notes"></div>
+
+  <h2>Share your mods</h2>
+  <div class="share">
+    <div class="grow"><b>Make your packs into a mod</b> to share: one .zip with your quests, NPCs, enemies, world, content and scripts.</div>
+    <button class="primary" id="exportBtn">⇪ Export a mod…</button>
+  </div>
+  <div class="share" style="margin-top:10px">
+    <div class="grow"><b>Got a mod from someone?</b> Drop its .zip into the game's <b>Mods</b> folder. That's it: it's installed
+      when the game or the editor next starts (or now, if this page is open), and its packs show up below, ready to play and to change like your own.</div>
+    <button id="openMods">📂 Open the Mods folder</button>
+  </div>
+  <div id="added"></div>
 
   <h2>Packs</h2>
   <p class="hint" style="margin-top:-6px">Packs are your changes. A pack that's switched off stays on disk (as <code>.json.disabled</code>) and the game ignores it.
@@ -88,6 +125,8 @@ async function load() {
     </fieldset>`;
   }).join("");
 
+  renderAdded();
+
   $("#mods").innerHTML = D.mods.map(m => `<div class="line">
       <label class="switch"><input type="checkbox" data-mod="${m.id}" ${m.installed && m.enabled ? "checked" : ""} ${m.installed ? "" : "disabled"}></label>
       <div class="name"><b>${m.id}</b>${m.installed ? (m.enabled ? "" : ' <span class="badge off">off</span>') : ' <span class="badge">not installed</span>'}<small>${esc(MOD_INFO[m.id] || "")}</small></div></div>`).join("");
@@ -122,6 +161,99 @@ async function load() {
     const n = prompt("Name for the new pack (letters, numbers, spaces, - and _):", "my-" + (k === "content" ? "content" : k));
     if (n) parent.postMessage({ nav: KIND[k].tab, msg: { cmd: "openPack", name: n } }, "*");
   });
+}
+
+// ---------------------------------------------------------------- sharing: export and import mods
+const KIND_ORDER = ["quests", "npcs", "enemies", "world", "content", "scripts"];
+const store = { get: k => { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} } };
+function modal(html) {
+  closeModal();
+  const m = document.createElement("div"); m.className = "modal"; m.id = "modal";
+  m.innerHTML = `<div class="box">${html}</div>`;
+  m.addEventListener("mousedown", e => { if (e.target === m) closeModal(); });
+  document.body.appendChild(m);
+  return m;
+}
+function closeModal() { const m = $("#modal"); if (m) m.remove(); }
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
+
+async function openExport() {
+  if (!D) await load();
+  const all = KIND_ORDER.flatMap(k => (D.packs[k] || []).map(p => ({ k, ...p })));
+  if (!all.length) { alert("You have no packs yet: make some quests, NPCs, enemies or world changes first."); return; }
+  const picked = new Set();
+  const m = modal(`<h3>Export a mod</h3>
+    <p class="hint">Pick the packs to put in it. You get one .zip to share; it installs with <b>Import a mod</b> here, or by unzipping it into the game folder.</p>
+    <div class="grid2">
+      <label class="f">Name<input id="exName" maxlength="80" placeholder="e.g. The Crimson Isles Quests"></label>
+      <label class="f">Author<input id="exAuthor" maxlength="80" placeholder="your name"></label>
+    </div>
+    <label class="f">What it is (shown when someone imports it)<textarea id="exDesc" maxlength="2000" placeholder="A few words: what it adds, where to go in game…"></textarea></label>
+    <div id="exList">${KIND_ORDER.filter(k => (D.packs[k] || []).length).map(k => `<div class="kind">${KIND[k].title}</div>` +
+      D.packs[k].map(p => `<label class="pk"><input type="checkbox" data-ex="${k}:${esc(p.name)}">
+        <div class="name"><b>${esc(p.name)}</b>${p.enabled ? "" : ' <span class="badge off">off</span>'}<small>${p.size} ${KIND[k].unit}${p.size === 1 ? "" : "s"}</small></div></label>`).join("")).join("")}</div>
+    <div id="exSugg"></div>
+    <div class="foot2"><span class="hint" id="exNote">Nothing picked yet</span><button id="exCancel">Cancel</button><button class="primary" id="exGo" disabled>Export…</button></div>`);
+  $("#exAuthor").value = store.get("nle.shareAuthor");
+  const refresh = async () => {
+    $("#exGo").disabled = !picked.size;
+    $("#exNote").textContent = picked.size ? `${picked.size} pack${picked.size === 1 ? "" : "s"} picked` : "Nothing picked yet";
+    if (!$("#exName").value && picked.size === 1) $("#exName").placeholder = [...picked][0].split(":").slice(1).join(":");
+    const r = await api("/api/share/related?packs=" + encodeURIComponent([...picked].join("|"))).catch(() => []);
+    $("#exSugg").innerHTML = r.map(x => `<div class="sugg">Also add the NPC pack <b>${esc(x.name)}</b>? It ${esc(x.why)}. <button data-add="${x.kind}:${esc(x.name)}">Add it</button></div>`).join("");
+    m.querySelectorAll("[data-add]").forEach(b => b.onclick = () => { const cb = m.querySelector(`[data-ex="${CSS.escape(b.dataset.add)}"]`); if (cb) { cb.checked = true; picked.add(b.dataset.add); refresh(); } });
+  };
+  m.querySelectorAll("[data-ex]").forEach(cb => cb.onchange = () => { if (cb.checked) picked.add(cb.dataset.ex); else picked.delete(cb.dataset.ex); refresh(); });
+  $("#exCancel").onclick = closeModal;
+  $("#exGo").onclick = () => {
+    const name = $("#exName").value.trim() || $("#exName").placeholder.replace(/^e\.g\. .*/, "") || "my-mod";
+    store.set("nle.shareAuthor", $("#exAuthor").value.trim());
+    const q = new URLSearchParams({ packs: [...picked].join("|"), name, author: $("#exAuthor").value.trim(), description: $("#exDesc").value.trim() });
+    const a = document.createElement("a"); a.href = "/api/share/export?" + q; a.download = name + ".zip"; document.body.appendChild(a); a.click(); a.remove();
+    $("#exNote").innerHTML = `<span class="ok">✓ Pick where to save <b>${esc(name)}.zip</b>, then send that file to whoever should have it.</span>`;
+  };
+}
+
+$("#exportBtn").onclick = openExport;
+$("#openMods").onclick = () => api("/api/share/openfolder", { method: "POST" }).catch(e => alert(e.message));
+
+// Mods you've added (dropped into the Mods folder): what came from each, with its packs to open.
+const FOLDER_KIND = { Quests: "quests", Content: "content", NPCs: "npcs", Enemies: "enemies", World: "world", Scripts: "scripts" };
+let announced = new Set();
+function renderAdded() {
+  const added = (D.added || []).map(m => ({ ...m, new: m.new || announced.has(m.zip) }));   // "just installed" stays while the page is open
+  if (!added.length) { $("#added").innerHTML = ""; return; }
+  const said = { added: "new", replaced: "updated", same: "already had it", skipped: "left out" };
+  $("#added").innerHTML = `<fieldset><legend>Mods you've added</legend>${added.map(m => `<div class="mod${m.new ? " new" : ""}">
+      <b>${esc(m.name)}</b>${m.author ? ` <span class="hint">by ${esc(m.author)}</span>` : ""}${m.new ? ' <span class="badge">just installed</span>' : ""}
+      <span class="hint" style="float:right">${esc((m.installed || "").slice(0, 10))} · ${esc(m.zip)}</span>
+      ${m.description ? `<p>${esc(m.description)}</p>` : ""}
+      <div class="packs">${(m.packs || []).map(p => { const k = FOLDER_KIND[p.folder]; return p.result === "skipped"
+        ? `<span class="hint">${esc(p.name)} (left out)</span>`
+        : `<button data-open="${k}|${esc(p.name)}" title="Open it in the editor (${esc(said[p.result] || p.result)})">✎ ${esc(p.name)} <span class="hint">${esc(KIND[k].title.replace(/ packs$/, "").replace("&amp;", "&"))}</span></button>`; }).join("")}</div>
+      ${(m.warnings || []).map(w => `<p class="warn">⚠ ${esc(w)}</p>`).join("")}</div>`).join("")}
+    <p class="hint">The zips are kept in <code>Mods\\Installed</code>. Drop a newer version in the same way: it updates the packs (yours are kept as <code>.bak</code>).</p></fieldset>`;
+  $("#added").querySelectorAll("[data-open]").forEach(b => b.onclick = () => { const [k, name] = b.dataset.open.split("|"); parent.postMessage({ nav: KIND[k].tab, msg: { cmd: "openPack", name } }, "*"); });
+  // just installed while the editor is open: tell the other pages, and the game if it's running
+  const fresh = (D.added || []).filter(m => m.new && !announced.has(m.zip));
+  if (fresh.length) {
+    fresh.forEach(m => announced.add(m.zip));
+    const kinds = [...new Set(fresh.flatMap(m => (m.packs || []).filter(p => p.result === "added" || p.result === "replaced").map(p => FOLDER_KIND[p.folder])))];
+    kinds.forEach(k => parent.postMessage({ broadcast: { cmd: "packsChanged", kind: k } }, "*"));
+    reloadInGame(kinds);
+  }
+}
+// Checks the Mods folder now and then while this page is open, so a dropped mod shows up by itself.
+setInterval(() => { if (document.visibilityState === "visible" && !$("#modal")) load().catch(() => {}); }, 4000);
+
+// Packs load when a zone loads; what the mods can reload while you play, they reload now.
+async function reloadInGame(kinds) {
+  let st; try { st = await (await fetch("/api/live/status")).json(); } catch (e) { st = {}; }
+  if (!st.connected || !st.inWorld) return "It's in your game the next time you play.";
+  const routes = { npcs: "/reload", enemies: "/enemy/reload", world: "/world/reload", scripts: "/scripts/reload" };
+  for (const k of kinds) if (routes[k]) { try { await fetch("/api/live" + routes[k], { method: "POST", body: "{}" }); } catch (e) {} }
+  const later = kinds.filter(k => !routes[k]);
+  return "Your game has it now" + (later.length ? ` (${later.map(k => KIND[k].title.toLowerCase().replace("&amp;", "&")).join(" and ")}: after the game restarts, or type ${later.map(k => k === "quests" ? "reloadquests" : "reloadcontent").join(" / ")} in the F7 box)` : "") + ".";
 }
 
 window.addEventListener("message", e => { if ((e.data || {}).cmd === "packsChanged") load(); });

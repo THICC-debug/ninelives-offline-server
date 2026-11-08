@@ -48,6 +48,7 @@ namespace NineLivesEditor
             w.Settings.IsZoomControlEnabled = false;
             w.Settings.AreDefaultScriptDialogsEnabled = false;
             w.ScriptDialogOpening += (o, a) => Dialogs.Handle(this, a);
+            w.DownloadStarting += (o, a) => Dialogs.Download(this, a);
             w.NewWindowRequested += (o, a) => { a.Handled = true; Program.OpenInBrowser(a.Uri); };
             w.NavigationStarting += (o, a) => { if (!a.Uri.StartsWith(url, StringComparison.OrdinalIgnoreCase)) { a.Cancel = true; Program.OpenInBrowser(a.Uri); } };
             w.DocumentTitleChanged += (o, a) => Text = string.IsNullOrEmpty(w.DocumentTitle) ? "Nine Lives Editor" : w.DocumentTitle;
@@ -93,6 +94,19 @@ namespace NineLivesEditor
     /// <summary>The pages' confirm/alert/prompt boxes, as the app's own (always on top of the game's window).</summary>
     static class Dialogs
     {
+        /// <summary>A download from the editor's pages (an exported mod): ask where to save it.</summary>
+        public static void Download(Form owner, CoreWebView2DownloadStartingEventArgs e)
+        {
+            var name = System.IO.Path.GetFileName(e.ResultFilePath);
+            using (var d = new SaveFileDialog { FileName = name, Filter = "Zip file (*.zip)|*.zip|All files (*.*)|*.*", Title = "Save the mod", OverwritePrompt = true })
+            {
+                try { d.InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments); } catch { }
+                if (d.ShowDialog(owner) != DialogResult.OK) { e.Cancel = true; return; }
+                e.ResultFilePath = d.FileName;
+                e.Handled = true;   // no download bubble: the page says where it went
+            }
+        }
+
         public static void Handle(Form owner, CoreWebView2ScriptDialogOpeningEventArgs e)
         {
             var deferral = e.GetDeferral();
