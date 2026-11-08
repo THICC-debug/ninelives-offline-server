@@ -44,10 +44,11 @@ UNINSTALL
   to keep your save.
 
 #if mods
-EDITORS
-  QuestLoader and ContentLoader come with editors that open in your browser:
-  <game>\Mods\Open Quest Editor.bat and <game>\Mods\Open Content Editor.bat
-  Play the game once with the mod installed first (it exports the game's data for the editor).
+THE NINE LIVES EDITOR
+  The mods come with the Nine Lives Editor (desktop shortcut "Nine Lives Editor"): quests, items,
+  loot, shops, NPCs and vendors, enemies, dialogues, scripts, and the Build view, where the game
+  itself is the 3D view for placing things. Play the game once with the mods installed first
+  (it exports the game's data for the editor).
 
 #endif
 HELP AND SOURCE

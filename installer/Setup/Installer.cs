@@ -243,7 +243,7 @@ namespace NineLivesSetup
                 log("Nine Lives Editor installed: \"" + EditorExe + "\" in the game folder");
                 if (shortcut)
                 {
-                    try { MakeShortcut(Path.Combine(DesktopDir, EditorShortcutName), Path.Combine(game, EditorExe), game, Path.Combine(game, EditorExe) + ",0", "Edit quests, items, loot, shops and NPCs", 1); }
+                    try { MakeShortcut(Path.Combine(DesktopDir, EditorShortcutName), Path.Combine(game, EditorExe), game, Path.Combine(game, EditorExe) + ",0", "Edit quests, items, loot, shops, NPCs, enemies and the world", 1); }
                     catch (Exception e) { log("Couldn't make the editor's desktop shortcut: " + e.Message); }
                 }
             }

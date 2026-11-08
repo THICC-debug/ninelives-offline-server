@@ -34,6 +34,7 @@ MODS = [
     ("ContentLoader", True, "Change item prices and stats, loot and shop stock with content packs (Nine Lives Editor)."),
     ("NPCLoader", True, "Add your own NPCs (quest givers, vendors) from NPC packs (Nine Lives Editor)."),
     ("WorldLoader", True, "Place copies of houses, fences, trees and props, or hide things (the Build view in the editor). New."),
+    ("EnemyLoader", True, "Spawn monsters where you like, make them weaker or tougher, rename the game's own (Enemies in the editor). New."),
     ("ScriptLoader", True, "Rules (when this happens, do that), dialogues and Lua scripts (Scripts and Dialogue tabs in the editor). New."),
     ("DevTools", False, "F7 command box for testing: teleport, give items and gold, set flags. Cheats!"),
 ]
