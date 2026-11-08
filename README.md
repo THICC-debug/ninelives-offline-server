@@ -59,7 +59,10 @@ This project brings it back for single-player, offline play:
    Your account is created on the spot.
 
 The server starts minimized next to the game and stops by itself when you close the game.
-Your save is `Ninelives\OfflineServer\save.json`.
+Your save is `Ninelives\OfflineServer\save.json`. A copy of the previous save is kept as `save.json.bak`;
+if `save.json` is ever damaged (a power cut), the server starts from the copy and keeps the damaged file.
+If the game folder can't be written to (a game in Program Files), saves go to
+`%LOCALAPPDATA%\NineLivesOffline` instead (the server log says where).
 
 **Update:** run a newer `Setup.exe` and click **Update**.
 Your save and packs are kept.

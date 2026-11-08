@@ -38,8 +38,31 @@ SKILL_RESET_COST = 50                                       # UI_ResetSkillTree 
 KEY = b"RQ82EOnVuZZs1nc2_NZAgr18RfrrNVd7"   # the game's built-in key
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SAVE_PATH = os.path.join(HERE, "save.json")
-LOG_PATH = os.path.join(HERE, "server.log")
+
+
+def data_dir():
+    """Next to the server, unless that folder can't be written to (a game in Program Files):
+    then %LOCALAPPDATA%\\NineLivesOffline, taking the existing save along."""
+    try:
+        test = os.path.join(HERE, ".write-test")
+        with open(test, "w") as f:
+            f.write("ok")
+        os.remove(test)
+        return HERE
+    except OSError:
+        pass
+    d = os.path.join(os.environ.get("LOCALAPPDATA") or os.path.expanduser("~"), "NineLivesOffline")
+    os.makedirs(d, exist_ok=True)
+    old, new = os.path.join(HERE, "save.json"), os.path.join(d, "save.json")
+    if os.path.exists(old) and not os.path.exists(new):
+        import shutil
+        shutil.copy2(old, new)
+    return d
+
+
+DATA = data_dir()
+SAVE_PATH = os.path.join(DATA, "save.json")
+LOG_PATH = os.path.join(DATA, "server.log")
 VERBOSE = "-v" in sys.argv
 
 # Item dock numbers used by the game (ActionDockName enum).
@@ -53,17 +76,80 @@ lock = threading.RLock()
 
 # ---------------------------------------------------------------- storage
 
+LOAD_PROBLEM = None
+
+
+def _read_json(path):
+    """The file's data. A file another program holds for a moment (antivirus, a backup tool) is tried
+    again; only a file whose content is broken counts as damaged (ValueError)."""
+    for attempt in range(10):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                text = f.read()
+            break
+        except OSError:
+            if attempt == 9:
+                raise
+            time.sleep(0.3)
+    db = json.loads(text)
+    if not isinstance(db, dict) or not isinstance(db.get("accounts"), dict):
+        raise ValueError("no accounts in it")
+    return db
+
+
+def _set_aside(path):
+    """Keep a damaged save under another name (never deleted, never written over)."""
+    broken = path + time.strftime(".damaged-%Y%m%d-%H%M%S")
+    try:
+        os.replace(path, broken)
+    except OSError:
+        return path
+    return broken
+
+
 def load_db():
+    global LOAD_PROBLEM
+    damaged = None
     if os.path.exists(SAVE_PATH):
-        with open(SAVE_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
+        try:
+            return _read_json(SAVE_PATH)
+        except ValueError as e:
+            damaged = "save.json is damaged (%s)" % e
+    # save.json is missing or damaged: the backup, if there's a good one
+    bak = SAVE_PATH + ".bak"
+    if os.path.exists(bak):
+        try:
+            db = _read_json(bak)
+            if damaged:
+                LOAD_PROBLEM = damaged + ": using save.json.bak; the damaged one is kept as " + os.path.basename(_set_aside(SAVE_PATH))
+            else:
+                LOAD_PROBLEM = "save.json was missing: using save.json.bak"
+            return db
+        except ValueError:
+            pass
+    if damaged:
+        # Nothing usable: put the damaged file aside (kept) and start a new save.json.
+        LOAD_PROBLEM = damaged + " and there's no usable backup: it's kept as " + os.path.basename(_set_aside(SAVE_PATH)) + "; starting a new save"
     return {"accounts": {}}
 
 
+_last_backup = [0.0]
+
+
 def save_db():
+    # Once in a while (and first thing each session), keep the previous save as save.json.bak.
+    if time.time() - _last_backup[0] > 600 and os.path.exists(SAVE_PATH):
+        try:
+            import shutil
+            shutil.copy2(SAVE_PATH, SAVE_PATH + ".bak")
+            _last_backup[0] = time.time()
+        except OSError:
+            pass
     tmp = SAVE_PATH + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(DB, f, indent=1)
+        f.flush()
+        os.fsync(f.fileno())      # on the disk before it replaces the old one (power cuts)
     os.replace(tmp, SAVE_PATH)
 
 
@@ -72,9 +158,15 @@ DB = load_db()
 
 def log(msg):
     line = time.strftime("%H:%M:%S ") + msg
-    print(line, flush=True)
-    with open(LOG_PATH, "a", encoding="utf-8") as f:
-        f.write(line + "\n")
+    try:
+        print(line, flush=True)
+    except Exception:
+        pass
+    try:
+        with open(LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(line + "\n")
+    except OSError:
+        pass          # a log that can't be written never stops the game's requests
 
 
 # ---------------------------------------------------------------- crypto
@@ -130,9 +222,9 @@ def get_character(p):
     for name, ch in acc["characters"].items():
         if ch.get("csKey") == cs:
             return acc, ch
-    # fall back to the only/last character if the key is unknown
-    if acc["characters"]:
-        return acc, list(acc["characters"].values())[-1]
+    # an unknown key: only an account with one character can mean that one (never write into another)
+    if len(acc["characters"]) == 1:
+        return acc, list(acc["characters"].values())[0]
     return acc, None
 
 
@@ -212,8 +304,17 @@ h_addAccount = h_login
 h_verifyAccount = h_login
 
 
+EDITOR_ACCOUNT = "nle-editor@local.test"   # the Nine Lives Editor's 3D view logs in with this
+EDITOR_CHARACTER = "Builder"
+
+
 def h_characterList(p):
     email, acc = get_account(p, create=True)
+    if email == EDITOR_ACCOUNT and not acc["characters"]:
+        # The editor's account gets a character to stand in the world (it's hidden in editor mode).
+        h_newCharacter({"id": email, "name": EDITOR_CHARACTER, "race": 0, "job": 1, "hair": 2,
+                        "hireUseDefaultColor": "true", "hairColor": 0, "facialFileHead": "", "facial": 0})
+        save_db()
     return [char_summary(c) for c in acc["characters"].values()]
 
 
@@ -557,6 +658,11 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _handle(self, raw):
+        # The game (Unity's WWW) sends no Origin or Referer; a web page in a browser always does.
+        host = (self.headers.get("Host") or "").lower()
+        if self.headers.get("Origin") or self.headers.get("Referer") or \
+                (host and host not in ("127.0.0.1:%d" % PORT, "localhost:%d" % PORT)):
+            return self._reply("9", 403)
         path = self.path.split("?")[0]
         action = path.rstrip("/").rsplit("/", 1)[-1]
         params = {}
@@ -568,6 +674,7 @@ class Handler(BaseHTTPRequestHandler):
                     params = decode_request(req)
                 except Exception as e:
                     log("!! could not decode request for %s: %s" % (action, e))
+                    return self._reply("9")     # (running it with nothing would answer "saved")
         fn = HANDLERS.get(action)
         if VERBOSE:
             shown = {k: ("***" if k in ("pass", "password", "verifyCode") else
@@ -579,13 +686,25 @@ class Handler(BaseHTTPRequestHandler):
         if fn is None:
             log("   (unknown request '%s' - answering OK)" % action)
             return self._reply("0")
-        try:
-            with lock:
+        global DB
+        with lock:
+            try:
                 result = fn(params)
+            except Exception:
+                log("!! error in %s\n%s" % (action, traceback.format_exc()))
+                # Half done in memory: go back to what's on disk, so the next save doesn't write it.
+                try:
+                    if os.path.exists(SAVE_PATH):
+                        DB = _read_json(SAVE_PATH)
+                except Exception:
+                    pass
+                return self._reply("9")
+            try:
                 save_db()
-        except Exception:
-            log("!! error in %s\n%s" % (action, traceback.format_exc()))
-            return self._reply("9")
+            except Exception as e:
+                # (e.g. another program held save.json for a moment) The change stays in memory and the
+                # next save writes it.
+                log("!! couldn't write the save right now (%s): it's kept and saved with the next request" % e)
         plain = isinstance(result, str) and not isinstance(result, EncryptedText)
         self._reply(result if plain else encode_reply(result))
 
@@ -623,16 +742,19 @@ def game_running():
 
 def watch_game(srv):
     """Stop the server a little after the game closes (the Play launcher uses this)."""
-    seen, waited = False, 0
+    seen, waited, misses = False, 0, 0
     while True:
         time.sleep(5)
         waited += 5
         if game_running():
-            seen = True
-        elif seen or waited >= 180:    # closed, or never started within 3 minutes
+            seen, misses = True, 0
+            continue
+        misses += 1
+        if (seen and misses >= 3) or (not seen and waited >= 180):    # closed (15 s), or never started within 3 minutes
             log("The game has closed - stopping the server." if seen else
                 "The game didn't start within 3 minutes - stopping the server.")
-            srv.shutdown()
+            with lock:             # a save in progress finishes first
+                srv.shutdown()
             return
 
 
@@ -644,6 +766,8 @@ def main():
         sys.exit(2)
     log("Nine Lives offline server running on http://%s:%d  (Ctrl+C to stop)" % (HOST, PORT))
     log("Saves: " + SAVE_PATH)
+    if LOAD_PROBLEM:
+        log("!! " + LOAD_PROBLEM)
     if "--exit-with-game" in sys.argv:
         threading.Thread(target=watch_game, args=(srv,), daemon=True).start()
     try:

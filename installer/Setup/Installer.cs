@@ -130,7 +130,7 @@ namespace NineLivesSetup
         static void StopOurPython(string game, Action<string> log)
         {
             var ours = Path.Combine(game, ServerFolder, "python").TrimEnd('\\') + "\\";
-            foreach (var p in Process.GetProcessesByName("python"))
+            foreach (var p in Process.GetProcessesByName("python").Concat(Process.GetProcessesByName("pythonw")))
             {
                 try
                 {
@@ -205,7 +205,12 @@ namespace NineLivesSetup
             var server = Path.Combine(game, ServerFolder);
             Directory.CreateDirectory(server);
             foreach (var f in Directory.GetFiles(Path.Combine(Payload, "server")))
-                File.Copy(f, Path.Combine(server, Path.GetFileName(f)), true);
+            {
+                var to = Path.Combine(server, Path.GetFileName(f));
+                // recipes.json is yours to edit (alchemy recipes): an update keeps your copy.
+                if (Path.GetFileName(f).Equals("recipes.json", StringComparison.OrdinalIgnoreCase) && File.Exists(to)) continue;
+                File.Copy(f, to, true);
+            }
             var py = Path.Combine(server, "python");
             if (Directory.Exists(py)) Directory.Delete(py, true);
             CopyDir(Path.Combine(Payload, "python"), py);
@@ -290,7 +295,10 @@ namespace NineLivesSetup
                     var dest = Path.GetFullPath(Path.Combine(game, e.FullName.Replace('/', '\\')));
                     if (!dest.StartsWith(root, StringComparison.OrdinalIgnoreCase)) continue;   // never write outside the game folder
                     var rel = dest.Substring(root.Length).ToLowerInvariant();
-                    bool isData = (rel.EndsWith(".json") || rel.EndsWith(".json.disabled")) && !rel.StartsWith("mods\\lib\\");
+                    // Shipped data the player doesn't edit (WorldLoader's baked indexes) is always brought up to date.
+                    bool shipped = rel.StartsWith("mods\\worldloader\\batches\\");
+                    bool isData = (rel.EndsWith(".json") || rel.EndsWith(".json.disabled")) && !rel.StartsWith("mods\\lib\\") && !shipped;
+                    // On an update, packs are left alone: changed, switched off or deleted on purpose.
                     if (update && isData) continue;
                     // A switched-off example: skip it if the player already has it, switched on or off.
                     if (rel.EndsWith(".json.disabled") && (File.Exists(dest) || File.Exists(dest.Substring(0, dest.Length - ".disabled".Length)))) continue;
@@ -388,7 +396,7 @@ start """" ""%~dp0Ninelives.exe""
                     foreach (var f in Directory.GetFiles(server))
                     {
                         var n = Path.GetFileName(f).ToLowerInvariant();
-                        if (!(n.StartsWith("save") && n.EndsWith(".json"))) File.Delete(f);
+                        if (!n.StartsWith("save") && n != "recipes.json") File.Delete(f);   // saves (and their backups) and your recipes stay
                     }
                     foreach (var d in Directory.GetDirectories(server)) Directory.Delete(d, true);
                     if (!Directory.EnumerateFileSystemEntries(server).Any()) Directory.Delete(server);
