@@ -26,13 +26,64 @@
   .status fieldset { margin: 0; }
   .ok { color: var(--ok); } .warn { color: var(--warn); }
   ol.steps { margin: 6px 0 0; padding-left: 20px; } ol.steps li { margin: 5px 0; }
+  .start { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-bottom: 28px; }
+  .start .st { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .start .st b { display: block; font-size: 15px; margin-bottom: 4px; }
+  .start .st .n { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-size: 12px; font-weight: 700; margin-right: 6px; }
+  .start .st span { color: var(--muted); font-size: 13px; }
+  .keys { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; margin-bottom: 28px; }
+  .keys fieldset { margin: 0; }
+  .keys table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .keys td { padding: 4px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .keys tr:last-child td { border-bottom: 0; }
+  .keys td:first-child { white-space: nowrap; padding-right: 12px; width: 1%; }
+  kbd { display: inline-block; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; padding: 0 5px; font: 11px/1.6 system-ui; background: var(--bg); margin: 0 1px; }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>What do you want to do?</h1>
-  <p class="lead">Pick a task, or find anything in the game by name.</p>
+  <h1>Nine Lives Editor</h1>
+  <p class="lead">Build in the world, add people, write quests and conversations, and change items, loot and shops.</p>
   <div class="bigsearch"><button id="find">🔍&nbsp; Find a quest, item, monster, shop or NPC…  <span style="float:right;font-size:12px">Ctrl K</span></button></div>
+
+  <h2>Start here</h2>
+  <div class="start">
+    <div class="st"><b><span class="n">1</span>Open Build</b><span>The <b>Build</b> tab shows the world in 3D. It starts by itself (or press ▶ Start at the top right). There's no character: you fly around.</span></div>
+    <div class="st"><b><span class="n">2</span>Place things</b><span>In <b>Assets</b> at the bottom, click a thing or a person, then click in the 3D view to put it down. Drag it, or right-click it for more.</span></div>
+    <div class="st"><b><span class="n">3</span>Save</b><span><b>Save</b> (Ctrl+S) keeps your changes as packs in the game's Mods folder. <b>Undo</b> (Ctrl+Z) and <b>Discard</b> take them back.</span></div>
+  </div>
+
+  <h2>3D view controls</h2>
+  <div class="keys">
+    <fieldset><legend>Camera</legend><table>
+      <tr><td>Hold <kbd>Right mouse</kbd></td><td>Look around</td></tr>
+      <tr><td>…and <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> <kbd>Q</kbd><kbd>E</kbd></td><td>Fly (Shift faster, wheel sets the speed)</td></tr>
+      <tr><td><kbd>Arrows</kbd></td><td>Fly (after you click in the 3D view, so they still move the caret in boxes)</td></tr>
+      <tr><td><kbd>Middle mouse</kbd> drag</td><td>Pan</td></tr>
+      <tr><td><kbd>Wheel</kbd></td><td>Zoom</td></tr>
+      <tr><td><kbd>Alt</kbd> + left drag</td><td>Orbit around the selection</td></tr>
+      <tr><td><kbd>F</kbd></td><td>Fly to the selection</td></tr>
+    </table></fieldset>
+    <fieldset><legend>Tools and moving</legend><table>
+      <tr><td><kbd>Q</kbd> <kbd>W</kbd> <kbd>E</kbd> <kbd>R</kbd></td><td>Select, Move, Rotate, Scale</td></tr>
+      <tr><td>Drag the thing</td><td>Slide it along the ground (wheel turns it)</td></tr>
+      <tr><td>Drag a handle</td><td>Move along an arrow, turn on a ring, resize with the cube</td></tr>
+      <tr><td><kbd>Ctrl</kbd> while dragging</td><td>Flip snapping (grid and angle steps on the toolbar)</td></tr>
+      <tr><td><kbd>,</kbd> <kbd>.</kbd> &nbsp;<kbd>PgUp</kbd> <kbd>PgDn</kbd></td><td>Turn (Shift: 5° steps) &nbsp;·&nbsp; raise and lower the selection</td></tr>
+      <tr><td><kbd>+</kbd> <kbd>-</kbd></td><td>Bigger / smaller (placed things)</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>Deselect</td></tr>
+      <tr><td>Quick <kbd>right-click</kbd></td><td>Menu: dialogue, quest, properties, move…</td></tr>
+    </table></fieldset>
+    <fieldset><legend>Placing and editing</legend><table>
+      <tr><td>Click an asset</td><td>It follows the mouse; click to put it down</td></tr>
+      <tr><td><kbd>Shift</kbd> + click</td><td>Put it down and keep placing copies (placed things)</td></tr>
+      <tr><td><kbd>Esc</kbd> / quick right-click</td><td>Cancel placing</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>D</kbd></td><td>Copy (the copy follows the mouse)</td></tr>
+      <tr><td><kbd>Del</kbd></td><td>Delete</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>Z</kbd> &nbsp;<kbd>Ctrl</kbd>+<kbd>S</kbd></td><td>Undo &nbsp;·&nbsp; save</td></tr>
+      <tr><td>Double-click scenery</td><td>Inspect what it is (shown in the inspector)</td></tr>
+    </table></fieldset>
+  </div>
 
   <h2>Make changes</h2>
   <div class="cards" id="cards"></div>
@@ -43,8 +94,9 @@
     <fieldset><legend>How changes reach the game</legend>
       <ol class="steps">
         <li><b>Save</b> in the editor (Ctrl+S). Changes are kept as packs in the game's <code>Mods</code> folder.</li>
-        <li><b>Start the game</b>: packs load when it starts.</li>
-        <li>Game already running? With DevTools, press F7 and type <code>reloadquests</code>, <code>reloadcontent</code> or <code>npcreload</code>.</li>
+        <li><b>Play</b> with the Play Nine Lives Offline shortcut: switched-on packs load when the game starts.</li>
+        <li>In Build, the 3D view shows placed things, NPCs, dialogue and scripts as you change them.</li>
+        <li>Quests and items load when the game starts. With DevTools in a running game: F7, then <code>reloadquests</code> or <code>reloadcontent</code>.</li>
       </ol>
     </fieldset>
   </div>
@@ -68,14 +120,14 @@ const I = {
 };
 // [icon, title, text, needs mod, tab, message to that tab]
 const TASKS = [
+  ["world", "Build in the world", "Copy houses, fences, trees and props from the zone and place them anywhere.", "WorldLoader", "build", { assets: "things" }],
+  ["npc", "Add a person", "Pick someone's look from Assets and put them down, then give them a name and a job.", "NPCLoader", "build", { assets: "npcs" }],
   ["map", "See the map", "Every zone from above: NPCs, your things and script areas. Drag to move, click to add.", null, "map", null],
   ["quest", "Make a new quest", "Who gives it, what to bring or defeat, and the reward.", "QuestLoader", "quests", { cmd: "newQuest" }],
-  ["copy", "Change one of the game's quests", "Browse all 345 and copy or replace one.", "QuestLoader", "quests", { cmd: "browseOriginals" }],
+  ["copy", "Change one of the game's quests", "Browse the game's quests and copy or replace one.", "QuestLoader", "quests", { cmd: "browseOriginals" }],
   ["item", "Change an item", "Price, damage, armor, stack size, name…", "ContentLoader", "items", null],
   ["loot", "Change what monsters drop", "Drop chances and what's in the chest, with a preview.", "ContentLoader", "loot", null],
   ["shop", "Change what a shop sells", "Each vendor's stock.", "ContentLoader", "shops", null],
-  ["npc", "Add a person to the world", "Pick a look, a place and a job: quests, shop, bank…", "NPCLoader", "npcs", { cmd: "newNpc" }],
-  ["world", "Build in the world", "Copy houses, fences, trees and props, place them anywhere, or hide things.", "WorldLoader", "world", null],
   ["dialogs", "Write a conversation", "Lines and answers for an NPC; answers can give items, start quests, set flags.", "ScriptLoader", "dialogs", { cmd: "newDialog" }],
   ["scripts", "Make things happen", "Rules (when you do this, then that happens) and Lua scripts.", "ScriptLoader", "scripts", { cmd: "newRule" }],
   ["packs", "Switch packs and mods on or off", "Including the examples that come with the mods.", null, "overview", null],
@@ -89,7 +141,11 @@ async function load() {
     return `<button class="card" data-i="${i}" ${missing ? "disabled" : ""} title="${missing ? t[3] + " isn't installed: tick it in Setup.exe" : ""}">
       <div class="ico"><svg viewBox="0 0 24 24">${I[t[0]]}</svg></div><b>${t[1]}</b><span>${missing ? t[3] + " isn't installed (Setup.exe)" : t[2]}</span></button>`;
   }).join("");
-  document.querySelectorAll(".card").forEach(c => c.onclick = () => { const t = TASKS[+c.dataset.i]; parent.postMessage({ nav: t[4], msg: t[5] }, "*"); });
+  document.querySelectorAll(".card").forEach(c => c.onclick = () => {
+    const t = TASKS[+c.dataset.i];
+    if (t[5] && t[5].assets) parent.postMessage({ nav: "build", assets: t[5].assets }, "*");
+    else parent.postMessage({ nav: t[4], msg: t[5] }, "*");
+  });
 
   const packs = Object.values(D.packs).flat(), on = packs.filter(p => p.enabled).length;
   const lines = [

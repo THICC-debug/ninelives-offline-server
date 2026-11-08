@@ -15,7 +15,100 @@
   .liverow { display: flex; gap: 18px; flex-wrap: wrap; align-items: flex-start; }
   .liverow .col { display: flex; flex-direction: column; gap: 6px; }
   #liveNote { min-height: 18px; }
+
+  /* a vendor's list: one card per item */
+  .vendor legend { font-size: 14px; }
+  .vsum { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+  .vsum b { color: var(--ink); }
+  .vsum .bar { flex: 1 1 100%; height: 5px; border-radius: 3px; background: var(--line); overflow: hidden; }
+  .vsum .bar i { display: block; height: 100%; background: var(--accent); }
+  .vsum .bar.over i { background: var(--bad); }
+  .cards { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+  .card { display: grid; grid-template-columns: 44px 1fr auto auto; gap: 4px 12px; align-items: start; padding: 8px 10px;
+          background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--line); border-radius: 6px; }
+  .card.bad { border-color: var(--bad); }
+  .ico { width: 44px; height: 44px; border-radius: 6px; background: var(--chip); object-fit: contain; }
+  .ico.sm { width: 28px; height: 28px; border-radius: 4px; flex: none; }
+  .noicon { display: flex; align-items: center; justify-content: center; font-weight: 700; color: var(--muted); }
+  .card .info { min-width: 0; }
+  .card .name { font-weight: 600; font-size: 14px; }
+  .card .kind { font-size: 12px; color: var(--muted); }
+  .card .kind .id { opacity: .6; margin-left: 4px; }
+  .card .facts { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+  .card .facts span { font-size: 11px; padding: 1px 7px; border-radius: 10px; background: var(--chip); color: var(--ink); }
+  .card .desc { font-size: 12px; font-style: italic; color: var(--muted); margin-top: 5px; }
+  .card .warn, .vendor .warn { color: var(--bad); font-size: 12px; }
+  .card .buy { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+  .card .price { display: flex; flex-direction: column; align-items: flex-end; margin: 0; font-size: 11px; color: var(--muted); }
+  .card .price .in { display: flex; align-items: center; gap: 4px; }
+  .card .price input { width: 80px; text-align: right; font-weight: 600; }
+  .card .price b { font-weight: 400; color: var(--muted); font-size: 12px; }
+  .card .usual { font-size: 11px; color: var(--muted); }
+  .card .stock { display: flex; align-items: center; gap: 3px; font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .card .stock span { margin-right: 3px; }
+  .card .stock input { width: 46px; text-align: center; }
+  .card .stock button { padding: 1px 8px; }
+  .card .tools { display: flex; flex-direction: column; gap: 3px; }
+  .card .tools button { padding: 1px 7px; }
+  button.link { background: none; border: 0; padding: 0; color: var(--accent); cursor: pointer; font-size: inherit; text-decoration: underline; }
+  .adder .row { display: flex; gap: 6px; }
+  .adder #addSell { flex: 1; min-width: 160px; }
+  .picks { max-height: 260px; overflow: auto; border-radius: 6px; }
+  .picks:not(:empty) { border: 1px solid var(--line); margin-top: 4px; background: var(--panel); }
+  .pick { display: flex; align-items: center; gap: 8px; padding: 4px 8px; cursor: pointer; }
+  .pick.on, .pick:hover { background: var(--chip); }
+  .pick .pn { font-weight: 600; }
+  .pick .pk { font-size: 11px; color: var(--muted); }
+  .pick .pp { margin-left: auto; font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .vendor details { margin-top: 6px; }
+  .vendor details summary { cursor: pointer; color: var(--accent); }
+  .vendor details .row { margin-top: 6px; align-items: center; gap: 6px; }
+  p.hint.bad { color: var(--bad); }
+  /* narrow (the Build inspector): price and stock go under the item */
+  body.compact .card { grid-template-columns: 40px 1fr auto; }
+  body.compact .card .buy { grid-column: 2 / 3; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+  body.compact .card .price { flex-direction: row; gap: 4px; align-items: center; }
+  body.compact .card .tools { grid-column: 3; grid-row: 1; }
+  body.compact .ico { width: 40px; height: 40px; }
+  @media (max-width: 560px) {
+    .card { grid-template-columns: 40px 1fr auto; }
+    .card .buy { grid-column: 2 / 3; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+    .card .price { flex-direction: row; gap: 4px; align-items: center; }
+    .card .tools { grid-column: 3; grid-row: 1; }
+    .pick .pk { display: none; }
+  }
+
+  /* narrow, as the Build layout's inspector: only the selected thing's settings */
+  body.compact main { grid-template-columns: 1fr; height: calc(100vh - 47px); }
+  body.compact aside, body.compact #gvHost, body.compact #liveBox { display: none !important; }
+  body.compact header { gap: 6px; padding: 6px 10px; }
+  body.compact header button { padding: 3px 8px; font-size: 12px; }
+  /* the Build toolbar has Save / Undo / Discard; Delete pack lives on the full page */
+  body.compact #save, body.compact #delPack, body.compact #discard, body.compact #undo, body.compact #live { display: none !important; }
+  body.compact #editor { padding: 10px 12px 40px; }
+  body.compact .grid { grid-template-columns: 1fr 1fr !important; }
+  /* the quests an NPC gives: click one for a pop-up of what it is */
+  ul.qlist { list-style: none; margin: 4px 0 8px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+  ul.qlist li button { width: 100%; text-align: left; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; padding: 6px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel); color: var(--ink); cursor: pointer; font: inherit; }
+  ul.qlist li button:hover { border-color: var(--accent); }
+  ul.qlist li button b { font-weight: 600; }
+  ul.qlist li button .hint { margin: 0; }
+  .qback { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 12px; }
+  .qpop { background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,.4); width: min(560px, 100%); max-height: calc(100vh - 24px); display: flex; flex-direction: column; }
+  .qpop .qh { padding: 14px 16px 8px; border-bottom: 1px solid var(--line); }
+  .qpop .qh h3 { margin: 0; font-size: 18px; }
+  .qpop .qh .sub { color: var(--muted); font-size: 12px; margin-top: 3px; }
+  .qpop .qb { padding: 10px 16px; overflow: auto; }
+  .qpop .qb h4 { margin: 12px 0 4px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  .qpop .qb h4:first-child { margin-top: 2px; }
+  .qpop .qb p { margin: 2px 0; }
+  .qpop .say { font-style: italic; white-space: pre-wrap; background: var(--chip); border-radius: 8px; padding: 7px 10px; }
+  .qpop .chips { display: flex; flex-wrap: wrap; gap: 4px; }
+  .qpop .chips span { font-size: 11px; padding: 1px 8px; border-radius: 10px; background: var(--chip); }
+  .qpop .qf { padding: 10px 16px 14px; border-top: 1px solid var(--line); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .qpop .qf .hint { flex: 1; min-width: 160px; margin: 0; }
 </style>
+<script src="/gameview.js"></script>
 </head>
 <body>
 <header>
@@ -34,14 +127,15 @@
     <input id="search" type="search" placeholder="Search name, id, zone…">
     <div id="list"></div>
   </aside>
-  <section id="editor"></section>
+  <section id="editor"><div id="gvHost"></div><div id="ed"></div></section>
 </main>
 
 <script>
 const FIRST_ID = 90001;
+const JOB = { quest: "Quest giver", shop: "Shopkeeper", shopSG: "Gem shop", alchemy: "Alchemist", bank: "Banker", share: "Shared bank", skillReset: "Skill reset", bagShop: "Bag seller", battleGrid: "Battle grid", none: "Just stands there" };
 const ROLES = {
   quest: "Talks: offers and takes the quests that have this NPC as giver or hand-in",
-  shop: "Opens a shop. Its stock is the shop table with this NPC's id (Shops tab)",
+  shop: "Opens a shop: pick what they sell and the prices below",
   alchemy: "Opens the alchemy window",
   bank: "Opens the bank",
   share: "Opens the shared bank",
@@ -55,7 +149,14 @@ const zoneName = z => String(z || "").replace(/^Zone_/, "").replace(/([a-z])([A-
 const r1 = v => Math.round((+v || 0) * 10) / 10;
 
 function status(msg, cls) { const s = $("#status"); s.textContent = msg; s.className = cls || ""; }
-function setDirty(v = true) { dirty = v; status(v ? "Unsaved changes" : "Saved", v ? "" : "ok"); parent.postMessage({ dirty: v }, "*"); if (v) scheduleLive(); }
+function setDirty(v = true) { dirty = v; status(v ? "Unsaved changes" : "Saved", v ? "" : "ok"); parent.postMessage({ dirty: v }, "*"); if (v) scheduleLive(); announce(); }
+// The outliner lists this pack's NPCs as they are here (unsaved ones too).
+let announceTimer = null;
+function announce() {
+  clearTimeout(announceTimer);
+  announceTimer = setTimeout(() => { if (pack) parent.postMessage({ broadcast: { cmd: "npcState", pack: packName, dirty,
+    npcs: pack.npcs.map(n => ({ cid: n.id, name: n.name, zone: n.zone, x: n.x, y: n.y, z: n.z, pack: packName })) } }, "*"); }, 80);
+}
 async function api(path, opts) { const r = await fetch(path, opts); const j = await r.json(); if (!r.ok) throw new Error(j.error || r.statusText); return j; }
 
 // The game's own NPCs (from QuestLoader's export), by zone.
@@ -66,6 +167,7 @@ const gameNpc = cid => gameNpcs().find(n => n.cid === cid);
 
 async function boot() {
   D = await api("/api/npcs/data");
+  loadItems();
   const packs = D.packs.length ? D.packs : ["my-npcs"];
   fillPacks(packs);
   await openPack(packs.find(p => !(D.packsOff || []).includes(p)) || (ensurePack("my-npcs"), "my-npcs"));
@@ -73,6 +175,7 @@ async function boot() {
 }
 
 function fillPacks(names) {
+  if (packName && !names.includes(packName)) names = [...names, packName];   // (a new pack, not saved yet)
   const off = new Set(D.packsOff || []);
   $("#packSel").innerHTML = names.map(p => `<option value="${esc(p)}">${esc(p)}${off.has(p) ? " (off)" : ""}</option>`).join("");
   if (packName) $("#packSel").value = packName;
@@ -80,11 +183,13 @@ function fillPacks(names) {
 function ensurePack(n) { if (![...$("#packSel").options].some(o => o.value === n)) $("#packSel").insertAdjacentHTML("beforeend", `<option value="${esc(n)}">${esc(n)}</option>`); $("#packSel").value = n; }
 
 async function openPack(name) {
-  if (dirty && !confirm("Discard unsaved changes?")) { $("#packSel").value = packName; return; }
+  if (dirty && !confirm("Discard unsaved changes?")) { $("#packSel").value = packName; return false; }
+  const discarded = dirty;
   pack = await api("/api/npcs/pack?name=" + encodeURIComponent(name));
-  pack.npcs = pack.npcs || []; packName = name; sel = pack.npcs.length ? 0 : -1; dirty = false;
+  pack.npcs = pack.npcs || []; packName = name; sel = pack.npcs.length ? 0 : -1; dirty = false; parent.postMessage({ dirty: false }, "*");
+  if (discarded && G.connected && G.inWorld) fetch("/api/live/reload", { method: "POST", body: "{}" }).catch(() => {});   // the game showed the thrown-away edits
   status(`Pack "${name}": ${pack.npcs.length} NPC(s)`);
-  renderList(); renderEditor();
+  renderList(); renderEditor(); announce();
   updateOffBar();
 }
 
@@ -110,12 +215,83 @@ function renderList() {
   const html = pack.npcs.map((n, i) => {
     if (term && !`${n.id} ${n.name} ${n.zone} ${n.role}`.toLowerCase().includes(term)) return "";
     return `<div class="item${i === sel ? " sel" : ""}" data-i="${i}"><b>${esc(n.name || "(no name)")}</b>
-      <span class="badge">${esc(n.role || "quest")}</span>${n.enabled === false ? '<span class="badge off">hidden</span>' : ""}
+      <span class="badge">${esc(JOB[n.role || "quest"] || n.role)}</span>${n.enabled === false ? '<span class="badge off">hidden</span>' : ""}
       <small>#${n.id} · ${esc(zoneName(n.zone))} · looks like ${esc((gameNpc(n.template) || {}).name || "NPC " + n.template)}</small></div>`;
   }).join("");
   $("#list").innerHTML = html || `<div class="empty">${pack.npcs.length ? "Nothing matches." : "No NPCs in this pack yet."}</div>`;
   $("#list").querySelectorAll(".item").forEach(el => el.onclick = () => { sel = +el.dataset.i; renderList(); renderEditor(); });
 }
+
+
+// ---------------------------------------------------------------- what a quest is (a pop-up)
+// The NPC list only has each quest's title: the whole quest comes from the Quests data (the game's)
+// or its pack (yours), fetched the first time one is opened.
+let QD = null;
+async function questData() {
+  if (!QD) {
+    const d = await (await fetch("/api/quests/data")).json();
+    QD = { d, item: {}, npc: {}, flag: {} };
+    (d.items || []).forEach(i => QD.item[i.id] = i.name);
+    (d.npcs || []).forEach(n => { if (!QD.npc[n.cid]) QD.npc[n.cid] = String(n.name || "").replace(" (custom)", ""); });
+    (d.originals || []).forEach(q => { if (q.clearFlag > 0) QD.flag[q.clearFlag] = q.title; });
+  }
+  return QD;
+}
+async function fullQuest(q) {
+  const Q = await questData();
+  if (q.where === "game") return (Q.d.originals || []).find(o => o.id === q.id) || q;
+  const p = await (await fetch("/api/quests/pack?name=" + encodeURIComponent(q.where))).json();
+  (p.quests || []).forEach(x => { if (x.clearFlag > 0) Q.flag[x.clearFlag] = x.title; });
+  return (p.quests || []).find(x => x.id === q.id) || q;
+}
+async function showQuest(q) {
+  closeQuest();
+  const back = document.createElement("div"); back.className = "qback"; back.id = "qback";
+  back.innerHTML = `<div class="qpop" role="dialog" aria-label="Quest"><div class="qh"><h3>${esc(q.title || "?")}</h3><div class="sub">Loading…</div></div></div>`;
+  document.body.appendChild(back);
+  back.onclick = e => { if (e.target === back) closeQuest(); };
+  let f, Q;
+  try { f = await fullQuest(q); Q = await questData(); } catch (e) { back.querySelector(".sub").textContent = "Couldn't load it: " + e.message; return; }
+  if (!document.getElementById("qback")) return;   // closed meanwhile
+  const who = c => !(c > 0) ? "nobody" : esc(Q.npc[c] || (pack && (pack.npcs.find(n => n.id === c) || {}).name) || "NPC " + c);
+  const item = (id, n) => `${n === -1 ? "" : (n || 1) + " × "}${esc(Q.item[id] || "item " + id)}${n === -1 ? " (just have one)" : ""}`;
+  const goals = (f.targets || []).map(t => t.kind === "kill" ? `Defeat ${t.count || 1} × ${esc(t.monster || "monster #" + t.monsterId)}` : `Bring ${item(t.item, t.count)}`);
+  const rewards = (f.rewards || []).map(r => r.kind === "exp" ? `${r.amount} exp` : r.kind === "gold" ? `${r.amount} gold` : item(r.item, r.amount));
+  const gets = (f.receives || []).map(r => item(r.item, r.count));
+  const req = f.requires || {}, when = [];
+  (req.flagsAll || []).forEach(x => when.push(`${x.on ? "After" : "Before"} ${Q.flag[x.flag] ? `“${esc(Q.flag[x.flag])}” is done` : "flag " + x.flag}`));
+  (req.itemsAll || []).forEach(x => when.push(`Has ${x.atLeast === false ? "fewer than" : "at least"} ${item(x.item, x.count)}`));
+  if (Object.keys(req).some(k => !["flagsAll", "itemsAll"].includes(k) && (req[k] || []).length)) when.push("Other conditions (see the Quests tab)");
+  const sec = (h, body) => body ? `<h4>${h}</h4>${body}` : "";
+  const list = a => a.length ? `<ul class="plain">${a.map(x => `<li>${x}</li>`).join("")}</ul>` : "";
+  const mine = q.where !== "game";
+  back.querySelector(".qpop").innerHTML = `
+    <div class="qh"><h3>${esc(f.title || "?")}</h3>
+      <div class="sub">#${f.id} · ${mine ? "your quest, in pack " + esc(q.where) + (q.enabled === false ? " (pack is off)" : "") : "one of the game's own quests"}${f.enabled === false ? " · switched off" : ""}</div>
+      ${(f.types || []).length ? `<div class="chips" style="margin-top:6px">${f.types.map(t => `<span>${esc(t)}</span>`).join("")}</div>` : ""}</div>
+    <div class="qb">
+      ${sec("Objective", f.objective ? `<p>${esc(f.objective)}</p>` : "")}
+      <h4>Who</h4><p>Given by <b>${who(f.giver)}</b>, handed in to <b>${who(f.ender)}</b></p>
+      ${sec("What they say", f.description ? `<div class="say">${esc(f.description)}</div>` : "")}
+      ${sec("Goal", list(goals) || '<p class="hint">No goal: just talk to them.</p>')}
+      ${sec("Rewards", list(rewards))}
+      ${sec("Given when you accept", list(gets))}
+      ${sec("Offered", list(when) || "<p>Right away</p>")}
+      ${sec("When you hand it in", f.descriptionForEnder ? `<div class="say">${esc(f.descriptionForEnder)}</div>` : "")}
+      ${(f.repeatable || f.autoReopen) ? '<p class="hint" style="margin-top:8px">Can be done again.</p>' : ""}
+    </div>
+    <div class="qf"><button class="primary" id="qEdit">${mine ? "Edit in Quests" : "Open in Quests"}</button><button id="qClose">Close</button>
+      <span class="hint">${mine ? "" : "Game quests are read-only there: copy one to change it."}</span></div>`;
+  $("#qClose").onclick = closeQuest;
+  $("#qEdit").onclick = () => {
+    closeQuest();
+    const pick = { cmd: "select", id: f.id };
+    parent.postMessage({ nav: "quests", msg: mine ? { cmd: "openPack", name: q.where, then: pick } : pick }, "*");
+  };
+  $("#qEdit").focus();
+}
+function closeQuest() { const b = document.getElementById("qback"); if (b) b.remove(); }
+document.addEventListener("keydown", e => { if (e.key === "Escape" && document.getElementById("qback")) { e.stopPropagation(); closeQuest(); } }, true);
 
 // ---------------------------------------------------------------- editor
 function questsOf(id) {
@@ -133,11 +309,22 @@ function problemsOf(n) {
   if (!n.template) p.push("pick an NPC to copy the look from");
   else if (gameNpcs().length && !npcsIn(n.zone).some(t => t.cid === n.template)) p.push("the look-alike NPC isn't in this zone (it has to be)");
   if (!ROLES[n.role || "quest"]) p.push("unknown role");
+  if (n.role === "shop" && n.sells) {
+    if (!n.sells.length) p.push("the shop has nothing to sell yet");
+    if (n.sells.some(s => !knownItem(s.id))) p.push("an item on the shop list isn't in the game");
+    if (slotsOf(n) > SLOTS) p.push(`the shop window has ${SLOTS} slots; the list needs ${slotsOf(n)}`);
+    const cheap = n.sells.find(s => s.price > 0 && sellBack(s.id) != null && s.price < sellBack(s.id));
+    if (cheap) p.push(`${iname(cheap.id)} costs less than players get for selling it back (${sellBack(cheap.id)}), so they could make money`);
+  }
   return p;
 }
 
 function renderEditor() {
-  const ed = $("#editor");
+  const ed = $("#ed");
+  if ((sel < 0 || !pack.npcs[sel]) && document.body.classList.contains("compact")) {
+    ed.innerHTML = `<div class="empty" style="margin:30px 10px"><p class="title">No NPC selected</p><p>Click one of your NPCs in the 3D view or the outliner, or pick someone in Assets ▸ NPCs to add a new one.</p></div>`;
+    return;
+  }
   if (sel < 0 || !pack.npcs[sel]) {
     ed.innerHTML = `<div class="empty"><p class="title">Add people to the world</p>
       <p>Each NPC is a copy of one of the game's own NPCs in the same zone (its body, clothes and animations), with its own name, place and job.</p>
@@ -153,8 +340,8 @@ function renderEditor() {
     ${liveBox(n)}
     <fieldset><legend>Who</legend><div class="grid">
       <label>Name<input data-k="name" value="${esc(n.name)}"></label>
-      <label>Id (${FIRST_ID} and up)<input type="number" data-k="id" value="${n.id}"></label>
-      <label>Job<select data-k="role">${Object.keys(ROLES).map(r => `<option ${r === role ? "selected" : ""}>${r}</option>`).join("")}</select></label>
+      <label>Id (${FIRST_ID} and up)<input type="number" data-k="id" value="${esc(n.id)}"></label>
+      <label>Job<select data-k="role">${Object.keys(ROLES).map(r => `<option value="${r}" ${r === role ? "selected" : ""}>${esc(JOB[r] || r)}</option>`).join("")}</select></label>
     </div>
     <p class="hint">${esc(ROLES[role] || "")}</p>
     <div class="checks" style="margin-top:8px">
@@ -170,40 +357,44 @@ function renderEditor() {
 
     <fieldset><legend>Where</legend><div class="grid">
       <label>Zone<select data-k="zone">${zones().map(z => `<option value="${esc(z)}" ${z === n.zone ? "selected" : ""}>${esc(zoneName(z))}</option>`).join("")}</select></label>
-      <label>X<input type="number" step="0.1" data-k="x" value="${n.x}"></label>
-      <label>Y (height)<input type="number" step="0.1" data-k="y" value="${n.y}"></label>
-      <label>Z<input type="number" step="0.1" data-k="z" value="${n.z}"></label>
-      <label>Facing (degrees)<input type="number" step="5" data-k="rotation" value="${n.rotation || 0}"></label>
+      <label>X<input type="number" step="0.1" data-k="x" value="${esc(n.x)}"></label>
+      <label>Y (height)<input type="number" step="0.1" data-k="y" value="${esc(n.y)}"></label>
+      <label>Z<input type="number" step="0.1" data-k="z" value="${esc(n.z)}"></label>
+      <label>Facing (degrees)<input type="number" step="5" data-k="rotation" value="${esc(n.rotation || 0)}"></label>
     </div>
     <div class="row" style="margin-top:10px"><span class="hint">Put next to</span>
       <select id="near"><option value="">an NPC in this zone…</option>${npcsIn(n.zone).map(t => `<option value="${t.cid}">${esc(t.name || "?")} (#${t.cid})</option>`).join("")}</select></div>
-    <p class="hint">Or stand on the spot in game and type <code>pos</code> in the F7 box. The NPC is set down on whatever is under that spot, so the height can be a little off.</p></fieldset>
+    <p class="hint">Easier: drag the NPC in the 3D view. It's set down on whatever is under it.</p></fieldset>
 
-    <fieldset><legend>${role === "shop" ? "Shop stock" : "Quests"}</legend>
-      ${role === "shop" ? `<p>${hasShop ? `This NPC sells the stock of <b>shop ${n.id}</b>.` : `There's no shop table ${n.id} yet, so the shop would be empty.`}</p>
-          <button class="primary" id="shop">${hasShop ? "Edit the stock" : "Make the stock"} in the Shops tab</button>
-          <p class="hint">${hasShop ? "" : "In the Shops tab, click \"Change this table\" to start it, then add items."}</p>`
-        : `${qs.length ? `<ul class="plain">${qs.map(q => `<li>${esc(q.title || "?")} <span class="hint">#${q.id} · ${q.giver === n.id ? "gives" : ""}${q.giver === n.id && q.ender === n.id ? " and " : ""}${q.ender === n.id ? "takes it back" : ""} · ${q.where === "game" ? "game quest" : "pack " + esc(q.where)}</span></li>`).join("")}</ul>`
+    ${role === "shop" ? vendorBox(n, hasShop) : `<fieldset><legend>Quests</legend>
+      ${qs.length ? `<ul class="qlist">${qs.map((q, qi) => `<li><button data-q="${qi}" title="See what this quest is"><b>${esc(q.title || "?")}</b> <span class="hint">#${q.id} · ${q.giver === n.id ? "gives" : ""}${q.giver === n.id && q.ender === n.id ? " and " : ""}${q.ender === n.id ? "takes it back" : ""} · ${q.where === "game" ? "game quest" : "pack " + esc(q.where)}</span></button></li>`).join("")}</ul>`
                       : '<p class="hint">No quests use this NPC yet.</p>'}
           <button class="primary" id="newQuest">New quest for ${esc(n.name || "this NPC")}</button>
           <button id="newTalk">Give ${esc(n.name || "them")} a dialogue</button>
-          ${role !== "quest" ? '<p class="hint">Set the job to "quest" so clicking the NPC offers its quests.</p>' : ""}`}
-    </fieldset>`;
+          ${role !== "quest" ? '<p class="hint">Set the job to "quest" so clicking the NPC offers its quests.</p>' : ""}
+      <p class="row" style="margin-top:10px"><button id="mkVendor">🛒 Make ${esc(n.name || "them")} a vendor</button><span class="hint">They open a shop with things and prices you pick.</span></p>
+    </fieldset>`}`;
 
   ed.querySelectorAll("[data-k]").forEach(el => el.onchange = () => {
     const k = el.dataset.k;
+    const at = pack.npcs.indexOf(n); if (at < 0) return; sel = at;   // the list may have changed meanwhile
+    if (k === "id" && +el.value !== n.id) removeLive(n.id);           // the old one would stay in the game
     if (el.type === "checkbox") { if (k === "enabled") { if (el.checked) delete n.enabled; else n.enabled = false; } else if (el.checked) n[k] = true; else delete n[k]; }
     else if (el.type === "number" || el.dataset.num !== undefined) n[k] = +el.value || 0;
     else n[k] = el.value;
+    if (k === "role" && n.role === "shop" && !n.sells && !(D.shops || []).includes(String(n.id))) n.sells = [];   // a new vendor starts with an empty list
     if (k === "zone" && !npcsIn(n.zone).some(t => t.cid === n.template)) { const first = npcsIn(n.zone)[0]; if (first) { n.template = first.cid; n.x = r1(first.x + 1.5); n.y = r1(first.y); n.z = r1(first.z); } }
     setDirty(); renderList();
     if (["role", "zone", "id", "template"].includes(k)) renderEditor(); else showProblems(n);
   });
   $("#near").onchange = e => { const t = gameNpc(+e.target.value); if (!t) return; n.x = r1(t.x + 1.5); n.y = r1(t.y); n.z = r1(t.z); setDirty(); renderEditor(); };
   $("#dup").onclick = () => { const c = JSON.parse(JSON.stringify(n)); c.id = nextId(); c.name += " (copy)"; c.x = r1(c.x + 1.5); pack.npcs.push(c); sel = pack.npcs.length - 1; setDirty(); renderList(); renderEditor(); };
-  $("#del").onclick = () => { if (confirm(`Delete ${n.name}?`)) { removeLive(n.id); pack.npcs.splice(sel, 1); sel = Math.min(sel, pack.npcs.length - 1); setDirty(); renderList(); renderEditor(); } };
+  $("#del").onclick = () => { if (confirm(`Delete ${n.name}?`)) { removeLive(n.id); const j = pack.npcs.indexOf(n); if (j >= 0) pack.npcs.splice(j, 1); sel = Math.min(sel, pack.npcs.length - 1); setDirty(); renderList(); renderEditor(); } };
   const shop = $("#shop"); if (shop) shop.onclick = () => parent.postMessage({ nav: "shops", msg: { cmd: "openShop", id: n.id } }, "*");
+  const mv = $("#mkVendor"); if (mv) mv.onclick = () => { n.role = "shop"; if (!n.sells) n.sells = []; setDirty(); renderList(); renderEditor(); const a = $("#addSell"); if (a) a.focus(); };
+  if (role === "shop") wireVendor(n);
   const nt = $("#newTalk"); if (nt) nt.onclick = async () => { if (dirty) await save(true); parent.postMessage({ nav: "dialogs", msg: { cmd: "newDialog", npc: n.id } }, "*"); };
+  document.querySelectorAll("[data-q]").forEach(b => b.onclick = () => showQuest(qs[+b.dataset.q]));
   const nq = $("#newQuest"); if (nq) nq.onclick = async () => {
     if (dirty) await save(true);   // the quest tab needs to know this NPC
     parent.postMessage({ nav: "quests", msg: { cmd: "newQuest", giver: n.id } }, "*");
@@ -211,6 +402,212 @@ function renderEditor() {
   showProblems(n);
   wireLive(n);
 }
+// ---------------------------------------------------------------- vendors: what they sell, for how much
+const SLOTS = 54;   // the game's shop window
+const ITEMS = {}, INAMES = {};
+function loadItems() {
+  for (const k in INAMES) delete INAMES[k];
+  (D.itemNames || []).forEach(i => { if (i && i.name) INAMES[i.id] = i.name; });
+  Object.entries(D.items || {}).forEach(([id, it]) => { ITEMS[id] = it; if (it && it.name) INAMES[id] = it.name; });
+}
+const baseId = id => Math.floor(+id / 100) * 100;   // a variant ("Fine Knife") shares its base item's id but the last two digits
+const iname = id => INAMES[id] || (INAMES[baseId(id)] ? INAMES[baseId(id)] + " (variant)" : "item " + id);
+const knownItem = id => !!(INAMES[id] || ITEMS[id] || INAMES[baseId(id)]);
+function usualPrice(id) {   // what the game's shops charge for one
+  const it = ITEMS[id] || ITEMS[baseId(id)];
+  return it && it.price != null ? Math.max(1, Math.round(it.price * (it.buyPriceAmp ?? 20))) : null;
+}
+const sellBack = id => { const it = ITEMS[id] || ITEMS[baseId(id)]; return it && it.price != null ? it.price : null; };
+function itemFrom(v) {   // "123 · Knife", "123" or "knife"
+  const m = String(v).match(/^\s*(\d+)/); if (m) return +m[1];
+  const t = String(v).trim().toLowerCase(); if (!t) return 0;
+  const hit = Object.entries(INAMES).find(([, nm]) => nm.toLowerCase() === t) || Object.entries(INAMES).find(([, nm]) => nm.toLowerCase().startsWith(t));
+  return hit ? +hit[0] : 0;
+}
+const slotsOf = n => (n.sells || []).reduce((a, s) => a + Math.max(1, s.stock || 1), 0);
+const vendorName = cid => (gameNpc(+cid) || {}).name || "Vendor " + cid;
+
+// What an item is, in words: its kind, a few stats and the game's own description.
+const KIND = { 10: "Knife", 11: "Sword", 12: "Axe", 13: "Club", 14: "Wand", 15: "Shield", 21: "Two-handed sword", 22: "Two-handed axe",
+  23: "Two-handed club", 24: "Staff", 25: "Shortbow", 26: "Longbow", 29: "Tool", 40: "Amulet", 41: "Ring", 45: "Talisman", 50: "Mount",
+  51: "Pet", 60: "Material", 61: "Material", 62: "Bag or box", 63: "Food & potions", 64: "Drink", 65: "Special item", 70: "Weapon mold",
+  71: "Armor mold", 72: "Jewel mold", 78: "Amulet", 79: "Ring", 80: "Key" };
+const SLOT = { helm: "Head", chest: "Body", gloves: "Hands", boots: "Feet", shoulders: "Shoulders", cloak: "Cloak", neck: "Amulet", ring: "Ring",
+  onehand: "One-handed weapon", twohand: "Two-handed weapon", bow: "Bow", shield: "Shield", mainhand: "Wand" };
+const GROUPS = [["all", "Everything"], ["weapon", "Weapons"], ["armor", "Armor & clothes"], ["jewel", "Jewelry"], ["food", "Food, drink & potions"],
+  ["mat", "Materials"], ["ride", "Mounts & pets"], ["other", "Other"]];
+function groupOf(id) {
+  const p = Math.floor(+id / 10000000);
+  if ((p >= 10 && p <= 26) || p === 75 || p === 29) return "weapon";
+  if ((p >= 30 && p <= 39) || p === 76 || p === 77) return "armor";
+  if ((p >= 40 && p <= 45) || p === 78 || p === 79) return "jewel";
+  if (p === 63 || p === 64) return "food";
+  if (p === 60 || p === 61 || (p >= 70 && p <= 72)) return "mat";
+  if (p === 50 || p === 51) return "ride";
+  return "other";
+}
+const statsOf = id => ((ITEMS[id] || ITEMS[baseId(id)] || {}).stats) || {};
+function kindOf(id) {
+  const st = statsOf(id), p = Math.floor(+id / 10000000);
+  let k = SLOT[st.equipType] && groupOf(id) === "armor" ? SLOT[st.equipType] + " armor" : KIND[p] || SLOT[st.equipType] || "";
+  if (p === 75 || p === 76) k = SLOT[st.equipType] || k;
+  if (st.miscType && !/^(Material|Crafting Material)$/.test(st.miscType)) k += (k ? " · " : "") + st.miscType;
+  if (st.itemRareType) k += (k ? " · " : "") + st.itemRareType;
+  return k;
+}
+const num = v => Math.round(v * 10) / 10;
+function factsOf(id) {
+  const st = statsOf(id), f = [];
+  if (st.weaponDamage != null) f.push(`Damage ${num(st.weaponDamage)}${st.weaponDamageRandom ? "–" + num(st.weaponDamage + st.weaponDamageRandom) : ""}`);
+  if (st.weaponSpeed) f.push(`${num(st.weaponSpeed)} s a swing`);
+  if (st.defense) f.push(`Defense ${num(st.defense)}`);
+  if (st.damage) f.push(`+${num(st.damage)} damage`);
+  if (st.health) f.push(`+${num(st.health)} health`);
+  if (st.mana) f.push(`+${num(st.mana)} mana`);
+  if (st.critRate) f.push(`+${num(st.critRate)}% critical`);
+  if (st.dexterity) f.push(`+${num(st.dexterity)} dexterity`);
+  if (st.avoidance) f.push(`+${num(st.avoidance)} avoidance`);
+  if (st.resistance) f.push(`+${num(st.resistance)} resistance`);
+  if (st.healthLeech) f.push(`${num(st.healthLeech)}% health leech`);
+  if (st.cooldown) f.push(`${num(st.cooldown)} s cooldown`);
+  if (st.itemWeight) f.push(st.itemWeight);
+  if (st.stackMax > 1) f.push(`Stacks to ${st.stackMax}`);
+  return f.slice(0, 5);
+}
+const descOf = id => String(statsOf(id).comment_en || "").replace(/\[[0-9a-fA-F]{6}\]|\[-\]|<\/?color[^>]*>/g, "").trim();
+const colorOf = id => { const c = statsOf(id).dispNameColor; return /^[0-9a-fA-F]{6}/.test(c || "") ? "#" + c.slice(0, 6) : ""; };
+function iconHtml(id, cls = "ico") {
+  const f = (D.icons || {})[id] || (D.icons || {})[baseId(id)];
+  return f ? `<img class="${cls}" src="/api/icon/${f}" alt="" loading="lazy">` : `<span class="${cls} noicon">${esc((iname(id) || "?")[0])}</span>`;
+}
+const gold = v => v == null ? "?" : Number(v).toLocaleString();
+
+function vendorBox(n, hasShop) {
+  const who = esc(n.name || "they"), verb = n.name ? "sells" : "sell";
+  if (!n.sells) {   // the older way: a shop table (Items, loot and shops) with this NPC's id
+    return `<fieldset><legend>What ${who} ${verb}</legend>
+      <p>${hasShop ? `This NPC sells the stock of <b>shop table ${n.id}</b> (set up in Items, loot and shops).` : "Nothing yet."}</p>
+      <div class="row"><button class="primary" id="useList">Pick what they sell here</button>${hasShop ? '<button id="shop">Edit the shop table instead</button>' : ""}</div>
+      <p class="hint">A simple list: the items, the price of each and how many they have.</p></fieldset>`;
+  }
+  const list = n.sells, slots = slotsOf(n);
+  const worth = list.reduce((a, s) => a + ((s.price > 0 ? s.price : usualPrice(s.id)) || 0) * Math.max(1, s.stock || 1), 0);
+  const vendors = Object.keys(D.vendorStock || {}).filter(cid => gameNpc(+cid)).sort((a, b) => vendorName(a).localeCompare(vendorName(b)));
+  const cards = list.map((s, i) => {
+    const u = usualPrice(s.id), each = s.price > 0 ? s.price : u, back = sellBack(s.id), c = colorOf(s.id), d = descOf(s.id), facts = factsOf(s.id);
+    const cheap = s.price > 0 && back != null && s.price < back;
+    return `<div class="card${knownItem(s.id) ? "" : " bad"}" data-si="${i}"${c ? ` style="border-left-color:${c}"` : ""}>
+      ${iconHtml(s.id)}
+      <div class="info">
+        <div class="name"${c ? ` style="color:${c}"` : ""}>${esc(iname(s.id))}</div>
+        <div class="kind">${esc(kindOf(s.id) || "Item")} <span class="id">#${s.id}</span></div>
+        ${facts.length ? `<div class="facts">${facts.map(f => `<span>${esc(f)}</span>`).join("")}</div>` : ""}
+        ${d ? `<div class="desc">${/^["“]/.test(d) ? esc(d) : "“" + esc(d) + "”"}</div>` : ""}
+        ${knownItem(s.id) ? "" : '<div class="warn">Not an item in the game: the shop leaves it out.</div>'}
+      </div>
+      <div class="buy">
+        <label class="price"><span>Price</span><span class="in"><input type="number" min="0" step="1" data-sv="price" value="${s.price > 0 ? s.price : ""}" placeholder="${u ?? "?"}"><b>gold</b></span></label>
+        <div class="usual">${s.price > 0 && u != null && s.price !== u ? `usually ${gold(u)} · <button class="link" data-susual="${i}">use usual</button>` : u != null ? "the usual price" : ""}</div>
+        ${cheap ? `<div class="warn" title="Players get ${back} gold for selling one back">⚠ below the ${gold(back)} sell-back</div>` : ""}
+        <div class="stock"><span>In stock</span><button data-sstep="${i}|-1" title="One less" ${(s.stock || 1) <= 1 ? "disabled" : ""}>−</button><input type="number" min="1" max="${SLOTS}" step="1" data-sv="stock" value="${Math.max(1, s.stock || 1)}"><button data-sstep="${i}|1" title="One more">+</button></div>
+        ${each != null && (s.stock || 1) > 1 ? `<div class="usual">${gold(each * s.stock)} gold for all</div>` : ""}
+      </div>
+      <div class="tools"><button data-sup="${i}" title="Move up" ${i ? "" : "disabled"}>▲</button><button data-sdown="${i}" title="Move down" ${i < list.length - 1 ? "" : "disabled"}>▼</button><button class="danger" data-srm="${i}" title="Remove from the shop">✕</button></div>
+    </div>`;
+  }).join("");
+  return `<fieldset class="vendor"><legend>🛒 What ${who} ${verb}</legend>
+    <div class="vsum"><span><b>${list.length}</b> item${list.length === 1 ? "" : "s"}</span><span><b>${slots}</b> of ${SLOTS} shop slots</span><span>stock worth <b>${gold(worth)}</b> gold</span>
+      <div class="bar${slots > SLOTS ? " over" : ""}"><i style="width:${Math.min(100, slots / SLOTS * 100)}%"></i></div></div>
+    ${slots > SLOTS ? `<p class="warn">The shop window has ${SLOTS} slots: only the first ${SLOTS} show.</p>` : ""}
+    <div class="cards">${cards || '<p class="hint empty-list">Nothing for sale yet. Search for an item below to add it.</p>'}</div>
+    <div class="adder">
+      <div class="row"><select id="addGroup">${GROUPS.map(([k, l]) => `<option value="${k}" ${k === addGroup ? "selected" : ""}>${l}</option>`).join("")}</select>
+        <input id="addSell" type="search" placeholder="＋ Add an item: type its name…" autocomplete="off" value="${esc(addTerm)}"></div>
+      <div class="picks" id="picks"></div>
+    </div>
+    <p class="hint">A blank price is the game's usual price. Players sell things back for their usual amount, whatever you charge. Each one in stock takes a slot; once everything's bought, the shop restocks the next time it's opened.</p>
+    <details${list.length ? "" : " open"}><summary>Quick fill</summary>
+      <div class="row"><select id="copyVendor"><option value="">Copy a game vendor's stock…</option>${vendors.map(cid => `<option value="${cid}">${esc(vendorName(cid))} (#${cid}) · ${D.vendorStock[cid].length} item(s)</option>`).join("")}</select></div>
+      ${list.length ? `<div class="row"><span class="hint">Every price:</span><input class="num" type="number" id="pct" value="100" min="1" step="5">% of the usual<button id="pctGo">Set</button><button id="pctClear" title="Clear every price, so each item costs what it usually does">Usual prices</button></div>` : ""}
+      ${hasShop ? '<p class="hint">This NPC also has a shop table in Items, loot and shops; the list here is used instead.</p>' : ""}
+    </details></fieldset>`;
+}
+
+// The item search under the list: what you type, in which group, best matches first.
+let addTerm = "", addGroup = "all", addPick = 0;
+function pickMatches() {
+  const t = addTerm.trim().toLowerCase();
+  if (!t && addGroup === "all") return [];
+  const out = [];
+  for (const [id, nm] of Object.entries(INAMES)) {
+    if (addGroup !== "all" && groupOf(id) !== addGroup) continue;
+    const l = nm.toLowerCase(), at = t ? l.indexOf(t) : 0;
+    if (t && at < 0 && !String(id).startsWith(t)) continue;
+    out.push([+id, nm, at < 0 ? 99 : at === 0 ? 0 : 1]);
+  }
+  return out.sort((a, b) => a[2] - b[2] || a[1].localeCompare(b[1])).slice(0, 40);
+}
+function renderPicks(n) {
+  const box = $("#picks"); if (!box) return;
+  const m = pickMatches(); addPick = Math.min(addPick, Math.max(0, m.length - 1));
+  const have = new Set((n.sells || []).map(s => s.id));
+  box.innerHTML = m.length ? m.map(([id, nm], i) => `<div class="pick${i === addPick ? " on" : ""}" data-pid="${id}">${iconHtml(id, "ico sm")}
+      <span class="pn"${colorOf(id) ? ` style="color:${colorOf(id)}"` : ""}>${esc(nm)}</span><span class="pk">${esc(kindOf(id))}</span>
+      <span class="pp">${usualPrice(id) != null ? gold(usualPrice(id)) + " gold" : ""}</span>${have.has(id) ? '<span class="pk">(on the list: adds one more)</span>' : ""}</div>`).join("")
+    : (addTerm.trim() ? `<div class="hint" style="padding:6px">No item called “${esc(addTerm)}”${addGroup !== "all" ? " in this group" : ""}.</div>` : "");
+  box.querySelectorAll("[data-pid]").forEach(el => el.onmousedown = e => { e.preventDefault(); addItem(n, +el.dataset.pid); });
+}
+function addItem(n, id) {
+  if (!id) return;
+  const had = n.sells.find(s => s.id === id);
+  if (had) had.stock = Math.min(SLOTS, Math.max(1, had.stock || 1) + 1); else n.sells.push({ id, stock: 1 });
+  addTerm = ""; addPick = 0;
+  setDirty(); renderList(); renderEditor();
+  status(had ? `${iname(id)}: one more in stock` : `Added ${iname(id)}`, "");
+  const a = $("#addSell"); if (a) a.focus();
+}
+
+function wireVendor(n) {
+  const re = () => { setDirty(); renderList(); renderEditor(); };
+  const ul = $("#useList"); if (ul) ul.onclick = () => { n.sells = []; re(); const a = $("#addSell"); if (a) a.focus(); };
+  if (!n.sells) return;
+  const at = el => n.sells[+el.closest("[data-si]").dataset.si];
+  document.querySelectorAll("[data-si] [data-sv]").forEach(el => el.onchange = () => {
+    const s = at(el); if (!s) return;
+    if (el.dataset.sv === "price") { const v = Math.round(+el.value); if (el.value.trim() === "" || !(v > 0)) delete s.price; else s.price = v; }
+    else s.stock = Math.min(SLOTS, Math.max(1, Math.round(+el.value) || 1));
+    re();
+  });
+  document.querySelectorAll("[data-sstep]").forEach(b => b.onclick = () => { const [i, d] = b.dataset.sstep.split("|").map(Number), s = n.sells[i]; s.stock = Math.min(SLOTS, Math.max(1, (s.stock || 1) + d)); re(); });
+  document.querySelectorAll("[data-susual]").forEach(b => b.onclick = () => { delete n.sells[+b.dataset.susual].price; re(); });
+  document.querySelectorAll("[data-srm]").forEach(b => b.onclick = () => { n.sells.splice(+b.dataset.srm, 1); re(); });
+  const swap = (i, j) => { [n.sells[i], n.sells[j]] = [n.sells[j], n.sells[i]]; re(); };
+  document.querySelectorAll("[data-sup]").forEach(b => b.onclick = () => { const i = +b.dataset.sup; if (i > 0) swap(i - 1, i); });
+  document.querySelectorAll("[data-sdown]").forEach(b => b.onclick = () => { const i = +b.dataset.sdown; if (i < n.sells.length - 1) swap(i, i + 1); });
+  const add = $("#addSell"), grp = $("#addGroup");
+  add.oninput = () => { addTerm = add.value; addPick = 0; renderPicks(n); };
+  add.onfocus = () => renderPicks(n);
+  add.onblur = () => setTimeout(() => { if (document.activeElement !== add && $("#picks")) $("#picks").innerHTML = ""; }, 150);
+  add.onkeydown = e => {
+    const m = pickMatches();
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); addPick = Math.max(0, Math.min(m.length - 1, addPick + (e.key === "ArrowDown" ? 1 : -1))); renderPicks(n); const on = $("#picks .pick.on"); if (on) on.scrollIntoView({ block: "nearest" }); }
+    else if (e.key === "Enter") { e.preventDefault(); if (m[addPick]) addItem(n, m[addPick][0]); }
+    else if (e.key === "Escape") { addTerm = ""; add.value = ""; renderPicks(n); }
+  };
+  grp.onchange = () => { addGroup = grp.value; addPick = 0; add.focus(); renderPicks(n); };
+  const cv = $("#copyVendor"); if (cv) cv.onchange = () => {
+    const st = (D.vendorStock || {})[cv.value]; if (!st) return;
+    if (n.sells.length && !confirm(`Replace the ${n.sells.length} item(s) on the list with what ${vendorName(cv.value)} sells?`)) { cv.value = ""; return; }
+    n.sells = st.map(([id, c]) => ({ id, stock: Math.min(SLOTS, c || 1) })); re();
+  };
+  const pg = $("#pctGo"); if (pg) pg.onclick = () => {
+    const p = +$("#pct").value; if (!(p > 0)) return;
+    n.sells.forEach(s => { const u = usualPrice(s.id); if (u != null) { const v = Math.max(1, Math.round(u * p / 100)); if (v === u) delete s.price; else s.price = v; } });
+    re();
+  };
+  const pc = $("#pctClear"); if (pc) pc.onclick = () => { n.sells.forEach(s => delete s.price); re(); };
+}
+
 function showProblems(n) { const p = problemsOf(n); $("#problems").textContent = p.length ? "Check: " + p.join(" · ") : ""; }
 
 // ---------------------------------------------------------------- live in game (NPCLoader's live link)
@@ -231,6 +628,42 @@ async function pollGame() {
   const box = $("#liveBox");
   const typing = document.activeElement && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName);
   if (box && sel >= 0 && !typing && (box.dataset.state !== liveState() || was !== liveNpcs.length)) renderEditor();
+  $("#gvHost").innerHTML = "";   // the 3D view is in the Build layout now
+}
+
+// ---------------------------------------------------------------- edits made in the game (build mode)
+async function gameEdit(ev) {
+  let i = pack.npcs.findIndex(n => n.id == ev.id);
+  if (i < 0) {   // in another pack
+    const where = (D.custom || []).find(n => n.cid == ev.id);
+    if (!where || where.pack === packName) return;
+    if (dirty) { status(`NPC ${ev.id} is in the pack "${where.pack}": save or discard this one first, then move it again.`, "bad"); return; }
+    ensurePack(where.pack); await openPack(where.pack); i = pack.npcs.findIndex(n => n.id == ev.id);
+    if (i < 0) return;
+  }
+  const n = pack.npcs[i];
+  if (ev.type === "select") { sel = i; renderList(); renderEditor(); return; }
+  if (ev.type === "copy") {   // Ctrl+D or the menu in the 3D view: a copy that follows the mouse
+    const c = JSON.parse(JSON.stringify(n)); c.id = nextId(); c.name = String(n.name || "").replace(/ \(copy\)$/, "") + " (copy)"; c.x = r1(c.x + 1.5);
+    pack.npcs.push(c); sel = pack.npcs.length - 1; setDirty(); renderList(); renderEditor(); announce();
+    if (ev.carry && G.connected && G.inWorld) {
+      clearTimeout(liveTimer);
+      await liveSend("/api/live/npc", c);
+      setTimeout(() => fetch("/api/live/world/carry?kind=npc&new=1&id=" + c.id, { method: "POST", body: "{}" }).catch(() => {}), 400);
+    }
+    return;
+  }
+  if (ev.type === "move") {
+    for (const k of ["zone", "x", "y", "z", "rotation"]) if (ev[k] != null) n[k] = ev[k];
+    sel = i; dirty = true; parent.postMessage({ dirty: true }, "*"); status("Moved in the game. Unsaved changes");
+  }
+  if (ev.type === "delete") {
+    pack.npcs.splice(i, 1); sel = Math.min(sel, pack.npcs.length - 1);
+    dirty = true; parent.postMessage({ dirty: true }, "*"); status(ev.cancel ? "Placing cancelled" : "Removed in the game. Unsaved changes (Discard changes brings it back)");
+  }
+  const typing = document.activeElement && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName);
+  renderList(); if (!typing) renderEditor();
+  announce();
 }
 const liveState = () => (G.connected ? "c" : "") + (G.inWorld ? "w" : "") + (G.zone || "");
 
@@ -245,9 +678,8 @@ function lookChoices(n) {
 function liveBox(n) {
   const st = liveState();
   if (!G.connected) return `<fieldset class="livebox" id="liveBox" data-state="${st}"><legend>Live in game</legend>
-      <p class="hint">Start the game (with NPCLoader 1.2 or newer) and enter the world: then changes here show up in the game as you make them,
-      and you can place NPCs where you stand.</p></fieldset>`;
-  if (!G.inWorld) return `<fieldset class="livebox" id="liveBox" data-state="${st}"><legend>Live in game</legend><p class="hint">Log in and enter the world.</p></fieldset>`;
+      <p class="hint">Press ▶ Start at the top to open the 3D view: changes here then show up in it as you make them.</p></fieldset>`;
+  if (!G.inWorld) return `<fieldset class="livebox" id="liveBox" data-state="${st}"><legend>Live in game</legend><p class="hint">The 3D view is still loading the world…</p></fieldset>`;
   const here = n.zone === G.zone;
   return `<fieldset class="livebox" id="liveBox" data-state="${st}"><legend>Live in game · ${esc(zoneName(G.zone))}</legend>
     ${here ? "" : `<p class="hint">${esc(n.name)} is in ${esc(zoneName(n.zone))}; you're in ${esc(zoneName(G.zone))}. Travel there in game to see it, or put it where you are.</p>`}
@@ -335,8 +767,8 @@ function scheduleLive() {
 function removeLive(id) { if (G.connected && G.inWorld) liveSend("/api/live/remove?id=" + id); }
 
 // Discard: back to the pack on disk, and the game back to the saved packs.
-$("#discard").onclick = async () => {
-  if (dirty && !confirm("Throw away your unsaved changes?")) return;
+$("#discard").onclick = async (confirmed) => {
+  if (dirty && confirmed !== true && !confirm("Throw away your unsaved changes to the NPCs in " + packName + "? This can't be undone.")) return;
   dirty = false; parent.postMessage({ dirty: false }, "*");
   await openPack(packName);
   if (G.connected && G.inWorld) { await liveSend("/api/live/reload"); status("Changes thrown away; the game shows the saved NPCs again.", "ok"); }
@@ -371,14 +803,16 @@ async function save(quiet) {
   pack.name = pack.name || packName;
   try {
     const r = await api("/api/npcs/pack?name=" + encodeURIComponent(packName), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(pack) });
-    setDirty(false); status(`Saved ${r.count} NPC(s)${r.enabled ? "" : " (pack is off)"}. In game: npcreload (F7), or restart.`, "ok");
+    setDirty(false); status(`Saved ${r.count} NPC(s)${r.enabled ? "" : " (pack is off)"}. The 3D view shows them; the game loads them next time you play.`, "ok");
     const fresh = await api("/api/npcs/data"); D.custom = fresh.custom; D.packs = fresh.packs; D.packsOff = fresh.packsOff; fillPacks(D.packs);
     parent.postMessage({ broadcast: { cmd: "npcsChanged" } }, "*");
     parent.postMessage({ broadcast: { cmd: "packsChanged", kind: "npcs" } }, "*");
   } catch (e) { status("Save failed: " + e.message, "bad"); }
 }
 
-window.addEventListener("message", async e => {
+let msgQueue = Promise.resolve();
+window.addEventListener("message", e => { msgQueue = msgQueue.then(() => onMessage(e)).catch(err => status("Problem: " + err.message, "bad")); });
+async function onMessage(e) {
   const m = e.data || {};
   if (m.cmd === "packsChanged" && m.kind === "npcs" && m.deleted === packName) {   // deleted on Packs & mods
     const left = ((await api("/api/overview")).packs.npcs || []).map(p => p.name);
@@ -389,13 +823,26 @@ window.addEventListener("message", async e => {
   }
   if (m.cmd === "openPack") { ensurePack(m.name); await openPack(m.name); }
   if (m.cmd === "newNpc") newNpc();
+  if (m.cmd === "save" && pack && dirty) save();
+  if (m.cmd === "discard" && pack && dirty) await $("#discard").onclick(m.confirmed);   // the Build toolbar's Discard (it asked)
+  if (m.cmd === "gameEdit" && pack) await gameEdit(m.ev);   // one at a time (a drag sends many)
+  if (m.cmd === "layout") { document.body.classList.toggle("compact", !!m.compact); if (pack) renderEditor(); }
+  if (m.cmd === "newNpcAt" && !pack) return;
   if (m.cmd === "newNpcAt") {   // from the map
     const near = m.template ? (gameNpc(m.template) || { cid: m.template, zone: m.zone, x: m.x, y: m.y, z: m.z }) : null;
     newNpc(near, true);
     const n = pack.npcs[pack.npcs.length - 1];
     n.zone = m.zone; n.x = m.x; n.y = m.y; n.z = m.z;
+    if (m.rotation != null) n.rotation = Math.round(m.rotation);
+    if (m.template) n.template = m.template;
+    if (m.name) n.name = "New " + m.name;
     if (!m.template && !npcsIn(n.zone).some(t => t.cid === n.template)) { const t = npcsIn(n.zone)[0]; if (t) n.template = t.cid; }
     setDirty(); renderList(); renderEditor();
+    if (m.carry && G.connected && G.inWorld) {   // follow the mouse in the 3D view until you click
+      clearTimeout(liveTimer);
+      await liveSend("/api/live/npc", n);
+      setTimeout(() => fetch("/api/live/world/carry?kind=npc&new=1&id=" + n.id, { method: "POST", body: "{}" }).catch(() => {}), 400);
+    }
   }
   if (m.cmd === "select") {
     let i = pack.npcs.findIndex(n => n.id == m.id);
@@ -405,17 +852,27 @@ window.addEventListener("message", async e => {
     }
     if (i >= 0) { sel = i; renderList(); renderEditor(); }
   }
+  // The map saved a move straight to an NPC pack: take it in (or the next save here would undo it).
+  if (m.cmd === "packsChanged" && m.kind === "npcs" && !m.deleted && m.pack === packName && pack) {
+    const disk = await api("/api/npcs/pack?name=" + encodeURIComponent(packName)).catch(() => null);
+    if (disk) {
+      if (!dirty) { pack = disk; pack.npcs = pack.npcs || []; sel = Math.min(sel, pack.npcs.length - 1); }
+      else if (m.id != null) { const d = (disk.npcs || []).find(n => n.id == m.id); const j = pack.npcs.findIndex(n => n.id == m.id); if (d && j >= 0) for (const k of ["zone", "x", "y", "z", "rotation"]) if (d[k] !== undefined) pack.npcs[j][k] = d[k]; }
+      renderList(); if (!/INPUT|SELECT|TEXTAREA/.test((document.activeElement || {}).tagName || "")) renderEditor(); announce();
+    }
+  }
   if (m.cmd === "packsChanged" && m.kind !== "npcs") {
     const fresh = await api("/api/npcs/data");
     D.originals = fresh.originals; D.packQuests = fresh.packQuests; D.shops = fresh.shops; D.packsOff = fresh.packsOff;
+    if (m.kind === "content") { D.items = fresh.items; D.itemNames = fresh.itemNames; D.vendorStock = fresh.vendorStock; D.icons = fresh.icons; loadItems(); }
     fillPacks(fresh.packs.length ? fresh.packs : [packName]); renderEditor();
   }
-});
+}
 
 // Delete the open pack (it goes to the Recycle Bin), then open another one.
 async function deletePack() {
   const exists = ((await api("/api/overview")).packs.npcs || []).some(p => p.name === packName);
-  if (!confirm(exists ? `Delete the pack "${packName}"?\n\nIt goes to the Recycle Bin, so you can get it back from there.`
+  if (!confirm(exists ? `Delete the pack "${packName}"?\n\nIt goes to the Recycle Bin (or Mods\\.trash on a drive without one), so you can get it back.`
                       : `"${packName}" was never saved. Throw it away?`)) return;
   if (exists) {
     try { await api(`/api/packs/delete?kind=npcs&name=${encodeURIComponent(packName)}`, { method: "POST" }); }
@@ -439,12 +896,12 @@ $("#newPack").onclick = () => {
   ensurePack(n); openPack(n);
 };
 $("#search").oninput = renderList;
-document.addEventListener("keydown", e => { if ((e.ctrlKey || e.metaKey) && e.key === "s") { e.preventDefault(); save(); } });
+document.addEventListener("keydown", e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") { e.preventDefault(); if (document.body.classList.contains("compact")) parent.postMessage({ key: "ctrl-s" }, "*"); else save(); } });
 
 // Ctrl+K goes to the search box in the main window.
 document.addEventListener("keydown", e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); parent.postMessage({ key: "ctrl-k" }, "*"); } });
 window.addEventListener("beforeunload", e => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
-boot().then(() => parent.postMessage({ ready: true }, "*")).catch(e => status("Couldn't load: " + e.message, "bad"));
+boot().then(() => parent.postMessage({ ready: true }, "*")).catch(e => { status("Couldn't load: " + e.message, "bad"); parent.postMessage({ ready: true, error: e.message }, "*"); });
 </script>
 </body>
 </html>

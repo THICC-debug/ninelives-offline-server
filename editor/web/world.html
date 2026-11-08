@@ -22,7 +22,25 @@
   .chain .lv .nm small { display: block; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .chain .lv button { padding: 3px 9px; font-size: 12px; }
   code.path { word-break: break-all; }
+  .cat { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; margin-top: 8px; max-height: 440px; overflow: auto; padding-right: 4px; }
+  .cat .card { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--panel); cursor: pointer; display: flex; flex-direction: column; }
+  .cat .card:hover { border-color: var(--accent); }
+  .cat .card .th { aspect-ratio: 1; background: #26282c center/cover no-repeat; }
+  .cat .card .nm { font-size: 12px; padding: 4px 6px; line-height: 1.25; }
+  .cat .card .nm small { display: block; color: var(--muted); }
+  .cat h4 { grid-column: 1 / -1; margin: 6px 0 0; font-size: 13px; color: var(--muted); text-transform: capitalize; }
+
+  /* narrow, as the Build layout's inspector: only the selected thing's settings */
+  body.compact main { grid-template-columns: 1fr; height: calc(100vh - 47px); }
+  body.compact aside, body.compact #gvHost, body.compact #liveBox { display: none !important; }
+  body.compact header { gap: 6px; padding: 6px 10px; }
+  body.compact header button { padding: 3px 8px; font-size: 12px; }
+  /* the Build toolbar has Save / Undo / Discard; Delete pack lives on the full page */
+  body.compact #save, body.compact #delPack, body.compact #discard, body.compact #undo, body.compact #live { display: none !important; }
+  body.compact #editor { padding: 10px 12px 40px; }
+  body.compact .grid { grid-template-columns: 1fr 1fr !important; }
 </style>
+<script src="/gameview.js"></script>
 </head>
 <body>
 <header>
@@ -30,6 +48,7 @@
   <button id="newPack">New pack</button>
   <button id="save" class="primary" title="Ctrl+S">Save pack</button>
   <button id="delPack" class="danger" title="Delete this pack (to the Recycle Bin)">Delete pack</button>
+  <button id="undo" title="Undo (Ctrl+Z)" disabled>Undo</button>
   <button id="discard" title="Throw away unsaved changes (and put the game back as saved)">Discard changes</button>
   <span id="status">Loading…</span>
   <span id="live" class="badge off">○ Game not running</span>
@@ -40,7 +59,7 @@
     <input id="search" type="search" placeholder="Search name, zone…">
     <div id="list"></div>
   </aside>
-  <section id="editor"></section>
+  <section id="editor"><div id="gvHost"></div><div id="ed"></div></section>
 </main>
 <script>
 let D = {}, pack = null, packName = null, sel = -1, dirty = false;
@@ -52,7 +71,68 @@ const r2 = v => Math.round((+v || 0) * 100) / 100;
 const lastName = p => String(p || "").split("/").pop().replace(/#\d+$/, "");
 
 function status(msg, cls) { const s = $("#status"); s.textContent = msg; s.className = cls || ""; }
-function setDirty(v = true) { dirty = v; status(v ? "Unsaved changes" : "Saved", v ? "" : "ok"); parent.postMessage({ dirty: v }, "*"); if (v) scheduleLive(); }
+function setDirty(v = true) { dirty = v; status(v ? "Unsaved changes" : "Saved", v ? "" : "ok"); parent.postMessage({ dirty: v }, "*"); if (v) { remember(); scheduleLive(); } announce(); }
+
+// ---------------------------------------------------------------- the 3D tab: tell it about the pack, do what it asks
+let announceTimer = null;
+function announce(note) {
+  clearTimeout(announceTimer);
+  announceTimer = setTimeout(() => parent.postMessage({ broadcast: { cmd: "worldState", pack: packName, dirty, count: pack ? pack.objects.length : 0,
+    canUndo: undoStack.length > 0, note: note || null,
+    objects: pack ? pack.objects.map(o => ({ id: o.id, name: o.name, zone: o.zone, x: o.x, y: o.y, z: o.z, hide: !!o.hide })) : [] } }, "*"), note ? 0 : 60);
+}
+async function fromView(m) {
+  if (m.cmd === "announce") return announce();
+  if (m.cmd === "save") return dirty ? save() : undefined;   // (the toolbar saves both packs: only one may have changes)
+  if (m.cmd === "undo") return undo();
+  if (m.cmd === "discard") return dirty ? $("#discard").onclick(m.confirmed) : undefined;
+  if (m.cmd === "placeKind") {
+    const k = m.kind, h = await liveGet("/here");
+    if (h.x == null) return announce(h.error || "Couldn't reach the game.");
+    const o = { id: nextId(nice(k.name)), name: nice(k.name), zone: h.zone || G.zone, source: k.path, x: h.x, y: h.y, z: h.z, rx: 0, ry: r2(k.ry || 0), rz: 0, scale: 1 };
+    pack.objects.push(o); sel = pack.objects.length - 1; setDirty(); renderList(); renderEditor();
+    // Like placing in The Sims: it now follows the mouse in the 3D view until you click.
+    clearTimeout(liveTimer);
+    await livePost("/world/obj", o);
+    await livePost("/world/carry?kind=world&new=1&id=" + encodeURIComponent(o.id));
+    return announce("Move the mouse into the 3D view and click to put down " + o.name);
+  }
+  if (m.cmd === "objOp") {
+    const i = pack.objects.findIndex(o => o.id === m.id); if (i < 0) return announce("That's not in the open pack (" + packName + ").");
+    const o = pack.objects[i]; sel = i;
+    if (m.op === "turn") o.ry = Math.round((((+o.ry || 0) + m.v) % 360 + 360) % 360);
+    if (m.op === "scale") o.scale = r2(Math.max(0.05, (+o.scale || 1) * m.v));
+    if (m.op === "ground") { const g = await livePost("/world/ground", { x: o.x, y: o.y, z: o.z }); if (g.y != null) o.y = g.y; }
+    if (m.op === "copy") { const c = JSON.parse(JSON.stringify(o)); c.id = nextId(o.name || o.id); c.name = (o.name || "") + " (copy)"; c.x = r2(c.x + 1.5); pack.objects.push(c); sel = pack.objects.length - 1; }
+    if (m.op === "delete") { if (G.connected) await livePost("/world/remove?id=" + encodeURIComponent(o.id)); const j = pack.objects.indexOf(o); if (j >= 0) pack.objects.splice(j, 1); sel = Math.min(sel, pack.objects.length - 1); }
+    setDirty(); renderList(); renderEditor();
+  }
+}
+
+// ---------------------------------------------------------------- undo
+let undoStack = [], lastState = null;
+let savedState = null;   // the pack as it is on disk: undoing back to it means nothing is unsaved
+function resetUndo() { undoStack = []; lastState = savedState = JSON.stringify(pack.objects); $("#undo").disabled = true; }
+function remember() {
+  const now = JSON.stringify(pack.objects);
+  if (lastState != null && now !== lastState) { undoStack.push(lastState); if (undoStack.length > 100) undoStack.shift(); }
+  lastState = now; $("#undo").disabled = !undoStack.length;
+}
+async function undo() {
+  if (!undoStack.length) return;
+  clearTimeout(liveTimer);
+  const before = pack.objects, prev = undoStack.pop();
+  pack.objects = JSON.parse(prev); lastState = prev; $("#undo").disabled = !undoStack.length;
+  sel = Math.min(Math.max(sel, 0), pack.objects.length - 1);
+  dirty = prev !== savedState; status(dirty ? "Undone. Unsaved changes" : "Undone. Same as saved", dirty ? "" : "ok"); parent.postMessage({ dirty }, "*");
+  renderList(); renderEditor(); announce("Undone");
+  if (G.connected && G.inWorld) {   // show the game the way it was
+    const ids = new Set(pack.objects.map(o => o.id));
+    for (const o of before) if (!ids.has(o.id)) await livePost("/world/remove?id=" + encodeURIComponent(o.id));
+    const old = new Map(before.map(o => [o.id, JSON.stringify(o)]));
+    for (const o of pack.objects) if (old.get(o.id) !== JSON.stringify(o)) await livePost("/world/obj", o);
+  }
+}
 async function api(path, opts) { const r = await fetch(path, opts); const j = await r.json(); if (!r.ok) throw new Error(j.error || r.statusText); return j; }
 async function liveGet(path) { try { return await (await fetch("/api/live" + path)).json(); } catch (e) { return { connected: false, error: e.message }; } }
 async function livePost(path, data) {
@@ -67,19 +147,25 @@ async function boot() {
   await openPack(packs.find(p => !(D.packsOff || []).includes(p)) || (ensurePack("my-world"), "my-world"));
 }
 function fillPacks(names) {
+  if (packName && !names.includes(packName)) names = [...names, packName];   // (a new pack, not saved yet)
   const off = new Set(D.packsOff || []);
   $("#packSel").innerHTML = names.map(p => `<option value="${esc(p)}">${esc(p)}${off.has(p) ? " (off)" : ""}</option>`).join("");
   if (packName) $("#packSel").value = packName;
 }
 function ensurePack(n) { if (![...$("#packSel").options].some(o => o.value === n)) $("#packSel").insertAdjacentHTML("beforeend", `<option value="${esc(n)}">${esc(n)}</option>`); $("#packSel").value = n; }
 async function openPack(name) {
-  if (dirty && !confirm("Discard unsaved changes?")) { $("#packSel").value = packName; return; }
+  if (dirty && !confirm("Discard unsaved changes?")) { $("#packSel").value = packName; return false; }
+  const discarded = dirty;
   pack = await api("/api/world/pack?name=" + encodeURIComponent(name));
+  if (discarded && G.connected && G.inWorld) livePost("/world/reload");   // the game showed the thrown-away edits
   pack.objects = pack.objects || []; packName = name; sel = pack.objects.length ? 0 : -1; dirty = false; parent.postMessage({ dirty: false }, "*");
   status(`Pack "${name}": ${pack.objects.length} thing(s)`);
+  resetUndo(); announce();
   renderList(); renderEditor();
   updateOffBar();
+  return true;
 }
+async function refreshIds() { try { const d = await api("/api/world/data"); D.ids = d.ids || D.ids; D.packsOff = d.packsOff || D.packsOff; } catch (e) {} }
 function nextId(base) {
   const used = new Set([...(D.ids || []), ...pack.objects.map(o => o.id)]);
   const stem = String(base || "thing").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 24) || "thing";
@@ -96,30 +182,35 @@ function renderList() {
       <small>${esc(zoneName(o.zone))} · ${o.hide ? "hides" : "copy of"} ${esc(lastName(o.source))}</small></div>`;
   }).join("");
   $("#list").innerHTML = html || `<div class="empty">${pack.objects.length ? "Nothing matches." : "Nothing placed in this pack yet."}</div>`;
-  $("#list").querySelectorAll(".item").forEach(el => el.onclick = () => { sel = +el.dataset.i; renderList(); renderEditor(); });
+  $("#list").querySelectorAll(".item").forEach(el => el.onclick = () => {
+    sel = +el.dataset.i; renderList(); renderEditor();
+    if (G.connected && G.inWorld && pack.objects[sel]) livePost("/world/select?kind=world&id=" + encodeURIComponent(pack.objects[sel].id));
+  });
 }
 
 // ---------------------------------------------------------------- live: pick and around me
 function pickBox() {
   if (!G.connected) return `<fieldset class="livebox" id="liveBox"><legend>Build in the game</legend>
-    <p class="hint">Start the game (with WorldLoader installed) and enter the world. Then look at a house, fence, tree or anything else,
-    and copy it or hide it from here. You see every change in the game as you make it.</p></fieldset>`;
-  if (!G.inWorld) return `<fieldset class="livebox" id="liveBox"><legend>Build in the game</legend><p class="hint">Log in and enter the world.</p></fieldset>`;
+    <p class="hint">Press ▶ Start at the top to open the 3D view. Then double-click a house, fence, tree or anything else
+    to copy it or hide it from here. You see every change as you make it.</p></fieldset>`;
+  if (!G.inWorld) return `<fieldset class="livebox" id="liveBox"><legend>Build in the game</legend><p class="hint">The 3D view is still loading the world…</p></fieldset>`;
   if (!(G.mods || []).includes("worldloader")) return `<fieldset class="livebox" id="liveBox"><legend>Build in the game</legend>
     <p class="hint">WorldLoader isn't running in the game. Install it with Setup.exe (and switch it on in Packs &amp; mods), then restart the game.</p></fieldset>`;
-  const levels = pick ? pick.chain : (near ? near.things : null);
+  const levels = cat ? null : (pick ? pick.chain : (near ? near.things : null));
   return `<fieldset class="livebox" id="liveBox"><legend>Build in the game · ${esc(zoneName(G.zone))}</legend>
     <div class="row" style="margin-top:0">
       <button class="primary" id="pkLook">Pick what I'm looking at</button>
       <button id="pkNear">Things around me</button>
-      <span class="hint">Turn the camera so the thing is in the middle of the game window, then Pick.</span>
+      <button id="pkCat">Browse this zone's things</button>
+      <span class="hint">Or double-click anything in the 3D view to see what it is.</span>
     </div>
     ${pick ? `<p class="hint" style="margin-top:8px">You're looking at <b>${esc(pick.chain[0].name)}</b>. It belongs to bigger things: choose how much of it to copy (the glowing one is suggested).</p>` : ""}
     ${near ? `<p class="hint" style="margin-top:8px">${near.things.length} thing(s) within 20 m, nearest first.</p>` : ""}
+    ${cat ? catBox() : ""}
     ${levels ? `<div class="chain">${levels.map((t, i) => `<div class="lv${pick && i === pick.suggested ? " sug" : ""}">
         <div class="nm"><b>${esc(t.name)}</b> <span class="hint">${t.size} m · ${t.parts} part(s)${t.baked ? ` · ${t.baked} pre-baked` : ""}${t.distance != null && near ? ` · ${t.distance} m away` : ""}</span>
           <small>${esc(t.path)}</small></div>
-        ${t.character ? '<span class="hint">a character (use the NPCs tab)</span>'
+        ${t.character ? '<span class="hint">a character (NPCs: Assets → NPCs)</span>'
           : `<button data-glow="${i}">Show</button><button class="primary" data-copy="${i}">Copy it here</button><button data-hide="${i}">Hide it</button>`}
       </div>`).join("")}</div>` : ""}
     <p class="hint" id="liveNote"></p>
@@ -131,13 +222,23 @@ function wirePick() {
   on("pkLook", async () => {
     const r = await liveGet("/world/pick");
     if (r.error) return note(r.error);
-    pick = r; near = null; renderEditor();
+    pick = r; near = null; cat = null; renderEditor();
   });
   on("pkNear", async () => {
     const r = await liveGet("/world/near?radius=20");
     if (r.error) return note(r.error);
-    near = r; pick = null; renderEditor();
+    near = r; pick = null; cat = null; renderEditor();
   });
+  on("pkCat", async () => {
+    note("Listing everything in this zone…");
+    const r = await liveGet("/world/catalog");
+    if (r.error) return note(r.error);
+    cat = r; pick = near = null; renderEditor();
+  });
+  on("catClose", () => { cat = null; renderEditor(); });
+  const cs = $("#catSearch");
+  if (cs) cs.oninput = () => { catTerm = cs.value; drawCat(); };
+  if (cat) drawCat();
   document.querySelectorAll("[data-glow]").forEach(b => b.onclick = () => livePost("/world/highlight?path=" + encodeURIComponent(levels()[+b.dataset.glow].path)));
   document.querySelectorAll("[data-copy]").forEach(b => b.onclick = async () => {
     const t = levels()[+b.dataset.copy];
@@ -154,6 +255,98 @@ function wirePick() {
 }
 function note(t) { const el = $("#liveNote"); if (el) el.textContent = t; }
 
+// ---------------------------------------------------------------- the zone's catalogue (pictures from the game)
+let cat = null, catTerm = "";
+const thumbs = new Map();
+const nice = n => String(n || "").replace(/[_ ]prefab$/i, "").replace(/_/g, " ");
+function catBox() {
+  return `<div class="row" style="margin-top:10px"><input id="catSearch" type="search" placeholder="Filter: barrel, fence, lamp…" value="${esc(catTerm)}" style="flex:1">
+    <button id="catClose">Close</button></div>
+    <p class="hint" style="margin:6px 0 0">${cat.kinds.length} kinds of things in ${esc(zoneName(cat.zone))}. Click one to put a copy in front of you.</p>
+    <div class="cat" id="cat"></div>`;
+}
+function drawCat() {
+  const box = $("#cat"); if (!box || !cat) return;
+  const t = catTerm.trim().toLowerCase();
+  const list = cat.kinds.filter(k => !t || (k.name + " " + k.folder).toLowerCase().includes(t));
+  let html = "", folder = null;
+  for (const k of list.slice(0, 300)) {
+    if (k.folder !== folder) { folder = k.folder; html += `<h4>${esc(folder || "other")}</h4>`; }
+    html += `<div class="card" data-k="${cat.kinds.indexOf(k)}" title="${esc(k.path)}"><div class="th" data-path="${esc(k.path)}"></div>
+      <div class="nm">${esc(nice(k.name))}<small>${k.count}× · ${k.size} m</small></div></div>`;
+  }
+  box.innerHTML = html || '<div class="empty">Nothing matches.</div>';
+  box.querySelectorAll(".card").forEach(c => c.onclick = async () => {
+    const k = cat.kinds[+c.dataset.k];
+    const h = await liveGet("/here");
+    if (h.x == null) return note(h.error || "Couldn't reach the game.");
+    const o = { id: nextId(nice(k.name)), name: nice(k.name), zone: G.zone, source: k.path, x: h.x, y: h.y, z: h.z, rx: 0, ry: r2(k.ry || 0), rz: 0, scale: 1 };
+    pack.objects.push(o); sel = pack.objects.length - 1; setDirty(); renderList(); renderEditor();
+  });
+  // pictures: the ones in view first, two at a time
+  const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { io.unobserve(e.target); loadThumb(e.target); } }), { root: box });
+  box.querySelectorAll(".th").forEach(el => io.observe(el));
+}
+let thumbBusy = 0; const thumbQueue = [];
+function loadThumb(el) {
+  const key = G.zone + "|" + el.dataset.path;
+  if (thumbs.has(key)) { el.style.backgroundImage = `url(${thumbs.get(key)})`; return; }
+  thumbQueue.push(el); pumpThumbs();
+}
+function pumpThumbs() {
+  while (thumbBusy < 2 && thumbQueue.length) {
+    const el = thumbQueue.shift(); thumbBusy++;
+    (async () => {
+      const key = G.zone + "|" + el.dataset.path;
+      const r = await liveGet("/world/thumb?size=112&path=" + encodeURIComponent(el.dataset.path));
+      if (r.jpg) { const u = "data:image/jpeg;base64," + r.jpg; thumbs.set(key, u); el.style.backgroundImage = `url(${u})`; }
+      thumbBusy--; pumpThumbs();
+    })();
+  }
+}
+
+// ---------------------------------------------------------------- edits made in the game (build mode)
+const packOf = {};   // id -> pack it was found in (so drag events don't each fetch every pack)
+async function gameEdit(ev) {
+  if (ev.kind && ev.kind !== "world" && ev.type !== "pick") return;
+  if (ev.type === "pick") { pick = { zone: ev.zone, suggested: ev.suggested, chain: ev.chain }; near = cat = null; if (document.body.classList.contains("compact")) sel = -1; renderEditor(); status("Picked in the game: " + ev.chain[ev.suggested].name); return; }
+  let i = pack.objects.findIndex(o => o.id === ev.id);
+  if (i < 0) {   // in another pack: open it if nothing here is unsaved
+    if (!(ev.id in packOf)) {
+      packOf[ev.id] = null;
+      for (const name of [...$("#packSel").options].map(o => o.value)) {
+        if (name === packName) continue;
+        const p = await api("/api/world/pack?name=" + encodeURIComponent(name)).catch(() => null);
+        if (p && (p.objects || []).some(o => o.id === ev.id)) { packOf[ev.id] = name; break; }
+      }
+    }
+    const name = packOf[ev.id];
+    if (!name) return;
+    if (dirty) { status(`${ev.id} is in the pack "${name}": save or discard this one first, then move it again.`, "bad"); return; }
+    ensurePack(name); if (!(await openPack(name))) return;
+    i = pack.objects.findIndex(o => o.id === ev.id);
+    if (i < 0) return;
+  }
+  const o = pack.objects[i];
+  if (ev.type === "select") { sel = i; renderList(); renderEditor(); return; }
+  if (ev.type === "move") {
+    for (const k of ["zone", "x", "y", "z", "rx", "ry", "rz", "scale"]) if (ev[k] != null) o[k] = ev[k];
+    sel = i; dirty = true; parent.postMessage({ dirty: true }, "*"); remember(); status("Moved in the game. Unsaved changes");
+  }
+  if (ev.type === "copy") {
+    const c = JSON.parse(JSON.stringify(o)); c.id = nextId(o.name || o.id); c.name = (o.name || "").replace(/ \(copy\)$/, "") + " (copy)"; c.x = r2(c.x + 1.5);
+    pack.objects.push(c); sel = pack.objects.length - 1; setDirty();
+    if (ev.carry && G.connected) { clearTimeout(liveTimer); await livePost("/world/obj", c); await livePost("/world/carry?kind=world&new=1&id=" + encodeURIComponent(c.id)); }
+  }
+  if (ev.type === "delete") {
+    pack.objects.splice(i, 1); sel = Math.min(sel, pack.objects.length - 1);
+    dirty = true; parent.postMessage({ dirty: true }, "*"); remember(); status(ev.cancel ? "Placing cancelled" : "Removed in the game. Unsaved changes (Undo brings it back)");
+  }
+  const typing = document.activeElement && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName);
+  renderList(); if (!typing) renderEditor();
+  announce();
+}
+
 // ---------------------------------------------------------------- the form
 function problemsOf(o) {
   const p = [];
@@ -165,13 +358,16 @@ function problemsOf(o) {
 }
 
 function renderEditor() {
-  const ed = $("#editor");
+  const ed = $("#ed");
   const o = sel >= 0 ? pack.objects[sel] : null;
   const live = G.connected && G.inWorld;
-  ed.innerHTML = pickBox() + (o ? `
+  const compact = document.body.classList.contains("compact");
+  if (compact && !o && pick) { ed.innerHTML = pickBox(); wirePick(); return; }   // double-clicked scenery: what it is, and copy / hide it
+  if (compact && !o) { ed.innerHTML = `<div class="empty" style="margin:30px 10px"><p class="title">Nothing selected</p><p>Click one of your placed things in the 3D view or the outliner, or add one from Assets (bottom panel). Double-click any scenery to see what it is.</p></div>`; return; }
+  ed.innerHTML = (compact ? "" : pickBox()) + (o ? `
     <div class="actions" style="margin-top:14px"><button id="dup">Duplicate</button><button class="danger" id="del">Delete</button></div>
     <div class="problems" id="problems"></div>
-    <fieldset><legend>${o.hide ? "Hidden thing" : "Copy"}</legend><div class="grid">
+    <fieldset><legend>${o.hide ? "Hidden thing" : "Placed thing"}</legend><div class="grid">
       <label>Name<input data-k="name" value="${esc(o.name)}"></label>
       <label>Id<input data-k="id" value="${esc(o.id)}"></label>
       <label>Zone<input data-k="zone" value="${esc(o.zone)}"></label>
@@ -206,20 +402,22 @@ function renderEditor() {
       </div>
       <p class="hint" id="moveNote">Changes show in the game right away. Save keeps them.</p></fieldset>` : ""}
     <fieldset><legend>Where</legend><div class="grid">
-      <label>X<input type="number" step="0.1" data-k="x" value="${o.x}"></label>
-      <label>Y (height)<input type="number" step="0.1" data-k="y" value="${o.y}"></label>
-      <label>Z<input type="number" step="0.1" data-k="z" value="${o.z}"></label>
-      <label>Turn (degrees)<input type="number" step="5" data-k="ry" value="${o.ry || 0}"></label>
-      <label>Tilt (degrees)<input type="number" step="1" data-k="rx" value="${o.rx || 0}"></label>
-      <label>Lean (degrees)<input type="number" step="1" data-k="rz" value="${o.rz || 0}"></label>
-      <label>Size (1 = same)<input type="number" step="0.05" min="0.05" data-k="scale" value="${o.scale || 1}"></label>
+      <label>X<input type="number" step="0.1" data-k="x" value="${esc(o.x)}"></label>
+      <label>Y (height)<input type="number" step="0.1" data-k="y" value="${esc(o.y)}"></label>
+      <label>Z<input type="number" step="0.1" data-k="z" value="${esc(o.z)}"></label>
+      <label>Turn (degrees)<input type="number" step="5" data-k="ry" value="${esc(o.ry || 0)}"></label>
+      <label>Tilt (degrees)<input type="number" step="1" data-k="rx" value="${esc(o.rx || 0)}"></label>
+      <label>Lean (degrees)<input type="number" step="1" data-k="rz" value="${esc(o.rz || 0)}"></label>
+      <label>Size (1 = same)<input type="number" step="0.05" min="0.05" data-k="scale" value="${esc(o.scale || 1)}"></label>
     </div></fieldset>`}` : (G.connected && G.inWorld ? "" : `<div class="empty"><p class="title">Build in the world</p>
       <p>Copy any house, fence, tree or prop in a zone and place the copies anywhere in it: turned, tilted and resized. Or hide things that are in the way.</p>
       <p class="hint">Start the game with WorldLoader to pick things by looking at them. Packs are saved in <code>Mods\\World</code>.</p></div>`));
-  wirePick();
+  if (!compact) wirePick();
   if (!o) return;
   ed.querySelectorAll("[data-k]").forEach(el => el.onchange = () => {
     const k = el.dataset.k;
+    const at = pack.objects.indexOf(o); if (at < 0) return; sel = at;   // the list may have changed meanwhile
+    if (k === "id" && el.value !== o.id && G.connected && G.inWorld) livePost("/world/remove?id=" + encodeURIComponent(o.id));
     if (el.type === "checkbox") { if (k === "enabled") { if (el.checked) delete o.enabled; else o.enabled = false; } else if (el.checked) o[k] = true; else delete o[k]; }
     else if (el.type === "number") o[k] = +el.value || 0;
     else o[k] = el.value;
@@ -243,7 +441,7 @@ function renderEditor() {
   document.querySelectorAll("[data-scale]").forEach(b => b.onclick = () => { o.scale = r2(Math.max(0.05, (o.scale || 1) * +b.dataset.scale)); changed(); });
   document.querySelectorAll("[data-tilt]").forEach(b => b.onclick = () => { const [k, d] = b.dataset.tilt.split(","); o[k] = ((o[k] || 0) + +d); changed(); });
   $("#dup").onclick = () => { const c = JSON.parse(JSON.stringify(o)); c.id = nextId(o.name); c.name = (o.name || "") + " (copy)"; c.x = r2(c.x + 2); pack.objects.push(c); sel = pack.objects.length - 1; changed(); };
-  $("#del").onclick = () => { if (confirm(`Delete ${o.name || o.id}?`)) { if (G.connected) livePost("/world/remove?id=" + encodeURIComponent(o.id)); pack.objects.splice(sel, 1); sel = Math.min(sel, pack.objects.length - 1); changed(); } };
+  $("#del").onclick = () => { if (confirm(`Delete ${o.name || o.id}?`)) { if (G.connected) livePost("/world/remove?id=" + encodeURIComponent(o.id)); const j = pack.objects.indexOf(o); if (j >= 0) pack.objects.splice(j, 1); sel = Math.min(sel, pack.objects.length - 1); changed(); } };
   showProblems(o);
 }
 function showProblems(o) { const el = $("#problems"); if (el) { const p = problemsOf(o); el.textContent = p.length ? "Check: " + p.join(" · ") : ""; } }
@@ -269,6 +467,7 @@ async function pollGame() {
   const state = (G.connected ? "c" : "") + (G.inWorld ? "w" : "") + (G.zone || "") + ((G.mods || []).includes("worldloader") ? "m" : "");
   const typing = document.activeElement && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName);
   if (state !== pollGame.last && !typing && pack) { pollGame.last = state; renderEditor(); }
+  $("#gvHost").innerHTML = "";   // the 3D view is in the Build layout now
 }
 
 
@@ -296,13 +495,13 @@ async function save() {
   pack.name = pack.name || packName;
   try {
     const r = await api("/api/world/pack?name=" + encodeURIComponent(packName), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(pack) });
-    setDirty(false); status(`Saved ${r.count} thing(s)${r.enabled ? "" : " (pack is off)"}.`, "ok");
+    savedState = lastState = JSON.stringify(pack.objects); setDirty(false); status(`Saved ${r.count} thing(s)${r.enabled ? "" : " (pack is off)"}.`, "ok");
     parent.postMessage({ broadcast: { cmd: "packsChanged", kind: "world" } }, "*");
   } catch (e) { status("Save failed: " + e.message, "bad"); }
 }
 async function deletePack() {
   const exists = ((await api("/api/overview")).packs.world || []).some(p => p.name === packName);
-  if (!confirm(exists ? `Delete the pack "${packName}"?\n\nIt goes to the Recycle Bin, so you can get it back from there.` : `"${packName}" was never saved. Throw it away?`)) return;
+  if (!confirm(exists ? `Delete the pack "${packName}"?\n\nIt goes to the Recycle Bin (or Mods\\.trash on a drive without one), so you can get it back.` : `"${packName}" was never saved. Throw it away?`)) return;
   if (exists) { try { await api(`/api/packs/delete?kind=world&name=${encodeURIComponent(packName)}`, { method: "POST" }); } catch (e) { return status("Couldn't delete: " + e.message, "bad"); } }
   const left = ((await api("/api/overview")).packs.world || []).map(p => p.name);
   dirty = false; parent.postMessage({ dirty: false }, "*");
@@ -311,34 +510,57 @@ async function deletePack() {
   if (G.connected && G.inWorld) await livePost("/world/reload");
   parent.postMessage({ broadcast: { cmd: "packsChanged", kind: "world" } }, "*");
 }
-$("#discard").onclick = async () => {
-  if (dirty && !confirm("Throw away your unsaved changes?")) return;
+$("#discard").onclick = async (confirmed) => {
+  if (dirty && confirmed !== true && !confirm("Throw away your unsaved changes to the placed things in " + packName + "? This can't be undone.")) return;
   dirty = false; parent.postMessage({ dirty: false }, "*");
   await openPack(packName);
   if (G.connected && G.inWorld) { await livePost("/world/reload"); status("Changes thrown away; the game shows the saved world again.", "ok"); }
   else status("Changes thrown away.", "ok");
 };
 $("#save").onclick = save;
+$("#undo").onclick = undo;
 $("#delPack").onclick = deletePack;
 $("#packSel").onchange = e => openPack(e.target.value);
 $("#newPack").onclick = () => { const n = prompt("Name for the new pack (letters, numbers, spaces, - and _):", "my-world"); if (n) { ensurePack(n); openPack(n); } };
 $("#search").oninput = renderList;
-window.addEventListener("message", async e => {
-  const m = e.data || {};
+let queue = Promise.resolve();
+window.addEventListener("message", e => { const m = e.data || {}; queue = queue.then(() => onMessage(m)).catch(err => status("Problem: " + err.message, "bad")); });
+async function onMessage(m) {
   if (m.cmd === "packsChanged" && m.kind === "world" && m.deleted === packName) {
     const left = ((await api("/api/overview")).packs.world || []).map(p => p.name);
-    dirty = false; D.packs = left; packName = null; fillPacks(left.length ? left : ["my-world"]); await openPack(left[0] || "my-world"); return;
+    dirty = false; parent.postMessage({ dirty: false }, "*"); D.packs = left; packName = null; fillPacks(left.length ? left : ["my-world"]); await openPack(left[0] || "my-world"); return;
   }
-  if (m.cmd === "openPack") { if (m.name !== packName) { ensurePack(m.name); await openPack(m.name); } if (m.then) window.postMessage(m.then, "*"); }
+  // The map saved a move or a copy straight to a pack file: take it in (or the next save would undo it).
+  if (m.cmd === "packsChanged" && m.kind === "world" && !m.deleted) {
+    await refreshIds();
+    if (pack && m.pack === packName) {
+      if (!dirty) { const keep = sel; await openPack(packName); sel = Math.min(keep, pack.objects.length - 1); renderList(); renderEditor(); }
+      else if (m.id) {
+        const disk = await api("/api/world/pack?name=" + encodeURIComponent(packName)).catch(() => null);
+        const d = disk && (disk.objects || []).find(o => o.id === m.id);
+        if (d) {
+          const j = pack.objects.findIndex(o => o.id === m.id);
+          if (j >= 0) { for (const k of ["zone", "x", "y", "z", "rx", "ry", "rz", "scale"]) if (d[k] !== undefined) pack.objects[j][k] = d[k]; } else pack.objects.push(d);
+          remember(); renderList(); if (!/INPUT|SELECT|TEXTAREA/.test((document.activeElement || {}).tagName || "")) renderEditor(); announce();
+        }
+      }
+    }
+    return;
+  }
+  if (m.cmd === "openPack") { let ok = true; if (m.name !== packName) { ensurePack(m.name); ok = await openPack(m.name); } if (ok && m.then) await onMessage(m.then); }
   if (m.cmd === "select") { const i = pack.objects.findIndex(o => o.id === m.id); if (i >= 0) { sel = i; renderList(); renderEditor(); } }
-});
+  if (m.cmd === "gameEdit" && pack) await gameEdit(m.ev);
+  if (m.cmd === "layout") { document.body.classList.toggle("compact", !!m.compact); if (pack) renderEditor(); }
+  if (["announce", "save", "undo", "discard", "placeKind", "objOp"].includes(m.cmd) && pack) await fromView(m);
+}
 document.addEventListener("keydown", e => {
-  if ((e.ctrlKey || e.metaKey) && e.key === "s") { e.preventDefault(); save(); }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") { e.preventDefault(); if (document.body.classList.contains("compact")) parent.postMessage({ key: "ctrl-s" }, "*"); else save(); }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && !/INPUT|TEXTAREA/.test((document.activeElement || {}).tagName || "")) { e.preventDefault(); undo(); }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); parent.postMessage({ key: "ctrl-k" }, "*"); }
 });
 window.addEventListener("beforeunload", e => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
 setInterval(pollGame, 2500);
-boot().then(() => { parent.postMessage({ ready: true }, "*"); pollGame(); }).catch(e => status("Couldn't load: " + e.message, "bad"));
+boot().then(() => { parent.postMessage({ ready: true }, "*"); pollGame(); }).catch(e => { status("Couldn't load: " + e.message, "bad"); parent.postMessage({ ready: true, error: e.message }, "*"); });
 </script>
 </body>
 </html>

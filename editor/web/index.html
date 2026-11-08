@@ -5,34 +5,44 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Nine Lives Editor</title>
 <link rel="stylesheet" href="/style.css">
+<script src="/gameview.js"></script>
 <style>
-  body { display: grid; grid-template-columns: 210px 1fr; grid-template-rows: 52px 1fr; height: 100vh; overflow: hidden; }
-  #brand { grid-row: 1; grid-column: 1; display: flex; align-items: center; gap: 9px; padding: 0 16px; font-weight: 700; font-size: 15px;
-           background: var(--panel); border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-  #brand i { width: 12px; height: 12px; border-radius: 50%; background: var(--accent); }
-  #top { grid-row: 1; grid-column: 2; display: flex; align-items: center; gap: 12px; padding: 0 16px; background: var(--panel); border-bottom: 1px solid var(--line); }
-  #side { grid-row: 2; grid-column: 1; background: var(--panel); border-right: 1px solid var(--line); padding: 10px 8px; display: flex; flex-direction: column; gap: 2px; overflow: auto; }
-  #side button { display: flex; align-items: center; gap: 11px; width: 100%; text-align: left; border: 0; background: none; border-radius: 8px;
-                 padding: 9px 11px; color: var(--muted); font-size: 14px; position: relative; }
-  #side button svg { width: 18px; height: 18px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-  #side button:hover { background: var(--chip); color: var(--ink); }
-  #side button.on { background: var(--chip); color: var(--ink); font-weight: 600; box-shadow: inset 3px 0 var(--accent); }
-  #side button .dot { position: absolute; right: 10px; width: 8px; height: 8px; border-radius: 50%; background: var(--warn); display: none; }
-  #side button.dirty .dot { display: block; }
-  #side .navgroup { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); padding: 12px 11px 4px; }
-  #side .spacer { flex: 1; }
-  #side .help { font-size: 12px; color: var(--muted); padding: 8px 11px; line-height: 1.4; }
-  #frames { grid-row: 2; grid-column: 2; position: relative; }
-  #frames iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: none; background: var(--bg); }
-  #frames iframe.on { display: block; }
+  :root { --L: 260px; --R: 380px; --B: 300px; }
+  body { display: grid; grid-template-rows: 48px 1fr; height: 100vh; overflow: hidden; }
 
-  /* search */
-  #find { position: relative; flex: 1; max-width: 560px; }
-  #find input { width: 100%; padding: 8px 12px 8px 34px; border-radius: 8px; background: var(--bg); }
-  #find svg { position: absolute; left: 10px; top: 9px; width: 16px; height: 16px; stroke: var(--muted); fill: none; stroke-width: 2; }
-  #find kbd { position: absolute; right: 9px; top: 8px; font: 11px system-ui; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; }
-  #results { position: absolute; top: 40px; left: 0; right: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
-             box-shadow: 0 12px 32px rgba(0,0,0,.25); max-height: 60vh; overflow: auto; display: none; z-index: 10; }
+  /* menu bar */
+  #bar { display: flex; align-items: center; gap: 12px; padding: 0 12px; background: var(--panel); border-bottom: 1px solid var(--line); min-width: 0; }
+  #brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; white-space: nowrap; }
+  #brand i { width: 11px; height: 11px; border-radius: 50%; background: var(--accent); }
+  #ws, #ws2 { display: flex; gap: 6px; align-items: center; min-width: 0; }
+  #ws { overflow-x: auto; scrollbar-width: none; flex: 0 0 auto; max-width: 70vw; }
+  #ws::-webkit-scrollbar { display: none; }
+  #ws .grp { display: flex; gap: 2px; padding: 3px; border-radius: 10px; background: var(--bg); border: 1px solid var(--line); flex: none; }
+  #ws button, #ws2 button { display: flex; align-items: center; gap: 6px; border: 0; background: none; border-radius: 7px; height: 28px; padding: 0 10px;
+                            color: var(--muted); font-size: 13px; white-space: nowrap; position: relative; transition: background .12s, color .12s; }
+  #ws button svg, #ws2 button svg { width: 16px; height: 16px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+  #ws button:hover, #ws2 button:hover { background: var(--chip); color: var(--ink); }
+  #ws button.on, #ws2 button.on { background: color-mix(in srgb, var(--accent) 20%, var(--panel)); color: var(--ink); font-weight: 600; }
+  #ws button.on svg, #ws2 button.on svg { stroke: var(--accent); }
+  #ws2 button.icon { padding: 0 7px; } #ws2 button.icon .lbl { display: none; }
+  #ws button .dot, #ws2 button .dot { position: absolute; right: 4px; top: 4px; width: 6px; height: 6px; border-radius: 50%; background: var(--warn); display: none; }
+  #ws button.dirty .dot, #ws2 button.dirty .dot { display: block; }
+  /* ⧉ on a tab: open its page in a window of its own */
+  #ws button, #ws2 button { position: relative; }
+  #ws button .pop, #ws2 button .pop { display: none; position: absolute; right: 1px; bottom: 1px; width: 15px; height: 15px; line-height: 13px; font-size: 11px; font-weight: 400;
+      text-align: center; border-radius: 4px; background: var(--panel); border: 1px solid var(--line); color: var(--muted); }
+  #ws button:hover .pop, #ws2 button:hover .pop { display: block; }
+  #ws button .pop:hover, #ws2 button .pop:hover { color: var(--accent); border-color: var(--accent); }
+  #ws button.popped, #ws2 button.popped { box-shadow: inset 0 -2px 0 var(--accent); }
+  @media (max-width: 1450px) { #ws .grp:last-child .lbl { display: none; } #ws .grp:last-child button { padding: 0 7px; }
+                               #ws .grp:last-child button.on .lbl { display: inline; } #ws .grp:last-child button.on { padding: 0 10px; } }   /* where you are keeps its name */
+  @media (max-width: 1150px) { #ws .lbl, #ws2 .lbl { display: none; } #ws button, #ws2 button { padding: 0 7px; } #brand span { display: none; } }
+  #find { position: relative; flex: 1 1 220px; min-width: 110px; max-width: 320px; margin-left: auto; }
+  #find input { width: 100%; padding: 5px 10px 5px 30px; border-radius: 7px; background: var(--bg); font-size: 13px; }
+  #find svg { position: absolute; left: 9px; top: 7px; width: 15px; height: 15px; stroke: var(--muted); fill: none; stroke-width: 2; }
+  #find kbd { position: absolute; right: 8px; top: 6px; font: 10px system-ui; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 1px 4px; }
+  #results { position: absolute; top: 36px; right: 0; width: min(560px, 90vw); background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+             box-shadow: 0 12px 32px rgba(0,0,0,.3); max-height: 60vh; overflow: auto; display: none; z-index: 20; }
   #results.on { display: block; }
   #results .r { display: flex; gap: 10px; align-items: baseline; padding: 8px 12px; cursor: pointer; border-bottom: 1px solid var(--line); }
   #results .r:last-child { border-bottom: 0; }
@@ -41,127 +51,628 @@
   #results .r small { color: var(--muted); display: block; }
   #results .tag { font-size: 11px; min-width: 62px; color: var(--accent); font-weight: 600; }
   #results .none { padding: 12px; color: var(--muted); }
-  #where { color: var(--muted); font-size: 13px; margin-left: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40%; }
+  #where { display: none; }
+  #play { display: flex; gap: 6px; align-items: center; font-size: 12px; white-space: nowrap; }
+  #play button { padding: 3px 9px; font-size: 12px; }
+  #play .st { color: var(--muted); }
+  #play .st.ok { color: var(--ok); }
 
-  @media (max-width: 760px) {
-    body { grid-template-columns: 1fr; grid-template-rows: 52px auto 1fr; }
-    #brand { display: none; } #top { grid-column: 1; }
-    #side { grid-row: 2; flex-direction: row; overflow-x: auto; padding: 6px; border-right: 0; border-bottom: 1px solid var(--line); }
-    #side .navgroup, #side .spacer, #side .help { display: none; }
-    #side button { width: auto; white-space: nowrap; }
-    #frames { grid-row: 3; grid-column: 1; }
-  }
+  /* the stage: the Build layout, or one full page */
+  #stage { position: relative; min-height: 0; }
+  #build { position: absolute; inset: 0; display: grid;
+           grid-template-columns: var(--L) 5px 1fr 5px var(--R);
+           grid-template-rows: 36px 1fr 5px var(--B);
+           grid-template-areas: "left sl tool sr right" "left sl view sr right" "left sl sb sr right" "left sl bottom sr right"; }
+  #build.off { display: none; }
+  .slot { background: var(--panel); min-width: 0; min-height: 0; position: relative; }
+  #slotLeft { grid-area: left; } #slotRight { grid-area: right; } #slotBottom { grid-area: bottom; }
+  .slot.dock { display: flex; flex-direction: column; }
+  /* each panel holds one or two tab groups: stacked at the sides, side by side below */
+  #slotBottom.dock { flex-direction: row; }
+  .dgroup { display: flex; flex-direction: column; flex: 1 1 0; min-width: 0; min-height: 0; }
+  .dgroup.empty, .isplit.hide { display: none; }
+  .isplit { flex: none; background: var(--line); }
+  #slotLeft .isplit, #slotRight .isplit { height: 5px; cursor: row-resize; } #slotBottom .isplit { width: 5px; cursor: col-resize; }
+  .isplit:hover, .isplit.drag { background: var(--accent); }
+  .pbody { flex: 1; min-height: 0; min-width: 0; }
+  /* a group with no tabs folds away */
+  #build.no-left { grid-template-columns: 0 0 1fr 5px var(--R); } #build.no-right { grid-template-columns: var(--L) 5px 1fr 0 0; }
+  #build.no-left.no-right { grid-template-columns: 0 0 1fr 0 0; }
+  #build.no-bottom { grid-template-rows: 36px 1fr 0 0; }
+  /* the bottom panel across the whole width, under the side panels too */
+  #build.wide-bottom { grid-template-areas: "left sl tool sr right" "left sl view sr right" "sb sb sb sb sb" "bottom bottom bottom bottom bottom"; }
+  #build.no-left #slotLeft, #build.no-left #splitL, #build.no-right #slotRight, #build.no-right #splitR, #build.no-bottom #slotBottom, #build.no-bottom #splitB { display: none; }
+  .ptabs { overflow-x: auto; scrollbar-width: none; } .ptabs::-webkit-scrollbar { display: none; }
+  .ptabs .dtab { position: relative; flex: none; cursor: grab; user-select: none; }
+  .ptabs .dtab .x { margin-left: 5px; font-size: 10px; opacity: 0; }
+  .ptabs .dtab:hover .x, .ptabs .dtab.on .x { opacity: .5; } .ptabs .dtab .x:hover { opacity: 1; color: var(--bad); }
+  .ptabs .gbtn { flex: none; padding: 0 7px; }
+  /* dragging a tab: where it can go */
+  #dropzones { position: absolute; inset: 0; z-index: 40; pointer-events: none; }
+  body.dragging { user-select: none; cursor: grabbing; }
+  #dropzones .dz { position: absolute; border: 2px dashed color-mix(in srgb, var(--accent) 45%, transparent); border-radius: 8px; background: color-mix(in srgb, var(--accent) 6%, transparent);
+                   display: flex; align-items: center; justify-content: center; box-sizing: border-box; transition: background .08s; }
+  #dropzones .dz span { font-size: 13px; font-weight: 600; color: var(--ink); background: var(--panel); padding: 4px 10px; border-radius: 6px; opacity: .75; box-shadow: 0 2px 10px rgba(0,0,0,.3); }
+  #dropzones .dz.pop { border-style: dotted; background: transparent; }
+  #dropzones .dz.split { border-style: dashed; background: color-mix(in srgb, var(--accent) 12%, transparent); }
+  #dropzones .dz.hot { background: color-mix(in srgb, var(--accent) 30%, transparent); border-style: solid; border-color: var(--accent); }
+  #dropzones .dz.hot span { opacity: 1; }
+  #dropzones .ghost { position: absolute; padding: 3px 10px; border-radius: 6px; background: var(--accent); color: var(--accent-ink); font-size: 12px; font-weight: 600; box-shadow: 0 4px 14px rgba(0,0,0,.4); white-space: nowrap; }
+  #dropzones .ins { position: absolute; width: 3px; border-radius: 2px; background: var(--accent); display: none; }
+  .split { background: var(--line); }
+  .split:hover, .split.drag { background: var(--accent); }
+  #splitL { grid-area: sl; cursor: col-resize; } #splitR { grid-area: sr; cursor: col-resize; } #splitB { grid-area: sb; cursor: row-resize; }
+  .ptabs { display: flex; gap: 2px; align-items: center; height: 30px; padding: 0 6px; border-bottom: 1px solid var(--line); background: var(--bg); flex: none; }
+  .ptabs button { border: 0; border-radius: 6px; background: none; height: 22px; padding: 0 9px; font-size: 12px; color: var(--muted); }
+  .ptabs button:hover { color: var(--ink); background: var(--chip); }
+  .ptabs button.on { color: var(--ink); background: var(--panel); box-shadow: 0 0 0 1px var(--line); font-weight: 600; }
+  .ptabs .hint { margin-left: auto; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 8px; }
+  .pbody { flex: 1; position: relative; min-height: 0; }
+  #tool { grid-area: tool; display: flex; gap: 8px; align-items: center; padding: 0 10px; background: var(--panel); border-bottom: 1px solid var(--line); font-size: 12px; overflow-x: auto; white-space: nowrap; scrollbar-width: none; }
+  #tool::-webkit-scrollbar { display: none; }
+  #tool button { padding: 3px 9px; font-size: 12px; }
+  #tool select { padding: 2px 6px; font-size: 12px; }
+  #tool label { display: flex; gap: 4px; align-items: center; font-size: 12px; color: var(--ink); }
+  #tool .sep { width: 1px; height: 20px; background: var(--line); }
+  #tool .info { color: var(--muted); }
+  #tool .seg { display: flex; gap: 1px; padding: 2px; border-radius: 7px; background: var(--bg); border: 1px solid var(--line); flex: none; }
+  #tool .seg button { border: 0; background: none; padding: 2px 8px; border-radius: 5px; color: var(--muted); }
+  #tool .seg button.on { background: color-mix(in srgb, var(--accent) 22%, var(--panel)); color: var(--ink); font-weight: 600; }
+  #tool .seg button { display: grid; place-items: center; width: 30px; height: 24px; padding: 0; }
+  #tool .seg svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  #tool .grow { flex: 1; min-width: 20px; overflow: hidden; text-overflow: ellipsis; text-align: right; }
+  #tool #packInfo { max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+  #tool button.dirty { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .menu { position: absolute; z-index: 30; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 12px 32px rgba(0,0,0,.35);
+          padding: 6px; width: 270px; display: flex; flex-direction: column; gap: 2px; }
+  .menu[hidden] { display: none; }
+  .menu .mrow { display: flex; gap: 8px; align-items: center; padding: 4px 8px; font-size: 13px; color: var(--ink); }
+  .menu label.mrow:hover { background: var(--chip); border-radius: 6px; cursor: pointer; }
+  .menu .mrow b { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin-top: 4px; }
+  .menu select { flex: 1; }
+  .menu label.mrow { flex-direction: row; justify-content: flex-start; text-align: left; margin: 0; }
+  .menu label.mrow input[type=checkbox], #tool label input[type=checkbox] { display: inline-block; width: auto; flex: none; margin: 0; }
+  .menu label.mrow input[type=range] { display: inline-block; margin: 0; }
+  #viewport { grid-area: view; position: relative; background: #0d0d0e; min-height: 0; overflow: hidden; }
+  #viewport .msg { position: absolute; inset: 0; display: grid; place-items: center; color: #bbb; text-align: center; padding: 30px; line-height: 1.6; }
+  #viewport .gv { border: 0; border-radius: 0; margin: 0; height: 100%; display: flex; flex-direction: column; }
+  #viewport .gv .pic { flex: 1; display: grid; place-items: center; }
+  #viewport .gv img { max-height: 100%; width: auto; max-width: 100%; }
+
+  /* the pages (iframes), placed over the slots or over the whole stage */
+  #frames { position: absolute; inset: 0; pointer-events: none; }
+  #frames iframe { position: absolute; border: 0; display: none; background: var(--bg); pointer-events: auto; }
+  body.dragging #frames iframe { pointer-events: none; }
+  #frames .holder { position: absolute; display: none; align-items: center; justify-content: center; text-align: center; background: var(--bg); pointer-events: auto; padding: 20px; }
+  #frames .holder .title { font-size: 16px; font-weight: 600; }
+
 </style>
 </head>
 <body>
-<div id="brand"><i></i>Nine Lives Editor</div>
-<div id="top">
+<div id="bar">
+  <div id="brand"><i></i><span>Nine Lives Editor</span></div>
+  <nav id="ws">
+    <div class="grp"><button data-tab="build" title="Build"><svg viewBox="0 0 24 24"><path d="M12 3 3 8l9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg><span class="lbl">Build</span><span class="dot"></span></button><button data-tab="map" title="Map"><svg viewBox="0 0 24 24"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2z"/><path d="M9 4v14M15 6v14"/></svg><span class="lbl">Map</span><span class="dot"></span></button></div>
+    <div class="grp"><button data-tab="quests" title="Quests"><svg viewBox="0 0 24 24"><path d="M7 3h10a2 2 0 0 1 2 2v14l-3-2-3 2-3-2-3 2V5a2 2 0 0 1 2-2z"/><path d="M9 8h6M9 12h4"/></svg><span class="lbl">Quests</span><span class="dot"></span></button><button data-tab="items" title="Items"><svg viewBox="0 0 24 24"><path d="M14.5 3.5 20.5 9.5 10 20H4v-6z"/><path d="m12 6 6 6"/></svg><span class="lbl">Items</span><span class="dot"></span></button><button data-tab="loot" title="Monster loot"><svg viewBox="0 0 24 24"><rect x="3" y="9" width="18" height="11" rx="2"/><path d="M3 13h18M8 9V6a4 4 0 0 1 8 0v3"/></svg><span class="lbl">Monster loot</span><span class="dot"></span></button><button data-tab="shops" title="Shops"><svg viewBox="0 0 24 24"><path d="M4 9h16l-1 11H5z"/><path d="M8 9V7a4 4 0 0 1 8 0v2"/></svg><span class="lbl">Shops</span><span class="dot"></span></button><button data-tab="dialogs" title="Dialogue"><svg viewBox="0 0 24 24"><path d="M4 5h16v10H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg><span class="lbl">Dialogue</span><span class="dot"></span></button><button data-tab="scripts" title="Scripts"><svg viewBox="0 0 24 24"><path d="m8 7-5 5 5 5"/><path d="m16 7 5 5-5 5"/><path d="m14 4-4 16"/></svg><span class="lbl">Scripts</span><span class="dot"></span></button></div>
+  </nav>
   <div id="find">
     <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
-    <input id="q" type="search" placeholder="Find a quest, item, monster, shop or NPC…" autocomplete="off">
+    <input id="q" type="search" placeholder="Find anything…" autocomplete="off">
     <kbd>Ctrl K</kbd>
     <div id="results"></div>
   </div>
   <span id="where"></span>
+  <div id="play" title="The game runs in the background as the editor's 3D view: no character, a free camera">
+    <span class="st" id="playSt">3D view: off</span>
+    <button id="playGo" class="primary">▶ Start</button>
+    <button id="playShow" hidden title="Show or hide the game's own window">Game window</button>
+    <button id="playStop" hidden>Stop</button>
+  </div>
+  <div id="ws2"><button data-tab="overview" title="Packs &amp; mods"><svg viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg><span class="lbl">Packs &amp; mods</span><span class="dot"></span></button><button data-tab="home" title="Help" class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14"/><path d="M12 17h0"/></svg><span class="lbl">Help</span><span class="dot"></span></button></div>
 </div>
-<nav id="side">
-  <button data-tab="home"><svg viewBox="0 0 24 24"><path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/></svg>Home<span class="dot"></span></button>
-  <button data-tab="map"><svg viewBox="0 0 24 24"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2z"/><path d="M9 4v14M15 6v14"/></svg>Map<span class="dot"></span></button>
-  <div class="navgroup">Make changes</div>
-  <button data-tab="quests"><svg viewBox="0 0 24 24"><path d="M7 3h10a2 2 0 0 1 2 2v14l-3-2-3 2-3-2-3 2V5a2 2 0 0 1 2-2z"/><path d="M9 8h6M9 12h4"/></svg>Quests<span class="dot"></span></button>
-  <button data-tab="items"><svg viewBox="0 0 24 24"><path d="M14.5 3.5 20.5 9.5 10 20H4v-6z"/><path d="m12 6 6 6"/></svg>Items<span class="dot"></span></button>
-  <button data-tab="loot"><svg viewBox="0 0 24 24"><rect x="3" y="9" width="18" height="11" rx="2"/><path d="M3 13h18M8 9V6a4 4 0 0 1 8 0v3"/></svg>Monster loot<span class="dot"></span></button>
-  <button data-tab="shops"><svg viewBox="0 0 24 24"><path d="M4 9h16l-1 11H5z"/><path d="M8 9V7a4 4 0 0 1 8 0v2"/></svg>Shops<span class="dot"></span></button>
-  <button data-tab="npcs"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg>NPCs<span class="dot"></span></button>
-  <button data-tab="world"><svg viewBox="0 0 24 24"><path d="M3 21h18"/><path d="M5 21V10l7-5 7 5v11"/><path d="M10 21v-6h4v6"/></svg>World<span class="dot"></span></button>
-  <button data-tab="dialogs"><svg viewBox="0 0 24 24"><path d="M4 5h16v10H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg>Dialogue<span class="dot"></span></button>
-  <button data-tab="scripts"><svg viewBox="0 0 24 24"><path d="m8 7-5 5 5 5"/><path d="m16 7 5 5-5 5"/><path d="m14 4-4 16"/></svg>Scripts<span class="dot"></span></button>
-  <div class="navgroup">Manage</div>
-  <button data-tab="overview"><svg viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>Packs &amp; mods<span class="dot"></span></button>
-  <div class="spacer"></div>
-  <div class="help">Changes are saved as <b>packs</b> in the game's Mods folder. They load when the game starts.</div>
-</nav>
-<div id="frames"></div>
+<div id="stage">
+  <div id="build">
+    <div class="slot dock" id="slotLeft"><div class="dgroup" data-g="left"><div class="ptabs"></div><div class="pbody"></div></div><div class="isplit" data-s="left" title="Drag to resize"></div><div class="dgroup" data-g="left2"><div class="ptabs"></div><div class="pbody"></div></div></div>
+    <div class="split" id="splitL" title="Drag to resize"></div>
+    <div id="tool">
+      <div class="seg" id="toolSeg">
+        <button data-t="select" title="Select (Q)"><svg viewBox="0 0 24 24"><path d="M5 3l14 8-6 2-2 6z"/></svg></button>
+        <button data-t="move" class="on" title="Move (W): drag the arrows, or the thing itself"><svg viewBox="0 0 24 24"><path d="M12 2v20M2 12h20M12 2l-3 3M12 2l3 3M12 22l-3-3M12 22l3-3M2 12l3-3M2 12l3 3M22 12l-3-3M22 12l-3 3"/></svg></button>
+        <button data-t="rotate" title="Rotate (E): drag a ring"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/></svg></button>
+        <button data-t="scale" title="Scale (R): drag the cube"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="10" height="10"/><path d="M13 11l8-8M15 3h6v6"/></svg></button>
+      </div>
+      <label class="snap" title="Snap moves to a grid and turns to angle steps (hold Ctrl in the 3D view to flip it)"><input type="checkbox" id="snapOn">Snap</label>
+      <select id="snapGrid" title="Grid size"><option value="0.25">0.25 m</option><option value="0.5" selected>0.5 m</option><option value="1">1 m</option><option value="2">2 m</option><option value="4">4 m</option></select>
+      <select id="snapAngle" title="Angle step"><option value="5">5°</option><option value="15" selected>15°</option><option value="45">45°</option><option value="90">90°</option></select>
+      <span class="sep"></span>
+      <button id="tSave" title="Save the World, NPC and enemy packs (Ctrl+S)">Save</button>
+      <button id="tUndo" title="Undo (Ctrl+Z)">Undo</button>
+      <button id="tDiscard" title="Throw away unsaved changes">Discard</button>
+      <span class="info grow" id="toolNote"></span>
+      <span class="info" id="packInfo" title="The World pack being edited (change it in the inspector)"></span>
+      <button id="viewBtn" title="Zone, view and 3D view settings">View ▾</button>
+    </div>
+    <div id="viewMenu" class="menu" hidden style="position:absolute">
+      <div class="mrow"><b>Zone</b></div>
+      <div class="mrow"><select id="zoneSel" title="Go to another zone"></select><button id="zoneGo">Go</button></div>
+      <div class="mrow"><b>View</b></div>
+      <label class="mrow" title="Hide the game's NPCs and monsters (yours too)"><input type="checkbox" data-tool="npcs">Hide NPCs and monsters</label>
+      <label class="mrow" title="Even, bright light everywhere"><input type="checkbox" data-tool="bright">Bright light</label>
+      <label class="mrow" title="No fog, to see far"><input type="checkbox" data-tool="fog">No fog</label>
+      <label class="mrow" title="How fast the view turns when you hold the right mouse button">Look speed <input type="range" id="lookSpeed" min="0.1" max="2" step="0.05" style="flex:1"></label>
+      <div class="mrow"><b>Panels</b></div>
+      <label class="mrow" title="The bottom panel runs under the left and right panels too"><input type="checkbox" id="wideBottom">Bottom panel across the whole width</label>
+      <div class="mrow"><button id="resetDock" title="Outliner left; Placed thing, NPC, Enemy right; Assets and Map below; no splits">Put the panels back as they were</button></div>
+      <div class="mrow"><b>3D view</b></div>
+      <label class="mrow" title="Start the 3D view by itself when the editor opens"><input type="checkbox" id="autoStart">Start it when the editor opens</label>
+    </div>
+    <div id="viewport"><div class="msg">Starting the 3D view…</div></div>
+    <div class="split" id="splitR" title="Drag to resize"></div>
+    <div class="split" id="splitB" title="Drag to resize"></div>
+    <div class="slot dock" id="slotRight"><div class="dgroup" data-g="right"><div class="ptabs"></div><div class="pbody"></div></div><div class="isplit" data-s="right" title="Drag to resize"></div><div class="dgroup" data-g="right2"><div class="ptabs"></div><div class="pbody"></div></div></div>
+    <div class="slot dock" id="slotBottom"><div class="dgroup" data-g="bottom"><div class="ptabs"></div><div class="pbody"></div></div><div class="isplit" data-s="bottom" title="Drag to resize"></div><div class="dgroup" data-g="bottom2"><div class="ptabs"></div><div class="pbody"></div></div></div>
+  </div>
+  <div id="frames"></div>
+</div>
 <script>
-// Each tab is its own page in an iframe, made on first visit and kept, so unsaved work survives
-// switching tabs. Items, Monster loot and Shops share one page (content packs).
-const PAGE = { home: "/home", overview: "/overview", quests: "/quests", items: "/content", loot: "/content", shops: "/content", npcs: "/npcs", world: "/world", scripts: "/scripts", map: "/map", dialogs: "/dialogs" };
-const NAME = { home: "Home", overview: "Packs & mods", quests: "Quests", items: "Items", loot: "Monster loot", shops: "Shops", npcs: "NPCs", world: "World", scripts: "Scripts", map: "Map", dialogs: "Dialogue" };
-const frames = {}, ready = {}, queue = {}, dirty = {};
+// The editor's settings (panel layout and sizes, last tab, window spots…) are kept in the browser's storage,
+// which goes with this server's address, and its port changes every run. So they're also kept in a file by
+// the editor (/api/prefs): put them back first, and save them when they change.
+(() => {
+  const snap = () => { const o = {}; try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith("nle.")) o[k] = localStorage.getItem(k); } } catch (e) {} return JSON.stringify(o); };
+  try {
+    const x = new XMLHttpRequest(); x.open("GET", "/api/prefs", false); x.send();   // (before anything reads them)
+    const saved = x.status === 200 ? JSON.parse(x.responseText || "{}") : {};
+    for (const k in saved) if (k.startsWith("nle.") && localStorage.getItem(k) == null && typeof saved[k] === "string") localStorage.setItem(k, saved[k]);
+  } catch (e) {}
+  let last = snap();
+  const push = () => { const s = snap(); if (s === last) return; last = s; try { fetch("/api/prefs/save", { method: "POST", body: s, keepalive: true }).catch(() => {}); } catch (e) {} };
+  setInterval(push, 3000);
+  addEventListener("pagehide", push);
+})();
+// Workspaces: "build" is the 3D view with panels around it (outliner left, inspector right, assets and
+// map below); the others are one page over the whole stage. Each page is its own iframe, made on first
+// use and kept (unsaved work survives switching); the World, NPCs and Map pages are moved (not reloaded)
+// between their panel in Build and their own full workspace. Items, Monster loot and Shops share a page.
+const PAGE = { home: "/home", overview: "/overview", quests: "/quests", items: "/content", loot: "/content", shops: "/content", npcs: "/npcs", enemies: "/enemies", world: "/world",
+               scripts: "/scripts", map: "/map", dialogs: "/dialogs", outliner: "/outliner", assets: "/assets", build: null };
+const NAME = { home: "Help", overview: "Packs & mods", quests: "Quests", items: "Items", loot: "Monster loot", shops: "Shops", npcs: "NPCs", enemies: "Enemies", world: "World",
+               scripts: "Scripts", map: "Map", dialogs: "Dialogue", outliner: "Outliner", assets: "Assets" };
+const frames = {}, ready = {}, queue = {}, dirty = {}, compactSent = {};
 let current = null;
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
 function frameFor(tab) {
-  const url = PAGE[tab];
+  const url = PAGE[tab]; if (!url || popped[url]) return null;
   if (!frames[url]) {
     const f = document.createElement("iframe");
     f.src = url + (url === "/content" ? "?tab=" + tab : "");
     f.title = NAME[tab];
+    f.addEventListener("load", () => { try { watchSelects(f.contentDocument); } catch (e) {} });   // its drop-downs hide the game window while open
     $("#frames").appendChild(f);
     frames[url] = f; queue[url] = [];
   }
   return frames[url];
 }
 function send(tab, msg) {
-  const url = PAGE[tab], f = frameFor(tab);
+  const url = PAGE[tab]; if (!url) return;
+  if (popped[url]) { if (ready[url]) deliver(url, msg); else queue[url].push(msg); return; }
+  const f = frameFor(tab); if (!f) return;
   if (ready[url]) f.contentWindow.postMessage(msg, "*"); else queue[url].push(msg);
 }
+function post(url, msg) { if (popped[url]) { if (ready[url]) deliver(url, msg); return; } const f = frames[url]; if (f && f.contentWindow && ready[url]) f.contentWindow.postMessage(msg, "*"); }
+
+// ---------------------------------------------------------------- placing the pages
+function rectIn(el) { const s = $("#stage").getBoundingClientRect(), r = el.getBoundingClientRect(); return { left: r.left - s.left, top: r.top - s.top, width: r.width, height: r.height }; }
+// Panels sized on a bigger screen (remembered) still leave room for the 3D view in a smaller window.
+function fitPanels() {
+  const st = $("#stage").getBoundingClientRect(); if (!st.width || !st.height) return;
+  const css = k => parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--" + k)) || 0;
+  let saved = {}; try { saved = sizes; } catch (e) {}   // what you sized them to (the window may have grown again)
+  let L = saved.L || 260, R = saved.R || 380, B = saved.B || 300;
+  const showL = sideHas("left"), showR = sideHas("right");
+  const roomW = st.width - 10 - Math.max(260, st.width * 0.4), roomH = st.height - 36 - 5 - Math.max(160, st.height * 0.35);   // room for the 3D view
+  const LR = (showL ? L : 0) + (showR ? R : 0);
+  if (LR > roomW && LR > 0) { const f = Math.max(roomW, 240) / LR; L = Math.max(120, Math.floor(L * f)); R = Math.max(120, Math.floor(R * f)); }
+  if (B > roomH) B = Math.max(100, Math.floor(roomH));
+  for (const [k, v] of [["L", L], ["R", R], ["B", B]]) if (Math.abs(css(k) - v) > 0.5) document.documentElement.style.setProperty("--" + k, v + "px");
+}
+function layout() {
+  const building = current === "build";
+  if (building) fitPanels();
+  $("#build").classList.toggle("off", !building);
+  const want = {};   // url -> element to cover (or "full")
+  if (building) GROUPS.forEach(g => { if (dock.on[g]) want[PAGE[dock.on[g]]] = bodyOf(g); });
+  else if (PAGE[current]) { frameFor(current); want[PAGE[current]] = "full"; }   // make the page the first time it's opened
+  if (building) GROUPS.forEach(g => { if (dock.on[g]) frameFor(dock.on[g]); });
+  for (const url in frames) {
+    const f = frames[url], w = want[url];
+    if (!w) { f.style.display = "none"; continue; }
+    const r = w === "full" ? { left: 0, top: 0, width: $("#stage").clientWidth, height: $("#stage").clientHeight } : rectIn(w);
+    Object.assign(f.style, { display: "block", left: r.left + "px", top: r.top + "px", width: r.width + "px", height: r.height + "px" });
+    const compact = w !== "full";
+    if (compactSent[url] !== compact) { compactSent[url] = compact; if (ready[url]) f.contentWindow.postMessage({ cmd: "layout", compact }, "*"); else queue[url].push({ cmd: "layout", compact }); }
+  }
+  placeHolders(want);
+  placeGame();
+}
+const BUILD_PAGES = ["world", "npcs", "enemies"];   // edited in Build's inspector
 function show(tab, msg) {
-  if (!PAGE[tab]) tab = "home";
-  const f = frameFor(tab);
+  if (!(tab in PAGE)) tab = "build";
   current = tab;
-  Object.values(frames).forEach(x => x.classList.toggle("on", x === f));
-  document.querySelectorAll("#side button").forEach(b => b.classList.toggle("on", b.dataset.tab === tab));
+  const lit = BUILD_PAGES.includes(tab) ? "build" : tab;   // their full pages belong to Build
+  document.querySelectorAll("#ws button, #ws2 button").forEach(b => b.classList.toggle("on", b.dataset.tab === lit));
   if (PAGE[tab] === "/content") send(tab, { contentTab: tab });
   if (msg) send(tab, msg);
+  layout();
   history.replaceState(null, "", "#" + tab);
   try { localStorage.setItem("nle.tab", tab); } catch (e) {}
-  $("#where").textContent = "";
 }
+
+// ---------------------------------------------------------------- pages in windows of their own
+// The ⧉ on a tab (or a middle-click) opens its page in a window of its own (popout.html around it): move
+// it anywhere, maximise it, full screen it. Its place here shows "open in its own window"; messages to
+// and from it go through window.open's link. "Dock in Build" there puts it in one of Build's panels.
+const popped = {}, popTab = {}, holders = {};
+function deliver(url, msg) {
+  const w = popped[url];
+  if (w) { try { if (!w.closed) w.postMessage({ toPage: msg }, "*"); } catch (e) {} return; }
+  const f = frames[url]; if (f && f.contentWindow) f.contentWindow.postMessage(msg, "*");
+}
+const tabOf = url => popTab[url] || Object.keys(PAGE).find(t => PAGE[t] === url);
+function popOut(tab) {
+  const url = PAGE[tab]; if (!url || tab === "build") return;
+  const w0 = popped[url]; if (w0) { try { if (!w0.closed) { w0.focus(); return; } } catch (e) {} }
+  if (dirty[url]) { alert(`${NAME[tab] || tab} has unsaved changes: save or discard them first, then open it in its own window.`); return; }
+  let g = null; try { g = JSON.parse(localStorage.getItem("nle.pop." + url) || "null"); } catch (e) {}
+  const feat = g && g.w > 300 ? `popup=yes,left=${g.x},top=${g.y},width=${g.w},height=${g.h}` : "popup=yes,width=1050,height=780";
+  const page = url + (url === "/content" ? "?tab=" + tab : "");
+  const w = window.open(`/popout?url=${encodeURIComponent(url)}&page=${encodeURIComponent(page)}&name=${encodeURIComponent(NAME[tab] || tab)}`, "nle" + url.replace(/\W/g, "_"), feat);
+  if (!w) { alert("Couldn't open a new window."); return; }
+  if (frames[url]) { frames[url].remove(); delete frames[url]; }   // the page lives in that window now (it loads there from what's saved)
+  popped[url] = w; popTab[url] = tab; ready[url] = false; queue[url] = []; delete compactSent[url]; dirty[url] = false;
+  markDirty(); markPopped(); layout();
+}
+function popClosed(url) {
+  if (!(url in popped)) return;
+  delete popped[url]; ready[url] = false; queue[url] = []; dirty[url] = false;
+  markDirty(); showSaveState(); markPopped(); layout();   // it's back here (a fresh copy, made when it's next shown)
+}
+setInterval(() => { for (const u in popped) { let gone = true; try { gone = popped[u].closed; } catch (e) {} if (gone) popClosed(u); } }, 1000);
+function bringBack(url) { const w = popped[url]; if (w) try { w.close(); } catch (e) {} }   // (that window asks about unsaved changes)
+function markPopped() { document.querySelectorAll("#ws button, #ws2 button").forEach(b => b.classList.toggle("popped", !!popped[PAGE[b.dataset.tab]])); }
+function holder(url) {
+  if (!holders[url]) {
+    const h = document.createElement("div"); h.className = "holder";
+    h.innerHTML = `<div><p class="title"></p><p class="hint">Move it, maximise it or full screen it as you like. “Dock in Build” at its top puts it in one of Build's panels.</p>
+      <p><button class="primary" data-h="show">Show the window</button> <button data-h="back">Bring it back here</button></p></div>`;
+    h.querySelector('[data-h="show"]').onclick = () => { const w = popped[url]; if (w) try { w.focus(); } catch (e) {} };
+    h.querySelector('[data-h="back"]').onclick = () => bringBack(url);
+    $("#frames").appendChild(h); holders[url] = h;
+  }
+  holders[url].querySelector(".title").textContent = `${NAME[tabOf(url)] || "This page"} is open in its own window`;
+  return holders[url];
+}
+function placeHolders(want) {
+  for (const u in holders) holders[u].style.display = "none";
+  for (const u in want) {
+    if (!popped[u]) continue;
+    const w = want[u], h = holder(u);
+    const r = w === "full" ? { left: 0, top: 0, width: $("#stage").clientWidth, height: $("#stage").clientHeight } : rectIn(w);
+    Object.assign(h.style, { display: "flex", left: r.left + "px", top: r.top + "px", width: r.width + "px", height: r.height + "px" });
+  }
+}
+
+// ---------------------------------------------------------------- Build's panels: tab groups you rearrange
+// Like Premiere Pro's panels: Build has three groups (left, right, bottom), each a row of tabs. Drag a tab
+// (or a tab from the top row) onto a group to put it there, onto an empty side to open a group there, or
+// onto the 3D view to open it in a window of its own. A group with no tabs folds away. Remembered.
+// Each side can be split in two: a second group (left2, right2, bottom2) under it, or beside it below.
+const SIDES = ["left", "right", "bottom"];
+const GROUPS = ["left", "left2", "right", "right2", "bottom", "bottom2"];
+const sideOf = g => g.replace("2", "");
+const DOCK_DEFAULT = { left: ["outliner"], left2: [], right: ["world", "npcs", "enemies"], right2: [], bottom: ["assets", "map"], bottom2: [],
+                       on: { left: "outliner", right: "world", bottom: "assets" }, split: {} };
+const TAB_LABEL = { world: "Placed thing", npcs: "NPC", enemies: "Enemy", outliner: "Outliner", assets: "Assets", map: "Map" };
+const HINT = { map: "Drag your things and NPCs on the map; click a spot to add something", assets: "Click an asset, then click in the 3D view to put it down" };
+const SIDE_NAME = { left: "left", right: "right", bottom: "below" };
+const labelOf = t => TAB_LABEL[t] || NAME[t] || t;
+let dock = (() => {
+  let d = null; try { d = JSON.parse(localStorage.getItem("nle.dock") || "null"); } catch (e) {}
+  if (d) GROUPS.forEach(g => { if (g.endsWith("2") && !Array.isArray(d[g])) d[g] = []; });   // saved before panels could split
+  if (!d || !GROUPS.every(g => Array.isArray(d[g]))) {
+    d = JSON.parse(JSON.stringify(DOCK_DEFAULT));
+    try { const old = JSON.parse(localStorage.getItem("nle.docks") || "{}"); for (const [t, w] of Object.entries(old)) if (PAGE[t]) d[w === "bottom" ? "bottom" : "right"].push(t); } catch (e) {}   // the earlier "dock in Build"
+  }
+  d.on = d.on || {}; d.split = d.split || {};
+  GROUPS.forEach(g => { d[g] = d[g].filter(t => PAGE[t] && t !== "build"); if (!d[g].includes(d.on[g])) d.on[g] = d[g][0] || null; });
+  return d;
+})();
+let insp = dock.on.right, bot = dock.on.bottom;   // (older code reads these)
+function saveDock() {
+  // a side's second group moves up when its first one empties
+  SIDES.forEach(g => { const g2 = g + "2"; if (!dock[g].length && dock[g2].length) { dock[g] = dock[g2]; dock.on[g] = dock.on[g2]; dock[g2] = []; dock.on[g2] = null; } });
+  insp = dock.on.right; bot = dock.on.bottom; try { localStorage.setItem("nle.dock", JSON.stringify(dock)); } catch (e) {} }
+const groupOf = t => GROUPS.find(g => dock[g].includes(t)) || null;
+function takeOut(t) {   // from wherever it is (and anything showing the same page, like Items/Loot/Shops)
+  GROUPS.forEach(g => {
+    const before = dock[g].length;
+    dock[g] = dock[g].filter(x => x !== t && PAGE[x] !== PAGE[t]);
+    if (dock[g].length !== before && !dock[g].includes(dock.on[g])) dock.on[g] = dock[g][0] || null;
+  });
+}
+/** Put a tab in a group (at index, or the end) and show it there. */
+function moveTab(t, g, index) {
+  if (!PAGE[t] || t === "build" || !GROUPS.includes(g)) return;
+  const at = dock[g].indexOf(t); if (at >= 0 && index != null && at < index) index--;
+  takeOut(t);
+  if (index == null || index > dock[g].length) index = dock[g].length;
+  dock[g].splice(Math.max(0, index), 0, t); dock.on[g] = t;
+  saveDock(); renderDock(); layout();
+}
+/** Show a tab where it's docked; not docked yet: in the group it would usually go in. */
+function activate(t, prefer) {
+  const g = groupOf(t);
+  if (!g) { moveTab(t, prefer || "right"); return; }
+  dock.on[g] = t; saveDock(); renderDock(); layout();
+}
+function closeTab(t) { takeOut(t); saveDock(); renderDock(); layout(); }
+function setInsp(k) { activate(k, "right"); }
+function setBot(k) { activate(k, "bottom"); }
+function resetDock() { dock = JSON.parse(JSON.stringify(DOCK_DEFAULT)); saveDock(); renderDock(); layout(); }
+const slotOf = g => { const s = sideOf(g); return $(s === "left" ? "#slotLeft" : s === "right" ? "#slotRight" : "#slotBottom"); };
+const groupEl = g => document.querySelector(`.dgroup[data-g="${g}"]`);
+const bodyOf = g => groupEl(g).querySelector(".pbody");
+const sideHas = s => dock[s].length + dock[s + "2"].length > 0;
+function setWide(on) { dock.wide = !!on; saveDock(); renderDock(); layout(); }
+function renderDock() {
+  const b = $("#build");
+  b.classList.toggle("wide-bottom", !!dock.wide);
+  const wb = $("#wideBottom"); if (wb) wb.checked = !!dock.wide;
+  SIDES.forEach(s => {
+    b.classList.toggle("no-" + s, !sideHas(s));
+    const both = dock[s].length > 0 && dock[s + "2"].length > 0, f = Math.min(0.85, Math.max(0.15, dock.split[s] || 0.5));
+    groupEl(s).style.flex = both ? `${f} 1 0` : ""; groupEl(s + "2").style.flex = both ? `${1 - f} 1 0` : "";
+    slotOf(s).querySelector(".isplit").classList.toggle("hide", !both);
+  });
+  GROUPS.forEach(g => {
+    const grp = groupEl(g), bar = grp.querySelector(".ptabs"), on = dock.on[g];
+    grp.classList.toggle("empty", !dock[g].length);
+    bar.innerHTML = dock[g].map(t => `<button class="dtab${t === on ? " on" : ""}" data-dtab="${esc(t)}" title="${esc(labelOf(t))}: drag to move it to another panel">${esc(labelOf(t))}<span class="x" title="Close this tab">✕</span></button>`).join("") +
+      `<span class="hint">${esc(HINT[on] || "")}</span>` +
+      (g === "bottom" ? `<button class="gbtn" data-gwide title="${dock.wide ? "Fit the bottom panel between the side panels" : "Stretch the bottom panel across the whole width"}">${dock.wide ? "⇥⇤" : "⇤⇥"}</button>` : "") +
+      (on ? `<button class="gbtn" data-gpop="${g}" title="Open ${esc(labelOf(on))} in a window of its own">⧉</button><button class="gbtn" data-gfull="${g}" title="Open ${esc(labelOf(on))} as a full page (Build goes back)">⤢</button>` : "");
+    bar.querySelectorAll("[data-dtab]").forEach(btn => {
+      const t = btn.dataset.dtab;
+      btn.onclick = e => { if (tabDragged) return; if (e.target.closest(".x")) { closeTab(t); return; } activate(t); const w = popped[PAGE[t]]; if (w) try { w.focus(); } catch (er) {} };
+      btn.onmousedown = e => { if (e.button === 0 && !e.target.closest(".x")) startTabDrag(e, t); };
+      btn.onauxclick = e => { if (e.button === 1) { e.preventDefault(); takeOut(t); saveDock(); renderDock(); popOut(t); } };
+    });
+    const wide = bar.querySelector("[data-gwide]"); if (wide) wide.onclick = () => setWide(!dock.wide);
+    const pop = bar.querySelector("[data-gpop]"); if (pop) pop.onclick = () => popOut(dock.on[g]);
+    const full = bar.querySelector("[data-gfull]"); if (full) full.onclick = () => show(dock.on[g]);
+  });
+}
+
+// ---------------------------------------------------------------- dragging a tab
+let tabDragged = false, tabDrag = null;
+function startTabDrag(e, t) {
+  e.preventDefault();   // no text selection (it would turn into the browser's own drag and swallow the mouse)
+  try { getSelection().removeAllRanges(); } catch (er) {}
+  const x0 = e.clientX, y0 = e.clientY; let moving = false;
+  const move = ev => {
+    if (ev.buttons === 0) { up(ev); return; }   // the button came up somewhere we didn't hear about
+    if (!moving) { if (Math.hypot(ev.clientX - x0, ev.clientY - y0) < 7) return; moving = true; beginTabDrag(t); }
+    ev.preventDefault(); dragOver(ev.clientX, ev.clientY);
+  };
+  const up = ev => {
+    window.removeEventListener("mousemove", move, true); window.removeEventListener("mouseup", up, true);
+    if (!moving) return;
+    tabDragged = true; setTimeout(() => tabDragged = false, 0);   // not a click
+    endTabDrag(ev.clientX, ev.clientY);
+  };
+  window.addEventListener("mousemove", move, true); window.addEventListener("mouseup", up, true);
+}
+function beginTabDrag(t) {
+  if (current !== "build") show("build");
+  document.querySelectorAll("#dropzones").forEach(o => o.remove());   // one left from a drag that never ended
+  document.body.classList.add("dragging"); hideGame();
+  const st = $("#stage").getBoundingClientRect(), bd = $("#build").getBoundingClientRect();
+  const r = el => { const x = el.getBoundingClientRect(); return { left: x.left - st.left, top: x.top - st.top, width: x.width, height: x.height }; };
+  const vp = r($("#viewport")), zones = [];
+  SIDES.forEach(g => {
+    const g2 = g + "2";
+    if (dock[g].length && dock[g2].length) {   // split already: either half
+      zones.push({ g, rect: r(groupEl(g)), label: `Add to this panel` });
+      zones.push({ g: g2, rect: r(groupEl(g2)), label: `Add to this panel` });
+    } else if (dock[g].length) {   // the far end of the panel splits it
+      const R = r(groupEl(g)), below = g !== "bottom", cut = below ? Math.max(70, R.height * 0.28) : Math.max(110, R.width * 0.28);
+      const main = below ? { ...R, height: R.height - cut } : { ...R, width: R.width - cut };
+      const end = below ? { left: R.left, top: R.top + R.height - cut, width: R.width, height: cut } : { left: R.left + R.width - cut, top: R.top, width: cut, height: R.height };
+      zones.push({ g, rect: main, label: `Add to this panel` });
+      zones.push({ g: g2, rect: end, label: below ? "Split: put it below" : "Split: put it beside", split: true });
+    }
+    else {   // an empty side: a strip there opens a new group
+      const W = Math.max(220, bd.width * 0.2), H = Math.max(160, vp.height * 0.38);
+      const rect = g === "left" ? { left: vp.left, top: vp.top, width: Math.min(W, vp.width / 3), height: vp.height }
+                 : g === "right" ? { left: vp.left + vp.width - Math.min(W, vp.width / 3), top: vp.top, width: Math.min(W, vp.width / 3), height: vp.height }
+                 : dock.wide ? { left: bd.left - st.left, top: vp.top + vp.height - H, width: bd.width, height: H }
+                 : { left: vp.left, top: vp.top + vp.height - H, width: vp.width, height: H };
+      zones.push({ g, rect, label: `Dock ${SIDE_NAME[g]}`, edge: true });
+    }
+  });
+  zones.push({ pop: true, rect: vp, label: "Open in a window of its own" });   // the 3D view itself
+  const ov = document.createElement("div"); ov.id = "dropzones";
+  ov.innerHTML = zones.map((z, i) => `<div class="dz${z.edge ? " edge" : ""}${z.split ? " split" : ""}${z.pop ? " pop" : ""}" data-z="${i}" style="left:${z.rect.left}px;top:${z.rect.top}px;width:${z.rect.width}px;height:${z.rect.height}px"><span>${esc(z.label)}</span></div>`).join("") +
+    `<div class="ghost">${esc(labelOf(t))}</div><div class="ins"></div>`;
+  $("#stage").appendChild(ov);
+  tabDrag = { t, zones, ov, st };
+}
+function zoneAt(x, y) {
+  const d = tabDrag, px = x - d.st.left, py = y - d.st.top;
+  const inside = z => px >= z.rect.left && px < z.rect.left + z.rect.width && py >= z.rect.top && py < z.rect.top + z.rect.height;
+  return d.zones.find(z => (z.edge || z.split) && inside(z)) || d.zones.find(z => z.g && !z.edge && inside(z)) || d.zones.find(z => z.pop && inside(z)) || null;
+}
+// Where in a group's tab row it would go (before the tab under the pointer).
+function insertIndex(g, x) {
+  const btns = [...groupEl(g).querySelectorAll(".dtab")];
+  for (let i = 0; i < btns.length; i++) { const r = btns[i].getBoundingClientRect(); if (x < r.left + r.width / 2) return { i, x: r.left }; }
+  const last = btns[btns.length - 1]; return { i: btns.length, x: last ? last.getBoundingClientRect().right + 1 : null };
+}
+function dragOver(x, y) {
+  const d = tabDrag; if (!d) return;
+  const z = zoneAt(x, y);
+  d.ov.querySelectorAll(".dz").forEach(el => el.classList.toggle("hot", d.zones[+el.dataset.z] === z));
+  const gh = d.ov.querySelector(".ghost"); gh.style.left = (x - d.st.left + 12) + "px"; gh.style.top = (y - d.st.top + 10) + "px";
+  const ins = d.ov.querySelector(".ins");
+  if (z && z.g && !z.edge && !z.split) {   // a line where it'd go in the tab row
+    const p = insertIndex(z.g, x), bar = groupEl(z.g).querySelector(".ptabs").getBoundingClientRect();
+    if (p.x != null) Object.assign(ins.style, { display: "block", left: (p.x - d.st.left - 1) + "px", top: (bar.top - d.st.top + 4) + "px", height: (bar.height - 8) + "px" });
+    else ins.style.display = "none";
+  } else ins.style.display = "none";
+}
+function endTabDrag(x, y) {
+  const d = tabDrag; if (!d) return;
+  const z = zoneAt(x, y);
+  d.ov.remove(); tabDrag = null;
+  document.body.classList.remove("dragging");
+  if (z) {
+    const url = PAGE[d.t];
+    if (z.pop) { takeOut(d.t); saveDock(); renderDock(); popOut(d.t); }
+    else {
+      if (popped[url]) {   // out in its own window: bring it back in
+        if (dirty[url]) { alert(`${labelOf(d.t)} has unsaved changes in its window: save them there first.`); layout(); return; }
+        const w = popped[url]; popClosed(url); try { w.close(); } catch (e) {}
+      }
+      moveTab(d.t, z.g, z.edge || z.split ? null : insertIndex(z.g, x).i);
+    }
+  }
+  layout();
+}
+// The pages' own windows: "Dock left / right / below".
+function dockPage(url, where) {
+  const tab = tabOf(url); if (!tab) return;
+  const w = popped[url]; popClosed(url); if (w) try { w.close(); } catch (e) {}
+  show("build"); moveTab(tab, GROUPS.includes(where) ? where : "right");
+}
+renderDock();
+$("#wideBottom").onchange = e => setWide(e.target.checked);
+$("#resetDock").onclick = () => { resetDock(); if (typeof setViewMenu === "function") setViewMenu(false); };
+
+// Placed things and NPCs are edited in Build's inspector: links from search, the map and other pages open them there.
+function openInBuild(tab, msg) { if (current !== "build") show("build"); setInsp(tab); if (msg) send(tab, msg); }
+
+new ResizeObserver(() => layout()).observe($("#stage"));
+
+// panel sizes: drag the edges (remembered)
+const sizes = (() => { try { return JSON.parse(localStorage.getItem("nle.panels") || "{}"); } catch (e) { return {}; } })();
+for (const k of ["L", "R", "B"]) if (sizes[k]) document.documentElement.style.setProperty("--" + k, sizes[k] + "px");
+function dragSplit(el, key, horizontal, sign) {
+  el.addEventListener("mousedown", e => {
+    e.preventDefault();
+    const start = horizontal ? e.clientX : e.clientY;
+    const v0 = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--" + key)) || 0;
+    el.classList.add("drag"); document.body.classList.add("dragging"); hideGame();
+    const move = ev => {
+      const d = ((horizontal ? ev.clientX : ev.clientY) - start) * sign;
+      const v = Math.max(160, Math.min(horizontal ? window.innerWidth * 0.45 : window.innerHeight * 0.6, v0 + d));
+      document.documentElement.style.setProperty("--" + key, v + "px"); sizes[key] = Math.round(v); layout();
+    };
+    const up = () => { window.removeEventListener("mousemove", move); window.removeEventListener("mouseup", up); el.classList.remove("drag"); document.body.classList.remove("dragging");
+                       try { localStorage.setItem("nle.panels", JSON.stringify(sizes)); } catch (e) {} layout(); };
+    window.addEventListener("mousemove", move); window.addEventListener("mouseup", up);
+  });
+}
+// The divider between a split panel's two groups (remembered as a share of the panel).
+document.querySelectorAll(".isplit").forEach(el => el.addEventListener("mousedown", e => {
+  e.preventDefault();
+  const s = el.dataset.s, across = s === "bottom", box = slotOf(s).getBoundingClientRect();
+  el.classList.add("drag"); document.body.classList.add("dragging"); hideGame();
+  const move = ev => {
+    const f = across ? (ev.clientX - box.left) / box.width : (ev.clientY - box.top) / box.height;
+    dock.split[s] = Math.round(Math.min(0.85, Math.max(0.15, f)) * 1000) / 1000; renderDock(); layout();
+  };
+  const up = () => { window.removeEventListener("mousemove", move); window.removeEventListener("mouseup", up); el.classList.remove("drag"); document.body.classList.remove("dragging"); saveDock(); layout(); };
+  window.addEventListener("mousemove", move); window.addEventListener("mouseup", up);
+}));
+dragSplit($("#splitL"), "L", true, 1); dragSplit($("#splitR"), "R", true, -1); dragSplit($("#splitB"), "B", false, -1);
+
 function urlOf(win) { return Object.keys(frames).find(u => frames[u].contentWindow === win); }
 function markDirty() {
-  document.querySelectorAll("#side button").forEach(b => b.classList.toggle("dirty", !!dirty[PAGE[b.dataset.tab]]));
+  document.querySelectorAll("#ws button, #ws2 button").forEach(b => {
+    const t = b.dataset.tab;
+    const d = t === "build" ? !!dirty[PAGE.world] || !!dirty[PAGE.npcs] || !!dirty[PAGE.enemies] : !!dirty[PAGE[t]];
+    b.classList.toggle("dirty", d);
+  });
 }
 // Asked by the app window before it closes.
 window.anyDirty = () => Object.values(dirty).some(Boolean);
 
 window.addEventListener("message", e => {
-  const d = e.data || {}, url = urlOf(e.source);
-  if (d.ready && url) { ready[url] = true; queue[url].splice(0).forEach(m => frames[url].contentWindow.postMessage(m, "*")); }
-  if ("dirty" in d && url) { dirty[url] = !!d.dirty; markDirty(); }
-  if (d.where !== undefined && url && frames[url].classList.contains("on")) $("#where").textContent = d.where;
-  if (d.nav && PAGE[d.nav]) show(d.nav, d.msg);
+  let d = e.data || {}, url = urlOf(e.source);
+  if (d.popout) {   // from a page in its own window (popout.html passes them on)
+    url = d.popout; if (!(url in popped)) return;
+    if (d.closed) { setTimeout(() => { let gone = true; try { gone = popped[url].closed; } catch (er) {} if (gone) popClosed(url); }, 300); return; }
+    if (d.dock) { dockPage(url, d.dock); return; }
+    d = d.data || {};
+  }
+  if (d.ready && url && d.error) { ready[url] = true; queue[url].length = 0; toolNote("A page couldn't load (" + d.error + "): open it to see why"); }
+  else if (d.ready && url) { ready[url] = true; queue[url].splice(0).forEach(m => deliver(url, m)); }
+  if ("dirty" in d && url) { dirty[url] = !!d.dirty; markDirty(); showSaveState(); }
+  if (d.nav && d.nav in PAGE) {
+    // In Build, selecting a placed thing or NPC opens it in the inspector instead of leaving the 3D view.
+    if (BUILD_PAGES.includes(d.nav)) openInBuild(d.nav, d.msg);
+    else show(d.nav, d.msg);
+  }
+  if (d.inspect) setInsp(d.inspect);
+  if (d.assets) { setBot("assets"); send("assets", { cmd: "mode", mode: d.assets }); }   // Help's "Add a person" / "Build in the world"
+  if (d.sendTo && PAGE[d.sendTo]) send(d.sendTo, d.msg);       // to another page, without switching to it
   if (d.cmd === "focusSearch") { $("#q").focus(); if (d.q) { $("#q").value = d.q; search(); } }
   if (d.broadcast) {
     Object.values(frames).forEach(f => f.contentWindow && f.contentWindow !== e.source && f.contentWindow.postMessage(d.broadcast, "*"));
+    for (const u in popped) if (popped[u] !== e.source && ready[u]) deliver(u, d.broadcast);
     if (d.broadcast.cmd === "packsChanged" || d.broadcast.cmd === "npcsChanged") index = null;   // search sees new things
+    if (d.broadcast.cmd === "worldState") worldState(d.broadcast);
   }
 });
-document.querySelectorAll("#side button").forEach(b => b.onclick = () => show(b.dataset.tab));
-window.addEventListener("hashchange", () => { const t = location.hash.slice(1); if (PAGE[t] && t !== current) show(t); });
+document.querySelectorAll("#ws button, #ws2 button").forEach(b => {
+  const t = b.dataset.tab;
+  if (t !== "build" && PAGE[t]) b.insertAdjacentHTML("beforeend", `<span class="pop" title="Open ${esc(NAME[t] || t)} in a window of its own">⧉</span>`);
+  b.onmousedown = e => { if (e.button === 0 && t !== "build" && PAGE[t] && !e.target.closest(".pop")) startTabDrag(e, t); };   // drag it into a Build panel
+  b.onclick = e => { if (tabDragged) return; if (e.target.closest(".pop")) { e.stopPropagation(); popOut(t); return; } show(t); const w = popped[PAGE[t]]; if (w) try { w.focus(); } catch (er) {} };
+  b.addEventListener("auxclick", e => { if (e.button === 1 && t !== "build") { e.preventDefault(); popOut(t); } });   // middle-click
+});
+// the mouse wheel scrolls the tab row and the toolbar sideways (no scrollbars there)
+for (const id of ["#ws", "#tool"]) $(id).addEventListener("wheel", e => { const el = $(id); if (el.scrollWidth > el.clientWidth && Math.abs(e.deltaY) > Math.abs(e.deltaX)) { el.scrollLeft += e.deltaY; e.preventDefault(); } }, { passive: false });
+window.addEventListener("hashchange", () => { const t = location.hash.slice(1); if (t in PAGE && t !== current) show(t); });
 window.addEventListener("beforeunload", e => { if (anyDirty()) { e.preventDefault(); e.returnValue = ""; } });
 
 // ---------------------------------------------------------------- search everything
 let index = null, hits = [], act = 0;
 const KIND = {
   quest: ["Quest", h => ["quests", { cmd: "select", id: h.id }]],
-  myquest: ["My quest", h => ["quests", { cmd: "select", id: h.id }]],
+  myquest: ["My quest", h => ["quests", h.pack ? { cmd: "openPack", name: h.pack, then: { cmd: "select", id: h.id } } : { cmd: "select", id: h.id }]],
   item: ["Item", h => ["items", { cmd: "select", key: "i:" + h.id }]],
   loot: ["Monster", h => ["loot", { cmd: "select", key: "d:" + h.id }]],
   shop: ["Shop", h => ["shops", { cmd: "select", key: "d:" + h.id }]],
   npc: ["My NPC", h => ["npcs", { cmd: "select", id: h.id }]],
-  obj: ["World", h => ["world", { cmd: "select", id: h.id }]],
-  rule: ["Rule", h => ["scripts", { cmd: "select", id: h.id }]],
+  obj: ["World", h => ["world", h.pack ? { cmd: "openPack", name: h.pack, then: { cmd: "select", id: h.id } } : { cmd: "select", id: h.id }]],
+  rule: ["Rule", h => ["scripts", h.pack ? { cmd: "openPack", name: h.pack, then: { cmd: "select", id: h.id } } : { cmd: "select", id: h.id }]],
   dlg: ["Dialogue", h => ["dialogs", { cmd: "openPack", name: h.pack, then: { cmd: "select", id: h.id } }]],
   giver: ["NPC", h => ["quests", { cmd: "search", q: h.n }]],
 };
+let indexLoading = null;
 async function loadIndex() {
-  if (!index) {
+  if (index) return index;
+  if (!indexLoading) indexLoading = (async () => {
     const seen = new Set();   // the same monster can be listed once per zone visit
-    index = (await (await fetch("/api/index")).json()).filter(h => { const k = h.k + "|" + h.id + "|" + h.n.trim().toLowerCase(); return !seen.has(k) && seen.add(k); });
-  }
-  return index;
+    const all = await (await fetch("/api/index")).json();
+    index = all.filter(h => h && h.n && h.k in KIND).filter(h => { const k = h.k + "|" + h.id + "|" + String(h.n).trim().toLowerCase(); return !seen.has(k) && seen.add(k); });
+    indexLoading = null;
+    return index;
+  })().catch(e => { indexLoading = null; return []; });
+  return indexLoading;
 }
 function score(h, words) {
   const n = h.n.toLowerCase(), all = (h.n + " " + h.s + " " + h.id).toLowerCase();
@@ -177,17 +688,18 @@ async function search() {
   const q = $("#q").value.trim().toLowerCase(), box = $("#results");
   if (!q) { box.classList.remove("on"); return; }
   const idx = await loadIndex(), words = q.split(/\s+/);
+  if ($("#q").value.trim().toLowerCase() !== q) return;   // typed on while the list was loading
   hits = idx.map(h => [score(h, words), h]).filter(x => x[0] >= 0).sort((a, b) => b[0] - a[0]).slice(0, 40).map(x => x[1]);
   act = 0;
   box.innerHTML = hits.length ? hits.map((h, i) => `<div class="r${i === act ? " act" : ""}" data-i="${i}"><span class="tag">${KIND[h.k][0]}</span><div><b>${esc(h.n)}</b><small>${esc(h.s)}</small></div></div>`).join("")
-                              : '<div class="none">Nothing found. Play the game once with the mods (enter the world) so they can list everything.</div>';
+                              : (idx.length ? `<div class="none">No matches for “${esc(q)}”.</div>` : '<div class="none">Nothing to search yet. Start the 3D view (or play once with the mods) so they can list everything.</div>');
   box.classList.add("on");
   box.querySelectorAll(".r").forEach(el => el.onmousedown = e => { e.preventDefault(); pick(+el.dataset.i); });
 }
 function pick(i) {
   const h = hits[i]; if (!h) return;
   const [tab, msg] = KIND[h.k][1](h);
-  show(tab, msg);
+  if (BUILD_PAGES.includes(tab)) openInBuild(tab, msg); else show(tab, msg);
   $("#results").classList.remove("on"); $("#q").blur();
 }
 function moveAct(d) {
@@ -209,12 +721,248 @@ function searchKeys(e) {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); $("#q").focus(); $("#q").select(); }
 }
 document.addEventListener("keydown", searchKeys);
+// Flight keys for the game view, when the shell has the keyboard: pass them to the open tab.
+for (const type of ["keydown", "keyup"]) document.addEventListener(type, e => {
+  if (/INPUT|SELECT|TEXTAREA/.test((document.activeElement || {}).tagName || "") || e.ctrlKey || e.altKey || e.metaKey) return;
+  const f = frames[PAGE[current]]; if (!f || !f.contentWindow) return;
+  f.contentWindow.postMessage({ cmd: "key", key: e.key, down: type === "keydown" }, "*");
+});
 // Pages pass Ctrl+K up to here (they're in iframes).
-window.addEventListener("message", e => { if ((e.data || {}).key === "ctrl-k") { $("#q").focus(); $("#q").select(); } });
+window.addEventListener("message", e => {
+  const k = (e.data || {}).key;
+  if (k === "ctrl-k") { $("#q").focus(); $("#q").select(); }
+  if (k === "ctrl-s" && current === "build") $("#tSave").onclick();   // Ctrl+S in the inspector saves both packs, like the toolbar
+});
+// The search list opens over the 3D view: the game window (a separate window) would hide it, so hide the game meanwhile.
+let searchOpen = false, pickerOpen = false, pickerClicks = 0;
+const reOverlay = () => { overlay = searchOpen || pickerOpen || (typeof menuOpen !== "undefined" && menuOpen); placeGame(); };
+new MutationObserver(() => { searchOpen = $("#results").classList.contains("on"); reOverlay(); }).observe($("#results"), { attributes: true, attributeFilter: ["class"] });
+// Drop-down lists open over the 3D view too: hide the game window while one is open. The list closes on a
+// change, on the next click (picking the same item, or clicking away), on Esc, or when focus leaves.
+// The pages in Build's panels (inspector, assets, outliner) have drop-downs too, often wide enough to open
+// over the 3D view: watch their documents the same way (they're on this same origin).
+const pickerDone = () => { if (!pickerOpen) return; pickerOpen = false; reOverlay(); };
+function watchSelects(doc) {
+  doc.addEventListener("mousedown", e => { if (e.target.tagName === "SELECT" && !pickerOpen) { pickerOpen = true; pickerClicks = 0; reOverlay(); } }, true);
+  doc.addEventListener("click", () => { if (pickerOpen && ++pickerClicks > 1) pickerDone(); }, true);
+  doc.addEventListener("change", e => { if (e.target.tagName === "SELECT") setTimeout(pickerDone, 50); }, true);
+  doc.addEventListener("focusout", e => { if (e.target.tagName === "SELECT") pickerDone(); }, true);
+  doc.addEventListener("keydown", e => { if (e.key === "Escape") pickerDone(); }, true);
+}
+watchSelects(document);
+document.addEventListener("keydown", e => {
+  if (e.key !== "Escape") return;
+  pickerDone(); if (typeof menuOpen !== "undefined" && menuOpen) setViewMenu(false);
+  if (current === "build" && e.target === document.body) fetch("/api/live/world/carry?cancel=1", { method: "POST", body: "{}" }).catch(() => {});   // stop placing something (the game doesn't get the key)
+}, true);
 
+
+// ---------------------------------------------------------------- edits made in the game (build mode)
+// WorldLoader keeps a list of what you did in build mode; pass each one to the page that owns it, which
+// keeps it as an unsaved change (so Save and Discard work as usual).
+let buildAfter = null, buildWait = 500;
+async function pollBuild() {
+  try {
+    if (buildAfter == null) {   // start from now: don't replay what happened before the editor opened
+      const s = await (await fetch("/api/live/world/build")).json();
+      if (s.last == null) throw new Error("no build mode");
+      buildAfter = s.last;
+    }
+    const r = await (await fetch("/api/live/world/build/events?after=" + buildAfter)).json();
+    if (r.last == null) throw new Error("no build mode");
+    if (r.last < buildAfter) buildAfter = 0;   // the game restarted
+    for (const ev of r.events || []) {
+      buildAfter = Math.max(buildAfter, ev.n);
+      if (ev.type === "build") { Object.values(frames).forEach(f => f.contentWindow && f.contentWindow.postMessage({ cmd: "buildMode", on: ev.on }, "*")); for (const u in popped) if (ready[u]) deliver(u, { cmd: "buildMode", on: ev.on }); continue; }
+      if (ev.type === "tool") { showTool(ev.tool); continue; }
+      if (ev.type === "menu") {   // the 3D view's right-click menu
+        const kindTab = ev.kind === "npc" ? "npcs" : ev.kind === "enemy" ? "enemies" : "world";
+        if (ev.action === "properties") openInBuild(kindTab, { cmd: "select", id: ev.id });
+        if (ev.action === "dialogue") show("dialogs", { cmd: "newDialog", npc: ev.id });
+        if (ev.action === "quest") show("quests", { cmd: "newQuest", giver: ev.id });
+        continue;
+      }
+      if (ev.type === "undo") { send("world", { cmd: "undo" }); continue; }
+      if (ev.type === "save") { send("world", { cmd: "save" }); send("npcs", { cmd: "save" }); if (frames[PAGE.enemies]) send("enemies", { cmd: "save" }); continue; }
+      const tab = ev.kind === "npc" ? "npcs" : ev.kind === "enemy" ? "enemies" : "world";
+      send(tab, { cmd: "gameEdit", ev });
+      post(PAGE.outliner, { cmd: "gameEvent", ev });
+      if (ev.type === "pick" || ev.type === "select") { if (current === "build") setInsp(tab); }
+    }
+    buildWait = 500;
+  } catch (e) { buildAfter = null; buildWait = 3000; }
+  setTimeout(pollBuild, buildWait);
+}
+pollBuild();
+
+// ---------------------------------------------------------------- the game window in the middle of Build
+// The editor app (WebView2 host) puts the game's own window over the viewport. In a plain web browser,
+// or when the game wasn't started by the editor, the viewport shows pictures instead (gameview.js).
+const host = window.chrome && window.chrome.webview;
+let G = { connected: false }, P = {}, docked = null, overlay = false, lastRect = "", lastRectAt = 0, lastVp = "";
+function placeGame() {
+  const live = G.connected && G.inWorld;
+  const showIt = current === "build" && live && !overlay && !document.body.classList.contains("dragging");
+  if (host) {
+    const r = $("#viewport").getBoundingClientRect(), k = window.devicePixelRatio || 1;
+    const msg = { cmd: "gameRect", x: Math.round(r.left * k), y: Math.round(r.top * k), w: Math.round(r.width * k), h: Math.round(r.height * k), show: showIt };
+    const key = JSON.stringify(msg), now = Date.now();
+    if (key !== lastRect || now - lastRectAt > 5000) { lastRect = key; lastRectAt = now; host.postMessage(msg); }
+  }
+  viewportState();
+}
+function hideGame() { lastRect = ""; if (host) host.postMessage({ cmd: "gameRect", x: 0, y: 0, w: 0, h: 0, show: false }); }
+if (host) host.addEventListener("message", e => { const m = e.data || {}; if (m.cmd === "dockState" && docked !== m.docked) { docked = m.docked; viewportState(); } });
+function viewportState() {
+  const v = $("#viewport"), live = G.connected && G.inWorld;
+  if (live && docked === true && host) { if (v.firstChild) v.innerHTML = ""; lastVp = ""; return; }      // the real window is on top
+  if (live && host && docked === null) { const h = `<div class="msg"><div>Connecting the 3D view…</div></div>`; if (lastVp !== h) { lastVp = h; v.innerHTML = h; } return; }
+  if (live && (docked === false || !host)) { if (!v.querySelector(".gv")) { v.innerHTML = ""; lastVp = ""; GameView.mount(v); } return; }
+  const text = P.error ? esc(P.error)
+    : P.running ? (G.connected ? "Getting into the world… (" + esc(G.editor || "starting") + ")" : "Starting the game in the background…")
+    : P.other ? "The game is running in its own window (started with the Play shortcut).<br>Close it and press ▶ Start to build here."
+    : "The game runs in the background with no character: you fly around and build.";
+  const canStart = !P.running && !P.other;
+  const html = `<div class="msg"><div>${canStart ? '<button class="primary" id="vpStart" style="font-size:15px;padding:9px 22px;margin-bottom:12px">▶ Start the 3D view</button><br>' : ""}${text}</div></div>`;
+  if (lastVp !== html) { lastVp = html; v.innerHTML = html; const b = $("#vpStart"); if (b) b.onclick = startPlay; }
+}
+setInterval(placeGame, 1000);
+window.addEventListener("resize", () => layout());
+
+// ---------------------------------------------------------------- the 3D view: start, stop, status
+async function playStatus() {
+  try { P = await (await fetch("/api/play/status")).json(); } catch (e) { P = {}; }
+  try { G = await (await fetch("/api/live/status")).json(); } catch (e) { G = { connected: false }; }
+  const st = $("#playSt"), go = $("#playGo"), stop = $("#playStop"), showB = $("#playShow");
+  let text = "3D view: off", ok = false;
+  if (P.running) {
+    if (G.connected && G.inWorld) { text = "3D view: " + zName(G.zone); ok = true; }
+    else if (G.connected) text = "3D view: " + (G.editor || "starting") + "…";
+    else text = "3D view: starting…";
+  } else if (P.other) { text = G.inWorld ? "Game running (its own window)" : "Game running"; ok = !!G.inWorld; }
+  if (P.error) text = "3D view: problem";
+  st.textContent = text; st.className = "st" + (ok ? " ok" : ""); st.title = P.error || "";
+  go.hidden = !!(P.running || P.other); stop.hidden = !P.running; showB.hidden = !P.running;
+  showB.textContent = P.shown ? "Hide game window" : "Game window"; showB.dataset.on = P.shown ? "0" : "1";
+  if (G.connected && G.inWorld) toolsLive();
+  placeGame();
+}
+let starting = false;
+async function startPlay() {
+  if (starting) return; starting = true; $("#playGo").disabled = true;
+  $("#playSt").textContent = "3D view: starting…";
+  try { await fetch("/api/play/start", { method: "POST" }); } catch (e) {}
+  starting = false; $("#playGo").disabled = false; playStatus();
+}
+$("#playGo").onclick = startPlay;
+$("#playStop").onclick = async () => { await fetch("/api/play/stop", { method: "POST" }); playStatus(); };
+$("#playShow").onclick = async () => { await fetch("/api/play/show?on=" + $("#playShow").dataset.on, { method: "POST" }); playStatus(); };
+setInterval(playStatus, 2000);
+
+// ---------------------------------------------------------------- the toolbar over the viewport
+const zName = z => String(z || "").replace(/^(Zone|Dungeon)_/, "").replace(/_/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2");
+let world = null, lastZone = null, lookSentFor = null;
+function worldState(m) {
+  world = m;
+  $("#packInfo").textContent = `${m.pack} · ${m.count} thing(s)`;
+  $("#tUndo").disabled = !m.canUndo;
+  showSaveState();
+  if (m.note) toolNote(m.note);
+}
+function showSaveState() {
+  const d = !!(world && world.dirty) || !!dirty[PAGE.npcs] || !!dirty[PAGE.enemies];
+  $("#tSave").classList.toggle("dirty", d);
+  $("#tSave").textContent = d ? "Save ●" : "Save";
+}
+let noteTimer = null;
+function toolNote(t) { const el = $("#toolNote"); el.textContent = t || ""; el.title = t || ""; clearTimeout(noteTimer); if (t) noteTimer = setTimeout(() => { el.textContent = ""; }, 8000); }
+$("#tSave").onclick = () => {
+  const w = !!(world && world.dirty), n = !!dirty[PAGE.npcs], en = !!dirty[PAGE.enemies];
+  if (!w && !n && !en) return toolNote("Nothing to save");
+  send("world", { cmd: "save" }); send("npcs", { cmd: "save" }); if (en) send("enemies", { cmd: "save" });
+  toolNote("Saved " + [w ? "placed things" : "", n ? "NPCs" : "", en ? "enemies" : ""].filter(Boolean).join(" and "));
+};
+$("#tUndo").onclick = () => send("world", { cmd: "undo" });
+$("#tDiscard").onclick = () => {
+  const w = !!(world && world.dirty), n = !!dirty[PAGE.npcs], en = !!dirty[PAGE.enemies];
+  if (!w && !n && !en) return toolNote("Nothing to discard");
+  const what = [w ? "placed things" : "", n ? "NPCs" : "", en ? "enemies" : ""].filter(Boolean).join(" and ");
+  if (!confirm("Throw away your unsaved changes to " + what + "? This can't be undone.")) return;   // one question for both
+  if (w) send("world", { cmd: "discard", confirmed: true });
+  if (n) send("npcs", { cmd: "discard", confirmed: true });
+  if (en) send("enemies", { cmd: "discard", confirmed: true });
+};
+async function loadZones() {
+  let list = []; try { list = await (await fetch("/api/zones")).json(); } catch (e) {}
+  $("#zoneSel").innerHTML = list.map(z => `<option value="${esc(z)}">${esc((z.startsWith("Dungeon_") ? "Dungeon: " : "") + zName(z))}</option>`).join("");
+  if (G.zone) $("#zoneSel").value = G.zone;
+}
+$("#zoneGo").onclick = async () => {
+  const z = $("#zoneSel").value; if (!z || z === G.zone) return;
+  if (world && world.dirty && !confirm("The World pack has unsaved changes. They stay unsaved until you Save. Go anyway?")) return;
+  const r = await fetch("/api/live/editor/zone", { method: "POST", body: JSON.stringify({ zone: z }) }).then(x => x.json()).catch(() => ({ error: "Couldn't reach the game." }));
+  setViewMenu(false);
+  toolNote(r.error || r.message || "");
+  post(PAGE.assets, { cmd: "zoneChanged" });
+};
+document.querySelectorAll("[data-tool]").forEach(c => c.onchange = async () => {
+  const r = await fetch(`/api/live/editor/toggle?name=${c.dataset.tool}&on=${c.checked ? 1 : 0}`, { method: "POST", body: "{}" }).then(x => x.json()).catch(() => ({ error: "Couldn't reach the game." }));
+  if (r.error) toolNote(r.error);
+});
+let look = 0.6; try { look = +(localStorage.getItem("nle.look") || 0.6); } catch (e) {}
+$("#lookSpeed").value = look;
+function sendLook() { fetch("/api/live/editor/look?scale=" + look, { method: "POST", body: "{}" }).catch(() => {}); }
+$("#lookSpeed").oninput = () => { look = +$("#lookSpeed").value; try { localStorage.setItem("nle.look", look); } catch (e) {} sendLook(); };
+function toolsLive() {
+  const key = G.editor + "|" + G.zone;
+  if (lookSentFor !== key) {
+    lookSentFor = key; sendLook(); sendSnap();
+    document.querySelectorAll("[data-tool]").forEach(c => { if (c.checked) fetch(`/api/live/editor/toggle?name=${c.dataset.tool}&on=1`, { method: "POST", body: "{}" }).catch(() => {}); });
+  }
+  if (G.zone && G.zone !== lastZone) {
+    lastZone = G.zone; $("#zoneSel").value = G.zone; toolNote("");
+    post(PAGE.outliner, { cmd: "zoneChanged", zone: G.zone }); post(PAGE.assets, { cmd: "zoneChanged", zone: G.zone });
+  }
+}
+// build tools and snapping (the 3D view's W E R keys and these buttons stay in step)
+function showTool(t) { document.querySelectorAll("#toolSeg button").forEach(b => b.classList.toggle("on", b.dataset.t === t)); }
+document.querySelectorAll("#toolSeg button").forEach(b => b.onclick = () => { showTool(b.dataset.t); fetch("/api/live/world/tool?name=" + b.dataset.t, { method: "POST", body: "{}" }).catch(() => {}); });
+const snapPref = (() => { try { return JSON.parse(localStorage.getItem("nle.snap") || "{}"); } catch (e) { return {}; } })();
+if (snapPref.on) $("#snapOn").checked = true; if (snapPref.grid) $("#snapGrid").value = snapPref.grid; if (snapPref.angle) $("#snapAngle").value = snapPref.angle;
+function sendSnap() {
+  const on = $("#snapOn").checked ? 1 : 0, grid = $("#snapGrid").value, angle = $("#snapAngle").value;
+  try { localStorage.setItem("nle.snap", JSON.stringify({ on: !!on, grid, angle })); } catch (e) {}
+  fetch(`/api/live/world/snap?on=${on}&grid=${grid}&angle=${angle}`, { method: "POST", body: "{}" }).then(r => r.json()).then(r => { if (r.tool) showTool(r.tool); }).catch(() => {});
+}
+["#snapOn", "#snapGrid", "#snapAngle"].forEach(id => $(id).onchange = sendSnap);
+// The View menu (and drop-down lists) open over the 3D view, which is a separate window on top: hide it meanwhile.
+function setViewMenu(open) {
+  const m = $("#viewMenu"), b = $("#viewBtn").getBoundingClientRect(), st = $("#stage").getBoundingClientRect();
+  m.hidden = !open;
+  if (open) { m.style.left = Math.max(4, b.right - st.left - 270) + "px"; m.style.top = (b.bottom - st.top + 4) + "px"; }
+  menuOpen = open; overlay = searchOpen || pickerOpen || menuOpen; placeGame();
+}
+let menuOpen = false;
+$("#viewBtn").onclick = e => { e.stopPropagation(); setViewMenu($("#viewMenu").hidden); };
+document.addEventListener("mousedown", e => { if (menuOpen && !e.target.closest("#viewMenu") && e.target.id !== "viewBtn") setViewMenu(false); });
+let autoStart = true; try { autoStart = localStorage.getItem("nle.autostart") !== "0"; } catch (e) {}
+$("#autoStart").checked = autoStart;
+$("#autoStart").onchange = () => { autoStart = $("#autoStart").checked; try { localStorage.setItem("nle.autostart", autoStart ? "1" : "0"); } catch (e) {} };
+document.addEventListener("keydown", e => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") e.preventDefault();   // (never the browser's "save page")
+  if (current !== "build") return;
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") { send("world", { cmd: "save" }); send("npcs", { cmd: "save" }); if (frames[PAGE.enemies]) send("enemies", { cmd: "save" }); }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && !/INPUT|TEXTAREA/.test((document.activeElement || {}).tagName || "")) { e.preventDefault(); send("world", { cmd: "undo" }); }
+});
+
+// ---------------------------------------------------------------- start
 let start = location.hash.slice(1);
-if (!PAGE[start]) { try { start = localStorage.getItem("nle.tab") || "home"; } catch (e) { start = "home"; } }
-show(PAGE[start] ? start : "home");
+if (!(start in PAGE)) { try { start = localStorage.getItem("nle.tab") || "build"; } catch (e) { start = "build"; } }
+if (start === "view") start = "build";
+show(start in PAGE ? start : "build");
+frameFor("world");   // the World page owns the pack the Build toolbar shows
+loadZones();
+playStatus().then(() => { if (autoStart && !P.running && !P.other) startPlay(); });
 </script>
 </body>
 </html>

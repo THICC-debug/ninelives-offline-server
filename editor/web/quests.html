@@ -5,6 +5,54 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Quests</title>
 <link rel="stylesheet" href="/style.css">
+<style>
+  /* "Defeat monsters" goals: the chosen enemy, and the enemy picker */
+  .krow { align-items: center; }
+  .kchip { display: flex; align-items: center; gap: 8px; padding: 4px 10px 4px 4px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); min-width: 200px; flex: 1; }
+  .kchip.none { color: var(--muted); font-style: italic; padding: 8px 10px; }
+  .kchip.bad { border-color: var(--bad); }
+  .kchip b { display: block; }
+  .kchip small { color: var(--muted); }
+  .mpic { width: 40px; height: 40px; border-radius: 6px; background: var(--chip); object-fit: contain; flex: none; }
+  .mpic.big { width: 132px; height: 132px; border-radius: 10px; }
+  .mpic.none { display: flex; align-items: center; justify-content: center; font-weight: 700; color: var(--muted); font-size: 18px; }
+  .mpic.big.none { font-size: 42px; }
+  .mpic.none { flex-direction: column; } .mpic.none small { display: block; font-size: 10px; font-weight: 400; line-height: 1.3; padding: 4px 8px 0; text-align: center; }
+  .krow details { flex-basis: 100%; order: 9; }
+  .krow details summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+  .mpick { border: 1px solid var(--accent); border-radius: 10px; padding: 10px; margin: 4px 0 12px; background: var(--bg); }
+  .mp-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+  .mp-head label { display: flex; align-items: center; gap: 6px; color: var(--ink); }
+  .mp-head select { width: auto; }
+  .mp-head input { flex: 1; min-width: 160px; }
+  .mp-body { display: grid; grid-template-columns: minmax(230px, 1fr) minmax(280px, 1.4fr); gap: 10px; }
+  .mp-list { display: flex; flex-direction: column; gap: 4px; max-height: min(760px, 78vh); overflow: auto; padding-right: 2px; }
+  .mcard { display: flex; align-items: center; gap: 8px; padding: 5px 8px 5px 5px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); cursor: pointer; }
+  .mcard:hover { border-color: var(--muted); }
+  .mcard.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+  .mcard .mn { font-weight: 600; }
+  .mcard .ms { font-size: 11px; color: var(--muted); }
+  .mcard .mz { margin-left: auto; font-size: 11px; color: var(--muted); text-align: right; white-space: nowrap; }
+  .mp-info { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px; min-width: 0; }
+  .mi-top { display: flex; gap: 12px; align-items: flex-start; }
+  .mi-top h3 { margin: 0 0 2px; font-size: 17px; }
+  .mi-top .sub { color: var(--muted); font-size: 12px; }
+  .mstats { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 4px; margin-top: 8px; }
+  .mstats div { background: var(--chip); border-radius: 6px; padding: 3px 7px; font-size: 12px; }
+  .mstats div span { color: var(--muted); display: block; font-size: 10px; text-transform: uppercase; letter-spacing: .03em; }
+  .mstats div b { font-size: 13px; }
+  .mmap { position: relative; margin-top: 10px; }
+  .mmap svg { width: 100%; aspect-ratio: 1; display: block; border-radius: 8px; background: #20262b; }
+  .mmap .tools { position: absolute; top: 6px; right: 6px; display: flex; gap: 4px; }
+  .mmap .tools button { padding: 2px 8px; font-size: 12px; }
+  .mmap .legend { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .mmap .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; vertical-align: -1px; margin: 0 3px 0 8px; }
+  .nomap { padding: 30px 12px; text-align: center; color: var(--muted); border: 1px dashed var(--line); border-radius: 8px; margin-top: 10px; font-size: 12px; }
+  .ping { animation: ping 1.8s ease-out infinite; transform-box: fill-box; transform-origin: center; }
+  @keyframes ping { 0% { transform: scale(.4); opacity: .9; } 100% { transform: scale(1.6); opacity: 0; } }
+  .mi-use { margin-top: 10px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  @media (max-width: 720px) { .mp-body { grid-template-columns: 1fr; } .mp-list { max-height: 260px; } .mpic.big { width: 88px; height: 88px; } }
+</style>
 </head>
 <body>
 <header>
@@ -26,6 +74,7 @@
 <datalist id="npcList"></datalist>
 <datalist id="flagList"></datalist>
 
+<script src="/monsters.js"></script>
 <script>
 const TYPES = ["Normal","Daily","Repeatable","Seasonal","Errand","Kill","Collect","Defence","Message","ItemReceive","TimeAttack","Main"];
 const FIRST_MOD_ID = 900000001, FIRST_MOD_FLAG = 9000;
@@ -46,6 +95,7 @@ async function api(path, opts) {
 async function boot() {
   D = await api("/api/quests/data");
   D.items.forEach(i => itemName[i.id] = i.name);
+  loadMonsters();
   $("#itemList").innerHTML = D.items.map(i => `<option value="${i.id} · ${esc(i.name)}">`).join("");
   buildNpcs();
   buildFlags();
@@ -55,8 +105,9 @@ async function boot() {
   if (!D.originals.length) status("No exported quests yet: play once with QuestLoader installed, then reload.", "bad");
 }
 
-// Pack picker; packs switched off on the Overview tab are marked.
+// Pack picker; packs switched off on Packs & mods are marked.
 function fillPacks(names) {
+  if (packName && !names.includes(packName)) names = [...names, packName];   // (a new pack, not saved yet)
   const off = new Set(D.packsOff || []);
   $("#packSel").innerHTML = names.map(p => `<option value="${esc(p)}">${esc(p)}${off.has(p) ? " (off)" : ""}</option>`).join("");
   if (packName) $("#packSel").value = packName;
@@ -73,7 +124,7 @@ window.addEventListener("message", async e => {
     await openPack(left[0] || "my-quests");
     return;
   }
-  if (m.cmd === "openPack") { ensurePack(m.name); await openPack(m.name); }
+  if (m.cmd === "openPack") { if (m.name !== packName) { ensurePack(m.name); if (await openPack(m.name) === false) return; } if (m.then) window.postMessage(m.then, "*"); }
   if (m.cmd === "browseOriginals") { tab = "orig"; sel = null; renderList(); renderEditor(); $("#search").focus(); }
   if (m.cmd === "search") { tab = "orig"; $("#search").value = m.q || ""; renderList(); }
   if (m.cmd === "select") {
@@ -91,7 +142,7 @@ window.addEventListener("message", async e => {
   }
   if (m.cmd === "packsChanged" || m.cmd === "npcsChanged") {
     const fresh = await api("/api/quests/data");
-    D.packs = fresh.packs; D.packsOff = fresh.packsOff; D.npcs = fresh.npcs;
+    D.packs = fresh.packs; D.packsOff = fresh.packsOff; D.npcs = fresh.npcs; D.monsters = fresh.monsters; D.maps = fresh.maps; loadMonsters();
     buildNpcs(); fillPacks(D.packs.length ? D.packs : [packName]);
   }
 });
@@ -136,12 +187,14 @@ function flagLabel(f) {
 }
 
 async function openPack(name) {
-  if (dirty && !confirm("Discard unsaved changes?")) { $("#packSel").value = packName; return; }
+  if (dirty && !confirm("Discard unsaved changes?")) { $("#packSel").value = packName; return false; }
   pack = await api("/api/quests/pack?name=" + encodeURIComponent(name));
-  pack.quests = pack.quests || []; packName = name; sel = null; dirty = false;
+  ensurePack(name);   // the picker shows the pack that is open
+  pack.quests = pack.quests || []; packName = name; sel = null; dirty = false; parent.postMessage({ dirty: false }, "*");
   buildFlags();
   status(`Pack "${name}": ${pack.quests.length} quest(s)`);
   renderList(); renderEditor();
+  return true;
 }
 
 // ---------------------------------------------------------------- list
@@ -163,6 +216,130 @@ function renderList() {
   });
   $("#list").innerHTML = html.join("") || `<div class="empty">${tab === "pack" ? "No quests in this pack yet." : "Nothing matches."}</div>`;
   $("#list").querySelectorAll(".item").forEach(el => el.onclick = () => { sel = { tab, i: +el.dataset.i }; renderList(); renderEditor(); });
+}
+
+
+// ---------------------------------------------------------------- enemies (for "Defeat monsters" goals)
+// ContentLoader 1.4 writes every monster kind met in a zone: stats, where it was seen and a picture.
+let MON = [], picker = null, pickedZone = {};   // pickedZone: name -> the zone it was picked from (this session)   // picker: { q, row, zone, term, sel, whole }
+function loadMonsters() { MON = mergeMonsters(D.monsters); }
+const monZones = () => [...new Set(MON.map(m => m.zone))].sort();
+const monsIn = z => MON.filter(m => m.zone === z).sort((a, b) => a.name.localeCompare(b.name));
+const giverZone = q => { const n = D.npcs.find(n => n.cid === q.giver); return n ? n.zone : null; };
+function monOf(r, q) {   // the known monster a goal points at
+  const gz = q ? giverZone(q) : null;
+  const byName = MON.filter(m => r.monster && m.name === r.monster);
+  if (byName.length) return byName.find(m => m.zone === pickedZone[r.monster]) || byName.find(m => m.zone === gz) || byName.slice().sort((a, b) => (b.spots || []).length - (a.spots || []).length)[0];
+  return !r.monster && r.monsterId > 0 ? MON.find(m => m.cid === r.monsterId) : null;
+}
+function miniMap(m, q, whole) {
+  const B = (D.maps || {})[m.zone], spots = m.spots || [];
+  if (!B && !spots.length) return `<div class="nomap">Not placed on the map yet. Walk around ${esc(zoneName(m.zone))} with ContentLoader 1.4 and it gets placed.</div>`;
+  let x0, z0, side;
+  if (B && (whole || !spots.length)) { x0 = B.minX; z0 = B.minZ; side = Math.max(B.maxX - B.minX, B.maxZ - B.minZ); }
+  else {
+    const xs = spots.map(p => p[0]), zs = spots.map(p => p[1]);
+    const a = Math.min(...xs) - 90, b = Math.max(...xs) + 90, c = Math.min(...zs) - 90, d = Math.max(...zs) + 90;
+    side = Math.max(320, b - a, d - c); x0 = (a + b) / 2 - side / 2; z0 = (c + d) / 2 - side / 2;
+    if (B) { side = Math.min(side, Math.max(B.maxX - B.minX, B.maxZ - B.minZ)); x0 = Math.max(B.minX, Math.min(x0, B.maxX - side)); z0 = Math.max(B.minZ, Math.min(z0, B.maxZ - side)); }
+  }
+  const u = side / 300;   // one pixel of a 300 px map, in metres
+  const parts = [];
+  if (B) parts.push(`<image href="/api/map/image?zone=${encodeURIComponent(m.zone)}" x="${B.minX}" y="${-B.maxZ}" width="${B.maxX - B.minX}" height="${B.maxZ - B.minZ}" preserveAspectRatio="none"/>`);
+  else for (let g = Math.ceil(x0 / 100) * 100; g < x0 + side; g += 100) parts.push(`<line x1="${g}" y1="${-z0 - side}" x2="${g}" y2="${-z0}" stroke="#39424a" stroke-width="${u}"/>`);
+  if (!B) for (let g = Math.ceil(z0 / 100) * 100; g < z0 + side; g += 100) parts.push(`<line x1="${x0}" y1="${-g}" x2="${x0 + side}" y2="${-g}" stroke="#39424a" stroke-width="${u}"/>`);
+  const hot = hotspots(spots);
+  hot.forEach(h => parts.push(`<circle cx="${h.x}" cy="${-h.z}" r="${Math.max(h.r, 9 * u)}" fill="rgba(255,90,80,.16)" stroke="#ff5a50" stroke-width="${1.5 * u}" stroke-dasharray="${4 * u} ${3 * u}"/>`));
+  spots.forEach(([x, z]) => parts.push(`<circle cx="${x}" cy="${-z}" r="${2.2 * u}" fill="#ff6b5e" stroke="#000" stroke-width="${0.6 * u}"/>`));
+  const g = q && D.npcs.find(n => n.cid === q.giver && n.zone === m.zone && n.x != null);
+  if (g) parts.push(`<circle cx="${g.x}" cy="${-g.z}" r="${5 * u}" fill="#f2c14e" stroke="#000" stroke-width="${u}"><title>${esc(g.name)} (gives the quest)</title></circle>`);
+  hot.forEach((h, i) => parts.push(`<circle class="ping" cx="${h.x}" cy="${-h.z}" r="${12 * u}" fill="none" stroke="#fff" stroke-width="${2 * u}"/>`,
+    `<g transform="translate(${h.x} ${-h.z})"><title>${i ? "Also many here" : "Mostly here"} (${h.n} sightings)</title><path d="M0 0 L${-7 * u} ${-13 * u} A${8 * u} ${8 * u} 0 1 1 ${7 * u} ${-13 * u} Z" fill="#ff3b30" stroke="#000" stroke-width="${u}"/>` +
+    `<text y="${-15 * u}" text-anchor="middle" font-size="${10 * u}" font-weight="700" fill="#fff">${i + 1}</text></g>`));
+  return `<div class="mmap"><svg viewBox="${x0} ${-(z0 + side)} ${side} ${side}" xmlns="http://www.w3.org/2000/svg">${parts.join("")}</svg>
+    <div class="tools">${B && spots.length ? `<button data-mp="whole">${whole ? "Zoom to them" : "Whole zone"}</button>` : ""}</div>
+    <div class="legend">${!spots.length ? "Not placed yet: they're placed as you meet them in game (ContentLoader 1.4)." : ""}${spots.length ? `<i style="background:#ff3b30"></i>mostly here${hot.length > 1 ? " (" + hot.length + " places)" : ""}<i style="background:#ff6b5e"></i>seen (${spots.length} spots)` : ""}${g ? '<i style="background:#f2c14e"></i>quest giver' : ""}${B ? "" : " · no map picture of this zone yet"}</div></div>`;
+}
+
+function monInfo(m, q, r) {
+  if (!m) return `<div class="nomap">Pick an enemy on the left to see it here.</div>`;
+  const s = m.stats || {};
+  const stats = STATROWS.map(([t, f]) => { const v = f(s); return v ? `<div><span>${t}</span><b>${esc(v)}</b></div>` : ""; }).join("");
+  const elsewhere = MON.filter(o => o.name === m.name && o.zone !== m.zone).map(o => zoneName(o.zone));
+  const chosen = r && r.monster === m.name;
+  return `<div class="mi-top">${mpic(m, true)}<div style="min-width:0">
+      <h3>${esc(m.name)} ${levelBadge(levelOf(m.stats, MON))}</h3>${m.title ? `<div class="sub">${esc(m.title)}</div>` : ""}
+      <div class="sub">${esc(zoneName(m.zone))} · up to ${m.seen || 0} at once · loot table${m.drops.length > 1 ? "s" : ""} #${m.drops.join(", #")}${m.cid > 0 ? " · id " + m.cid : ""}</div>
+      ${elsewhere.length ? `<div class="sub">Also lives in ${esc(elsewhere.join(", "))}</div>` : ""}
+    </div></div>
+    ${stats ? `<div class="mstats">${stats}</div>` : `<p class="hint">No stats yet: they're read the next time you're near one in game.</p>`}
+    ${miniMap(m, q, picker && picker.whole)}
+    <div class="mi-use"><button class="primary" data-mp="use" ${chosen ? "disabled" : ""}>${chosen ? "✓ This is the enemy" : `Defeat ${r ? r.count : ""} × ${esc(m.name)}`}</button>
+      <span class="hint">Any "${esc(m.name)}" counts, in any zone. Double-click a card to pick it.</span></div>`;
+}
+
+function pickerHtml(q, r) {
+  const zones = monZones();
+  if (!zones.length) return `<div class="mpick"><p style="margin:0 0 6px"><b>No enemies known yet</b></p>
+    <p class="hint">ContentLoader 1.4 lists the enemies of each zone as you meet them: start the game, walk around a zone, then come back here. You can still type a name in the row above.</p>
+    <button data-mp="close">Close</button></div>`;
+  return `<div class="mpick">
+    <div class="mp-head"><label>Zone <select data-mp="zone">${zones.map(z => `<option value="${esc(z)}" ${z === picker.zone ? "selected" : ""}>${esc(zoneName(z))} (${monsIn(z).length})</option>`).join("")}</select></label>
+      <input data-mp="term" placeholder="Search enemies in every zone…" value="${esc(picker.term)}">
+      <button data-mp="close">Close</button></div>
+    <div class="mp-body"><div class="mp-list" id="mpList"></div><div class="mp-info" id="mpInfo"></div></div></div>`;
+}
+function pickerList() {
+  const t = picker.term.trim().toLowerCase();
+  const list = t ? MON.filter(m => (m.name + " " + (m.title || "")).toLowerCase().includes(t)).sort((a, b) => a.name.localeCompare(b.name) || a.zone.localeCompare(b.zone)) : monsIn(picker.zone);
+  return list.map(m => { const k = MON.indexOf(m), on = picker.sel === k;
+    return `<div class="mcard${on ? " on" : ""}" data-mk="${k}">${mpic(m)}<div style="min-width:0"><div class="mn">${esc(m.name)} ${levelBadge(levelOf(m.stats, MON), true)}${m.shownAs ? ` <small class="hint" title="An enemy pack renames it in game; kills still count under this name">shown as “${esc(m.shownAs)}”</small>` : ""}</div><div class="ms">${esc(shortStats(m))}</div></div>
+      <div class="mz">${t ? esc(zoneName(m.zone)) + "<br>" : ""}${(m.spots || []).length ? "📍 " + (m.spots || []).length : ""}</div></div>`; }).join("")
+    || `<p class="hint">${t ? "No enemy matches." : "None seen in this zone."}</p>`;
+}
+function wirePicker(box, q, r) {
+  const el = box.querySelector(".mpick"); if (!el) return;
+  const use = m => { if (!m) return; pickedZone[m.name] = m.zone; r.monster = m.name; r.monsterId = 0; picker = null; setDirty(); renderEditor(); };
+  const wireInfo = () => {
+    const u = el.querySelector('[data-mp="use"]'); if (u) u.onclick = () => use(MON[picker.sel]);
+    const w = el.querySelector('[data-mp="whole"]'); if (w) w.onclick = () => { picker.whole = !picker.whole; info(); };
+  };
+  const info = () => { const i = el.querySelector("#mpInfo"); if (i) { i.innerHTML = monInfo(MON[picker.sel], q, r); wireInfo(); } };
+  const list = () => { const l = el.querySelector("#mpList"); if (!l) return;
+    l.innerHTML = pickerList();
+    l.querySelectorAll("[data-mk]").forEach(c => {
+      c.onclick = () => { picker.sel = +c.dataset.mk; picker.whole = false; l.querySelectorAll(".mcard").forEach(x => x.classList.toggle("on", x === c)); info(); };
+      c.ondblclick = () => use(MON[+c.dataset.mk]);
+    }); };
+  el.querySelector('[data-mp="close"]').onclick = () => { picker = null; renderEditor(); };
+  const z = el.querySelector('[data-mp="zone"]');
+  if (z) z.onchange = () => { picker.zone = z.value; picker.term = ""; el.querySelector('[data-mp="term"]').value = ""; const f = monsIn(z.value)[0]; picker.sel = f ? MON.indexOf(f) : null; picker.whole = false; list(); info(); };
+  const t = el.querySelector('[data-mp="term"]');
+  if (t) t.oninput = () => { picker.term = t.value; list(); };
+  list(); info();
+}
+function openPicker(q, i) {
+  const r = q.targets[i], cur = monOf(r, q), zones = monZones(), gz = giverZone(q);
+  const zone = cur ? cur.zone : zones.includes(gz) ? gz : zones.slice().sort((a, b) => monsIn(b).length - monsIn(a).length)[0];
+  const first = cur || monsIn(zone)[0];
+  picker = { q, row: i, zone, term: "", sel: first ? MON.indexOf(first) : null, whole: false };
+  renderEditor();
+  const el = document.querySelector(".mpick"); if (el) el.scrollIntoView({ block: "nearest" });
+}
+function killRow(r, i, q, ro, dis) {
+  const m = monOf(r, q);
+  const unknown = r.monster && MON.length && !m;
+  const chip = m ? `<div class="kchip">${mpic(m)}<div style="min-width:0"><b>${esc(m.name)}</b><small>${esc(zoneName(m.zone))} · ${esc(shortStats(m))}${m.shownAs ? ` · shown in game as “${esc(m.shownAs)}”` : ""}</small></div></div>`
+    : r.monster ? `<div class="kchip${unknown ? " bad" : ""}">${mpic({ name: r.monster })}<div><b>${esc(r.monster)}</b><small>${unknown ? "no enemy seen with exactly this name" : "not seen in game yet"}</small></div></div>`
+    : r.monsterId > 0 ? `<div class="kchip">${mpic({ name: "#" })}<div><b>Monster id ${r.monsterId}</b><small>matched by id</small></div></div>`
+    : `<div class="kchip none">No enemy picked yet</div>`;
+  const open = picker && picker.q === q && picker.row === i;
+  return `Defeat <input class="num" type="number" min="1" data-f="count" value="${r.count}" ${dis}> × ${chip}
+    ${ro ? "" : `<button data-pickmon="${i}" class="${open ? "" : "primary"}">${open ? "Hide enemies" : m || r.monster ? "Change enemy" : "Choose enemy…"}</button>`}
+    ${ro ? "" : `<details><summary>Type a name or id instead</summary><div class="row">
+      Name <input data-f="monster" value="${esc(r.monster)}" placeholder="exact name, e.g. Banded Yerlbok">
+      or id <input class="num" type="number" data-f="monsterId" value="${r.monsterId || 0}">
+      <span class="hint">The name must match exactly (capital letters too). The id is only used when the name is empty.</span></div></details>`}`;
 }
 
 // ---------------------------------------------------------------- helpers
@@ -189,6 +366,8 @@ function copyOriginal(q, keepId) {
 // ---------------------------------------------------------------- editor form
 function renderEditor() {
   const ed = $("#editor");
+  const cur = sel ? (sel.tab === "orig" ? D.originals[sel.i] : pack.quests[sel.i]) : null;
+  if (picker && (picker.q !== cur || !(cur.targets || [])[picker.row])) picker = null;
   if (!sel) {
     ed.innerHTML = `<div class="empty"><p class="title">Pick a quest, or make a new one</p>
       <p>Your pack's quests are on the left. Browse <b>Original quests</b> to copy one as a starting point.</p>
@@ -218,7 +397,7 @@ function renderEditor() {
       <label>Handed in to NPC<input list="npcList" data-k="ender" data-pick="npc" value="${esc(pickVal(q.ender, npcName))}" ${dis}></label>
       <label>Priority (higher shows first)<input type="number" data-k="priority" value="${q.priority || 0}" ${dis}></label>
     </div>
-    <p class="hint">Type part of an NPC's name or id. NPCs appear here once QuestLoader has seen them in a zone you've visited, plus your own from the NPCs tab.</p>
+    <p class="hint">Type part of an NPC's name or id. NPCs appear here once QuestLoader has seen them in a zone you've visited, plus the ones you placed in Build.</p>
     <div class="checks" style="margin-top:8px">
       ${["enabled","autoAccept","autoReopen","repeatable"].map(k => `<label><input type="checkbox" data-k="${k}" ${q[k] ? "checked" : ""} ${dis}>${k}</label>`).join("")}
     </div>
@@ -278,7 +457,7 @@ function renderEditor() {
   ed.querySelectorAll("[data-add]").forEach(b => b.onclick = () => {
     const k = b.dataset.add;
     if (k === "targets") (q.targets = q.targets || []).push({ kind: "item", item: 0, count: 1, includeBank: true });
-    if (k === "kills") (q.targets = q.targets || []).push({ kind: "kill", monster: "", count: 5 });
+    if (k === "kills") { (q.targets = q.targets || []).push({ kind: "kill", monster: "", count: 5 }); setDirty(); openPicker(q, q.targets.length - 1); return; }
     if (k === "rewards") (q.rewards = q.rewards || []).push({ kind: "gold", amount: 100 });
     if (k === "receives") (q.receives = q.receives || []).push({ item: 0, count: 1 });
     setDirty(); renderEditor();
@@ -321,9 +500,7 @@ function renderRows(key, q, ro) {
   box.innerHTML = rows.map((r, i) => {
     let inner = "";
     if (key === "targets" && r.kind === "kill")
-      inner = `Defeat <input class="num" type="number" data-f="count" value="${r.count}" ${dis}>
-        × monster named <input data-f="monster" value="${esc(r.monster)}" placeholder="name" ${dis}>
-        or id <input class="num" type="number" data-f="monsterId" value="${r.monsterId || 0}" ${dis}>`;
+      inner = killRow(r, i, q, ro, dis);
     else if (key === "targets")
       inner = `Bring <input class="num" type="number" data-f="count" value="${r.count}" ${dis}>
         × <input class="item-pick" list="itemList" data-f="item" data-pick="item" value="${esc(pickVal(r.item, itemName))}" placeholder="type an item name" ${dis}>
@@ -335,12 +512,18 @@ function renderRows(key, q, ro) {
     else
       inner = `<input class="num" type="number" data-f="count" value="${r.count}" ${dis}>
         × <input class="item-pick" list="itemList" data-f="item" data-pick="item" value="${esc(pickVal(r.item, itemName))}" placeholder="type an item name" ${dis}>`;
-    return `<div class="row" data-row="${i}">${inner}${ro ? "" : ` <button class="danger" data-rm="${i}" title="Remove">✕</button>`}</div>`;
+    const pick = key === "targets" && !ro && picker && picker.q === q && picker.row === i ? pickerHtml(q, r) : "";
+    return `<div class="row${key === "targets" && r.kind === "kill" ? " krow" : ""}" data-row="${i}">${inner}${ro ? "" : ` <button class="danger" data-rm="${i}" title="Remove">✕</button>`}</div>${pick}`;
   }).join("") || '<p class="hint">None.</p>';
   if (ro) return;
-  box.querySelectorAll("[data-rm]").forEach(b => b.onclick = () => { rows.splice(+b.dataset.rm, 1); setDirty(); renderEditor(); });
+  if (key === "targets") {
+    box.querySelectorAll("[data-pickmon]").forEach(b => b.onclick = () => { const i = +b.dataset.pickmon; if (picker && picker.q === q && picker.row === i) { picker = null; renderEditor(); } else openPicker(q, i); });
+    if (picker && picker.q === q) wirePicker(box, q, rows[picker.row]);
+  }
+  box.querySelectorAll("[data-rm]").forEach(b => b.onclick = () => { rows.splice(+b.dataset.rm, 1); if (picker && picker.q === q) picker = null; setDirty(); renderEditor(); });
   box.querySelectorAll("[data-f]").forEach(el => el.onchange = () => {
     const r = rows[+el.closest("[data-row]").dataset.row], f = el.dataset.f;
+    if (key === "targets" && (f === "monster" || f === "monsterId")) { r[f] = f === "monsterId" ? (+el.value || 0) : el.value.trim(); setDirty(); renderEditor(); return; }
     if (el.type === "checkbox") r[f] = el.checked;
     else if (el.dataset.pick) r[f] = parseId(el.value);
     else if (el.type === "number") r[f] = +el.value || 0;
@@ -419,6 +602,14 @@ function problemsOf(q) {
   if (!(q.giver > 0)) p.push("needs an NPC who gives it");
   if (!(q.ender > 0)) p.push("needs an NPC to hand it in to");
   (q.targets || []).forEach(t => { if (t.kind === "item" && !itemName[t.item]) p.push("a goal has an unknown item"); });
+  (q.targets || []).forEach(t => {
+    if (t.kind !== "kill") return;
+    if (!t.monster && !(t.monsterId > 0)) p.push("a defeat goal has no enemy picked");
+    else if (t.monster && MON.length && !MON.some(m => m.name === t.monster)) p.push(`no enemy seen is called exactly "${t.monster}"`);
+    if (!(t.count > 0)) p.push("a defeat goal needs a count of 1 or more");
+  });
+  if ((q.targets || []).some(t => t.kind === "kill") && (q.targets || []).some(t => t.kind !== "kill"))
+    p.push("don't mix Bring items and Defeat monsters in one quest: the game stops counting kills (make two quests)");
   if ((q.targets || []).some(t => t.kind === "item") && !(q.types || []).includes("Collect"))
     p.push("item goals need the Collect type (QuestLoader adds it for you in game)");
   (q.rewards || []).forEach(r => { if (r.kind === "item" && !itemName[r.item]) p.push("a reward has an unknown item"); });
@@ -435,7 +626,7 @@ async function save() {
   buildFlags();
   try {
     const r = await api("/api/quests/pack?name=" + encodeURIComponent(packName), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(pack) });
-    setDirty(false); status(`Saved ${r.count} quest(s)${r.enabled ? "" : " (pack is off)"}. In game: reloadquests (F7), or restart.`, "ok");
+    setDirty(false); status(`Saved ${r.count} quest(s)${r.enabled ? "" : " (pack is off)"}. The game loads them next time it starts.`, "ok");
     parent.postMessage({ broadcast: { cmd: "packsChanged", kind: "quests" } }, "*");
   } catch (e) { status("Save failed: " + e.message, "bad"); }
 }
@@ -444,12 +635,13 @@ async function save() {
 // Delete the open pack (it goes to the Recycle Bin), then open another one.
 async function deletePack() {
   const exists = ((await api("/api/overview")).packs.quests || []).some(p => p.name === packName);
-  if (!confirm(exists ? `Delete the pack "${packName}"?\n\nIt goes to the Recycle Bin, so you can get it back from there.`
+  if (!confirm(exists ? `Delete the pack "${packName}"?\n\nIt goes to the Recycle Bin (or Mods\\.trash on a drive without one), so you can get it back.`
                       : `"${packName}" was never saved. Throw it away?`)) return;
   if (exists) {
     try { await api(`/api/packs/delete?kind=quests&name=${encodeURIComponent(packName)}`, { method: "POST" }); }
     catch (e) { status("Couldn't delete: " + e.message, "bad"); return; }
   }
+  const gone = packName;
   const left = ((await api("/api/overview")).packs.quests || []).map(p => p.name);
   dirty = false; parent.postMessage({ dirty: false }, "*");
   D.packs = left; D.packsOff = D.packsOff ? D.packsOff.filter(n => left.includes(n)) : [];
@@ -457,7 +649,7 @@ async function deletePack() {
   packName = null; fillPacks(left.length ? left : [next]);
   await openPack(next);
   status(exists ? "Deleted (it's in the Recycle Bin)" : "Thrown away", "ok");
-  parent.postMessage({ broadcast: { cmd: "packsChanged", kind: "quests" } }, "*");
+  parent.postMessage({ broadcast: { cmd: "packsChanged", kind: "quests", deleted: exists ? gone : undefined } }, "*");
 }
 $("#delPack").onclick = deletePack;
 $("#save").onclick = save;
@@ -476,7 +668,7 @@ document.addEventListener("keydown", e => { if ((e.ctrlKey || e.metaKey) && e.ke
 // Ctrl+K goes to the search box in the main window.
 document.addEventListener("keydown", e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); parent.postMessage({ key: "ctrl-k" }, "*"); } });
 window.addEventListener("beforeunload", e => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
-boot().then(() => parent.postMessage({ ready: true }, "*")).catch(e => status("Couldn't load: " + e.message, "bad"));
+boot().then(() => parent.postMessage({ ready: true }, "*")).catch(e => { status("Couldn't load: " + e.message, "bad"); parent.postMessage({ ready: true, error: e.message }, "*"); });
 </script>
 </body>
 </html>

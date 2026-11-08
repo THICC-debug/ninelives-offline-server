@@ -26,6 +26,12 @@
   #side .btns { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
   .zoombtns { position: absolute; right: 10px; top: 10px; display: flex; flex-direction: column; gap: 4px; }
   .zoombtns button { width: 32px; height: 32px; padding: 0; background: rgba(30,30,30,.85); color: #eee; border-color: #444; }
+  /* narrow, in the Build layout's bottom panel */
+  body.compact header { min-height: 0; padding: 4px 10px; gap: 8px; }
+  body.compact .layers { gap: 8px; font-size: 12px; }
+  body.compact #wrap { grid-template-columns: 1fr 230px; }
+  body.compact #side { padding: 8px 10px; font-size: 12px; }
+  body.compact #recapture, body.compact #live { display: none; }
 </style>
 </head>
 <body>
@@ -39,7 +45,7 @@
     <label><input type="checkbox" data-layer="areas" checked><i style="background:#b388ff"></i>Script areas</label>
     <label><input type="checkbox" data-layer="names" checked>names</label>
   </div>
-  <button id="recapture" title="Take a new picture of this zone (stand in it in game)">Recapture map</button>
+  <button id="recapture" title="Take a new picture of this zone (open it in the 3D view first)">Recapture map</button>
   <label><input type="checkbox" id="follow">follow me</label>
   <span id="status"></span>
   <span id="live" class="badge off">○ Game not running</span>
@@ -76,11 +82,15 @@ async function boot() {
   else { const withMap = zones.find(z => z.map); if (withMap) $("#zone").value = withMap.zone; }
   await load($("#zone").value);
 }
+let loadNo = 0;
 async function load(z) {
   if (!z) { $("#empty").textContent = "No zones known yet: play once with the mods installed."; return; }
   zone = z; sel = null;
+  const my = ++loadNo;
   try { localStorage.setItem("nle.mapzone", z); } catch (e) {}
-  M = await api("/api/map/data?zone=" + encodeURIComponent(z));
+  const data = await api("/api/map/data?zone=" + encodeURIComponent(z));
+  if (my !== loadNo) return;
+  M = data;
   B = M.bounds;
   if (!B) {   // no picture yet: frame what we know
     const pts = [...M.npcs, ...M.custom, ...M.things, ...M.areas].filter(p => p.x != null);
@@ -92,7 +102,11 @@ async function load(z) {
   $("#empty").innerHTML = B.none ? `<div><b>No map picture of ${esc(zoneName(z))} yet.</b><br>It's taken by itself the first time you're in the zone with the mod loader 2.3 or newer,<br>or stand in the zone and press “Recapture map”.</div>` : "";
   fit(); draw(); side();
 }
-function fit() { const s = Math.max(B.maxX - B.minX, B.maxZ - B.minZ); vb = { x: B.minX, y: -B.maxZ, w: s, h: s }; applyVb(); }
+function fit() {
+  const s = Math.max(B.maxX - B.minX, B.maxZ - B.minZ), r = $("#svg").getBoundingClientRect(), aspect = r.width / Math.max(1, r.height);
+  const w = s * Math.max(1, aspect), h = w / Math.max(0.01, aspect), cx = (B.minX + B.maxX) / 2, cz = (B.minZ + B.maxZ) / 2;
+  vb = { x: cx - w / 2, y: -cz - h / 2, w, h }; applyVb();
+}
 function applyVb() {
   const el = $("#svg"), r = el.getBoundingClientRect(), aspect = r.width / Math.max(1, r.height);
   // keep the zoom; widen to the window's shape
@@ -164,7 +178,7 @@ function side() {
     p.innerHTML = `<h3>${esc(zoneName(zone))}</h3>
       <p class="hint">${M.npcs.length} game NPCs (${M.npcs.filter(n => n.quests).length} give quests), ${M.custom.length} of yours,
       ${M.things.length} placed thing(s), ${M.areas.length} script spot(s).</p>
-      <p class="hint">Click a marker for details. Drag your NPCs, placed things and areas to move them (saved straight away).
+      <p class="hint">Click a marker for details. Drag your NPCs, placed things and areas to move them, and Shift+wheel to turn them (saved straight away).
       Click an empty spot to put something there.</p>
       ${B.taken ? `<p class="hint">Map taken ${esc(B.taken)}.</p>` : ""}`;
     return;
@@ -174,9 +188,9 @@ function side() {
       <div class="btns">
         <button id="sNpc" class="primary">New NPC here</button>
         <button id="sArea">New “walk into this area” rule here</button>
-        <button id="sTele" ${here ? "" : "disabled"} title="${here ? "" : "You need to be in this zone in game"}">Teleport me here</button>
+        <button id="sTele" ${here ? "" : "disabled"} title="${here ? "" : "Open this zone in the 3D view first"}">Fly the camera here</button>
       </div>`;
-    const y = async () => { if (!live) return null; const h = await liveGet(`/map/height?x=${sel.x}&z=${sel.z}`); return h.y; };
+    const y = async () => { if (!here) return null; /* (the 3D view is in another zone) */ const h = await liveGet(`/map/height?x=${sel.x}&z=${sel.z}`); return h.y; };
     $("#sNpc").onclick = async () => parent.postMessage({ nav: "npcs", msg: { cmd: "newNpcAt", zone, x: +sel.x.toFixed(2), y: (await y()) ?? nearestY(sel), z: +sel.z.toFixed(2) } }, "*");
     $("#sArea").onclick = async () => parent.postMessage({ nav: "scripts", msg: { cmd: "newRule", area: { type: "enterArea", zone, x: +sel.x.toFixed(2), y: (await y()) ?? nearestY(sel), z: +sel.z.toFixed(2), radius: 5 } } }, "*");
     $("#sTele").onclick = async () => { const yy = await y(); await livePost("/goto", { x: sel.x, y: yy ?? 0, z: sel.z, rotation: 0 }); };
@@ -184,16 +198,19 @@ function side() {
   }
   const it = item(sel.k, sel.i);
   const title = { npc: "Game NPC", mine: "Your NPC", thing: it.hide ? "Hidden thing" : "Placed thing", area: it.leave ? "Leave-area rule" : "Area rule", tele: "Teleport target" }[sel.k];
-  p.innerHTML = `<h3>${esc(it.name || it.id || "?")}</h3><p class="hint">${title}${it.pack ? " · pack " + esc(it.pack) : ""}${sel.k === "npc" ? " · #" + it.cid : ""}${sel.k === "mine" ? " · #" + it.cid : ""}</p>
-    <p class="hint">x ${(+it.x).toFixed(1)} · y ${(+it.y || 0).toFixed(1)} · z ${(+it.z).toFixed(1)}${it.radius ? " · radius " + it.radius + " m" : ""}</p>
+  p.innerHTML = `<h3>${esc(it.name || it.id || "?")}</h3><p class="hint">${title}${it.pack ? " · pack " + esc(it.pack) : ""}${sel.k === "npc" ? " · #" + esc(it.cid) : ""}${sel.k === "mine" ? " · #" + esc(it.cid) : ""}</p>
+    <p class="hint">x ${(+it.x).toFixed(1)} · y ${(+it.y || 0).toFixed(1)} · z ${(+it.z).toFixed(1)}${it.radius ? " · radius " + esc(it.radius) + " m" : ""}</p>
     ${sel.k === "npc" && it.quests ? `<p>Gives ${it.quests} quest(s).</p>` : ""}
     <div class="btns">
       ${sel.k === "npc" ? `<button id="bQuests" class="primary">${it.quests ? "See its quests" : "Make a quest for it"}</button><button id="bLook">Make an NPC that looks like it</button>` : ""}
-      ${sel.k === "mine" ? '<button id="bEdit" class="primary">Edit in the NPCs tab</button>' : ""}
-      ${sel.k === "thing" ? '<button id="bEdit" class="primary">Edit in the World tab</button>' : ""}
+      ${sel.k === "mine" ? '<button id="bEdit" class="primary">Edit in the inspector</button>' : ""}
+      ${sel.k === "thing" ? `<button id="bEdit" class="primary">Edit in the inspector</button>
+        ${it.hide ? "" : `<div class="row" style="margin:0"><button data-turn="-15" title="Shift+wheel on the map turns it too">⟲ Turn</button><button data-turn="15">Turn ⟳</button></div>
+        <button id="bCopy">Copy it next to it</button>`}` : ""}
+      ${sel.k === "mine" ? '<div class="row" style="margin:0"><button data-turn="-15">⟲ Turn</button><button data-turn="15">Turn ⟳</button></div>' : ""}
       ${sel.k === "area" || sel.k === "tele" ? '<button id="bEdit" class="primary">Edit the rule</button>' : ""}
       ${sel.k === "area" ? '<div class="row" style="margin:0"><button data-r="-1">Smaller area</button><button data-r="1">Bigger area</button></div>' : ""}
-      <button id="bGo" ${here ? "" : "disabled"} title="${here ? "" : "You need to be in this zone in game"}">Take me there</button>
+      <button id="bGo" ${here ? "" : "disabled"} title="${here ? "" : "Open this zone in the 3D view first"}">Fly the camera there</button>
     </div><p class="hint" id="note"></p>`;
   const on = (id, f) => { const e = $("#" + id); if (e) e.onclick = f; };
   on("bQuests", () => parent.postMessage(it.quests ? { nav: "quests", msg: { cmd: "search", q: it.name } } : { nav: "quests", msg: { cmd: "newQuest", giver: it.cid } }, "*"));
@@ -204,9 +221,11 @@ function side() {
     if (sel.k === "area" || sel.k === "tele") parent.postMessage({ nav: "scripts", msg: { cmd: "openPack", name: it.pack, then: { cmd: "select", id: it.rule } } }, "*");
   });
   on("bGo", () => livePost("/goto", { x: +it.x, y: +it.y || 0, z: +it.z, rotation: +it.ry || 0 }));
+  document.querySelectorAll("[data-turn]").forEach(b => b.onclick = () => turnSel(+b.dataset.turn));
+  on("bCopy", () => copyThing(it));
   document.querySelectorAll("[data-r]").forEach(b => b.onclick = async () => {
     it.radius = Math.max(1, Math.round((+it.radius || 5) * (b.dataset.r > 0 ? 1.25 : 0.8) * 10) / 10);
-    await saveMove("area", it); draw(); side();
+    await saveMove("area", it, false); draw(); side();
   });
 }
 function nearestY(p) {
@@ -216,9 +235,12 @@ function nearestY(p) {
 }
 
 // ---------------------------------------------------------------- moving things (saved straight away)
-async function saveMove(k, it) {
+let saveChain = Promise.resolve();
+// One save at a time: two quick ones to the same pack would otherwise each write the file they read.
+function saveMove(k, it, moved = true) { const run = saveChain.then(() => doSaveMove(k, it, moved)); saveChain = run.catch(() => {}); return run; }
+async function doSaveMove(k, it, moved) {
   const live = G.connected && G.inWorld && G.zone === zone;
-  if (live) { const h = await liveGet(`/map/height?x=${it.x}&z=${it.z}`); if (h.y != null) it.y = h.y; }
+  if (live && moved) { const h = await liveGet(`/map/height?x=${it.x}&z=${it.z}` + (it.y != null && it.y !== "" ? `&from=${+it.y}` : "")); if (h.y != null) it.y = h.y; }
   const kind = { mine: "npcs", thing: "world", area: "scripts", tele: "scripts" }[k];
   const name = it.pack;
   try {
@@ -227,17 +249,48 @@ async function saveMove(k, it) {
     if (k === "mine") { target = (pack.npcs || []).find(n => n.id == it.cid); }
     if (k === "thing") { target = (pack.objects || []).find(o => o.id === it.id); }
     if (k === "area") { const r = (pack.rules || []).find(r => r.id === it.rule); target = r && r.when; if (target) target.radius = it.radius; }
-    if (k === "tele") { const r = (pack.rules || []).find(r => r.id === it.rule); target = r && (r.then || []).find(a => a.type === "teleport"); }
+    if (k === "tele") { const r = (pack.rules || []).find(r => r.id === it.rule); const st = r && (r.then || []); target = st && (it.step != null && st[it.step] && st[it.step].type === "teleport" ? st[it.step] : st.find(a => a.type === "teleport")); }
     if (!target) throw new Error("not found in pack " + name);
     target.x = +(+it.x).toFixed(2); target.z = +(+it.z).toFixed(2); if (it.y != null) target.y = +(+it.y).toFixed(2);
+    if (k === "thing" && it.ry != null) target.ry = +it.ry;
+    if (k === "mine" && it.rotation != null) target.rotation = +it.rotation;
     await api(`/api/${kind}/pack?name=${encodeURIComponent(name)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(pack) });
     // Show it in the game right away
     if (live && k === "mine") await livePost("/npc", target);
     if (live && k === "thing") await livePost("/world/obj", target);
     if (live && (k === "area" || k === "tele")) await livePost("/scripts/reload");
-    parent.postMessage({ broadcast: { cmd: "packsChanged", kind, moved: true } }, "*");
+    parent.postMessage({ broadcast: { cmd: "packsChanged", kind, moved: true, pack: name, id: k === "mine" ? it.cid : (it.id || it.rule) } }, "*");
     status("Moved and saved" + (live ? " (and updated in the game)" : ""), "ok");
   } catch (e) { status("Couldn't save the move: " + e.message, "bad"); }
+}
+
+// Turn the selected placed thing or NPC (buttons, or Shift+wheel on the map); saved straight away.
+let turnTimer = null;
+function turnSel(deg) {
+  if (!sel || (sel.k !== "thing" && sel.k !== "mine")) return;
+  const it = item(sel.k, sel.i);
+  if (sel.k === "thing") { if (it.hide) return; it.ry = (((+it.ry || 0) + deg) % 360 + 360) % 360; }
+  else it.rotation = (((+it.rotation || 0) + deg) % 360 + 360) % 360;
+  draw(); side();
+  const k = sel.k; clearTimeout(turnTimer); turnTimer = setTimeout(() => saveMove(k, it, false), 300);   // (sel may change meanwhile)
+}
+// A copy of a placed thing, 2 m to the side, in the same pack (saved straight away).
+async function copyThing(it) {
+  try {
+    const pack = await api(`/api/world/pack?name=${encodeURIComponent(it.pack)}`);
+    const src = (pack.objects || []).find(o => o.id === it.id);
+    if (!src) throw new Error("not found in pack " + it.pack);
+    const used = new Set((pack.objects || []).map(o => o.id));
+    let id; for (let n = 2; ; n++) { id = src.id.replace(/-\d+$/, "") + "-" + n; if (!used.has(id)) break; }
+    const c = JSON.parse(JSON.stringify(src)); c.id = id; c.name = (src.name || src.id) + " (copy)"; c.x = +(+src.x + 2).toFixed(2);
+    pack.objects.push(c);
+    await api(`/api/world/pack?name=${encodeURIComponent(it.pack)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(pack) });
+    if (G.connected && G.inWorld && G.zone === zone) await livePost("/world/obj", c);
+    parent.postMessage({ broadcast: { cmd: "packsChanged", kind: "world", moved: true, pack: it.pack, id } }, "*");
+    M = await api("/api/map/data?zone=" + encodeURIComponent(zone));
+    const i = M.things.findIndex(t => t.id === id && t.pack === it.pack); sel = i >= 0 ? { k: "thing", i } : null;
+    draw(); side(); status("Copied and saved — drag the copy where you want it", "ok");
+  } catch (e) { status("Couldn't copy: " + e.message, "bad"); }
 }
 
 // ---------------------------------------------------------------- mouse
@@ -248,6 +301,7 @@ view.addEventListener("mousedown", e => {
   view.classList.add("panning");
 });
 window.addEventListener("mousemove", e => {
+  if ((drag || pan) && !(e.buttons & 1)) { drag = null; pan = null; view.classList.remove("panning"); return; }   // (the button was let go outside the window: don't save a move nobody made)
   const w = toWorld(e);
   if (e.target.closest && e.target.closest("#view")) $("#coords").textContent = `x ${w.x.toFixed(1)}   z ${w.z.toFixed(1)}`;
   if (drag) {
@@ -275,7 +329,11 @@ function zoom(f, cx, cy) {
   vb.x = wx - (cx - r.left) / (r.width / vb.w); vb.y = wy - (cy - r.top) / (r.width / vb.w);
   applyVb(); draw();
 }
-view.addEventListener("wheel", e => { e.preventDefault(); zoom(e.deltaY > 0 ? 1.2 : 1 / 1.2, e.clientX, e.clientY); }, { passive: false });
+view.addEventListener("wheel", e => {
+  e.preventDefault();
+  if (e.shiftKey && sel && (sel.k === "thing" || sel.k === "mine")) return turnSel((e.deltaY || e.deltaX) > 0 ? 15 : -15);
+  zoom(e.deltaY > 0 ? 1.2 : 1 / 1.2, e.clientX, e.clientY);
+}, { passive: false });
 $("#zin").onclick = () => zoom(1 / 1.4); $("#zout").onclick = () => zoom(1.4); $("#zfit").onclick = () => { fit(); draw(); };
 window.addEventListener("resize", () => { if (vb) { applyVb(); draw(); } });
 document.querySelectorAll("[data-layer]").forEach(c => c.onchange = draw);
@@ -292,11 +350,13 @@ $("#recapture").onclick = async () => {
 
 // ---------------------------------------------------------------- live
 async function pollGame() {
+  if (window.innerWidth === 0) return;   // hidden (another workspace is showing): don't keep asking the game
   G = await liveGet("/status");
   const b = $("#live");
   if (G.connected && G.inWorld) { b.className = "badge on"; b.textContent = "● In game: " + zoneName(G.zone); }
   else if (G.connected) { b.className = "badge"; b.textContent = "● Game running, not in the world yet"; }
   else { b.className = "badge off"; b.textContent = "○ Game not running"; }
+  if (window.innerWidth === 0) return;   // hidden: nothing to draw
   if (M && G.connected && G.inWorld && G.zone === zone) {
     if ($("#follow").checked) { vb.x = G.x - vb.w / 2; vb.y = -G.z - vb.h / 2; applyVb(); }
     if (!drag) draw();
@@ -304,11 +364,23 @@ async function pollGame() {
 }
 window.addEventListener("message", async e => {
   const m = e.data || {};
-  if (m.cmd === "packsChanged" && !m.moved && zone) { M = await api("/api/map/data?zone=" + encodeURIComponent(zone)); draw(); side(); }
+  if (m.cmd === "layout") { document.body.classList.toggle("compact", !!m.compact); if (vb) { applyVb(); draw(); } }
+  if (m.cmd === "packsChanged" && !m.moved && zone) {
+    const was = sel && sel.i != null ? item(sel.k, sel.i) : null;
+    const key = was ? (was.pack || "") + "|" + (was.id ?? was.rule ?? was.cid) + "|" + (was.kind || "") : null;
+    M = await api("/api/map/data?zone=" + encodeURIComponent(zone));
+    if (key) {
+      const list = { npc: M.npcs, mine: M.custom, thing: M.things, area: M.areas, tele: M.areas }[sel.k] || [];
+      const i = list.findIndex(x => (x.pack || "") + "|" + (x.id ?? x.rule ?? x.cid) + "|" + (x.kind || "") === key);
+      sel = i >= 0 ? Object.assign(sel, { i }) : null;
+    }
+    draw(); side();
+  }
 });
 document.addEventListener("keydown", e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); parent.postMessage({ key: "ctrl-k" }, "*"); } });
-setInterval(pollGame, 1500);
-boot().then(() => { parent.postMessage({ ready: true }, "*"); pollGame(); }).catch(e => status("Couldn't load: " + e.message, "bad"));
+function poll() { Promise.resolve(pollGame()).catch(() => {}).then(() => setTimeout(poll, 1500)); }   // the next ask after the answer (a busy game answers slowly)
+setTimeout(poll, 1500);
+boot().then(() => { parent.postMessage({ ready: true }, "*"); pollGame(); }).catch(e => { status("Couldn't load: " + e.message, "bad"); parent.postMessage({ ready: true, error: e.message }, "*"); });
 </script>
 </body>
 </html>

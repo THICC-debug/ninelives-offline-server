@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Outliner</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+  body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; background: var(--panel); font-size: 13px; }
+  .top { padding: 6px 8px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 5px; }
+  .top b { font-size: 12px; }
+  .top input { width: 100%; box-sizing: border-box; padding: 4px 8px; font-size: 12px; }
+  #list { flex: 1; overflow: auto; }
+  .grp { padding: 5px 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); background: var(--bg); border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; }
+  .it { padding: 4px 8px 4px 14px; border-bottom: 1px solid var(--line); cursor: pointer; display: flex; gap: 6px; align-items: center; white-space: nowrap; }
+  .it:hover { background: var(--chip); }
+  .it.sel { background: var(--chip); box-shadow: inset 3px 0 var(--accent); }
+  .it .nm { overflow: hidden; text-overflow: ellipsis; flex: 1; }
+  .it .ic { width: 8px; height: 8px; border-radius: 2px; flex: none; }
+  .it small { color: var(--muted); }
+  .empty { margin: 14px 10px; font-size: 12px; text-align: left; }
+  .foot { padding: 6px 8px; border-top: 1px solid var(--line); font-size: 11px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="top"><b id="zone">Outliner</b><input id="q" type="search" placeholder="Filter…"></div>
+<div id="list"></div>
+<div class="foot">Click to select · double-click to fly there</div>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const zName = z => String(z || "").replace(/^(Zone|Dungeon)_/, "").replace(/_/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2");
+let zone = null, world = null, npcs = [], sel = null, npcState = null;
+
+async function liveGet(p) { try { return await (await fetch("/api/live" + p)).json(); } catch (e) { return {}; } }
+async function loadNpcs() {
+  if (!zone) { npcs = []; return draw(); }
+  try { const m = await (await fetch("/api/map/data?zone=" + encodeURIComponent(zone))).json(); npcs = m.custom || []; } catch (e) { npcs = []; }
+  draw();
+}
+function draw() {
+  $("#zone").textContent = zone ? zName(zone) : "Outliner";
+  const t = $("#q").value.trim().toLowerCase();
+  const things = (world && world.objects ? world.objects : []).filter(o => !zone || !o.zone || o.zone === zone).filter(o => !t || (o.name + " " + o.id).toLowerCase().includes(t));
+  // saved NPCs of every pack, with the open NPC pack as it is now (unsaved ones too)
+  const all = npcState ? npcs.filter(n => n.pack !== npcState.pack).concat(npcState.npcs.filter(n => !zone || n.zone === zone)) : npcs;
+  const mine = all.filter(n => !t || String(n.name).toLowerCase().includes(t));
+  let h = `<div class="grp"><span>Placed things${world ? " · " + esc(world.pack) : ""}</span><span>${things.length}</span></div>`;
+  h += things.length ? things.map(o => `<div class="it${sel && sel.kind === "world" && sel.id === o.id ? " sel" : ""}" data-k="world" data-id="${esc(o.id)}">
+      <i class="ic" style="background:${o.hide ? "transparent;border:1px solid #4fc3f7" : "#4fc3f7"}"></i><span class="nm">${esc(o.name || o.id)}</span>${o.hide ? "<small>hidden</small>" : ""}</div>`).join("")
+    : `<div class="empty">Nothing placed yet. Click a thing in Assets (bottom panel), then click in the 3D view.</div>`;
+  h += `<div class="grp"><span>Your NPCs</span><span>${mine.length}</span></div>`;
+  h += mine.length ? mine.map(n => `<div class="it${sel && sel.kind === "npc" && sel.id == n.cid ? " sel" : ""}" data-k="npc" data-id="${esc(n.cid)}">
+      <i class="ic" style="background:#ff8a3d;border-radius:50%"></i><span class="nm">${esc(n.name)}</span><small>#${esc(n.cid)}</small></div>`).join("")
+    : `<div class="empty">No NPCs of yours here. Assets ▸ NPCs adds one.</div>`;
+  $("#list").innerHTML = h;
+  $("#list").querySelectorAll(".it").forEach(el => {
+    el.onclick = () => pick(el.dataset.k, el.dataset.id, false);
+    el.ondblclick = () => pick(el.dataset.k, el.dataset.id, true);
+  });
+}
+async function pick(kind, id, fly) {
+  sel = { kind, id }; draw();
+  fetch(`/api/live/world/select?kind=${kind === "world" ? "world" : "npc"}&id=${encodeURIComponent(id)}`, { method: "POST", body: "{}" }).catch(() => {});   // handles in the 3D view
+  if (kind === "world") {
+    parent.postMessage({ inspect: "world", sendTo: "world", msg: { cmd: "select", id } }, "*");
+    const o = world && world.objects.find(x => x.id === id);
+    if (fly && o && o.x != null) await fetch("/api/live/goto", { method: "POST", body: JSON.stringify({ x: o.x, y: o.y, z: o.z, rotation: 0 }) });
+    else fetch("/api/live/world/highlight?path=" + encodeURIComponent("WorldObj_" + id), { method: "POST", body: "{}" }).catch(() => {});
+  } else {
+    parent.postMessage({ inspect: "npcs", sendTo: "npcs", msg: { cmd: "select", id } }, "*");
+    const n = (npcState ? npcState.npcs : []).concat(npcs).find(x => x.cid == id);
+    if (fly && n) await fetch("/api/live/goto", { method: "POST", body: JSON.stringify({ x: n.x, y: n.y, z: n.z, rotation: 0 }) });
+  }
+}
+$("#q").oninput = draw;
+window.addEventListener("message", e => {
+  const m = e.data || {};
+  if (m.cmd === "worldState") { world = m; draw(); }
+  if (m.cmd === "npcState") { npcState = m; draw(); }
+  if (m.cmd === "zoneChanged") { zone = m.zone || zone; loadNpcs(); }
+  if (m.cmd === "packsChanged") loadNpcs();
+  if (m.cmd === "gameEvent") {
+    const ev = m.ev;
+    if (ev.type === "select") { sel = { kind: ev.kind === "npc" ? "npc" : "world", id: String(ev.id) }; draw(); }
+    if (ev.type === "delete" && sel && String(ev.id) === String(sel.id)) { sel = null; draw(); }
+  }
+});
+(async () => {
+  const s = await liveGet("/status");
+  if (s.inWorld) zone = s.zone;
+  await loadNpcs();
+  parent.postMessage({ ready: true }, "*");
+  parent.postMessage({ sendTo: "world", msg: { cmd: "announce" } }, "*");
+})();
+setInterval(async () => { const s = await liveGet("/status"); if (s.inWorld && s.zone !== zone) { zone = s.zone; loadNpcs(); } }, 4000);
+</script>
+</body>
+</html>

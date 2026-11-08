@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Assets</title>
+<link rel="stylesheet" href="/style.css">
+<script src="/monsters.js"></script>
+<style>
+  body { display: grid; grid-template-columns: 170px 1fr; height: 100vh; overflow: hidden; background: var(--panel); font-size: 12px; }
+  #folders { border-right: 1px solid var(--line); overflow: auto; padding: 4px 0; }
+  #folders div { padding: 3px 10px; cursor: pointer; display: flex; gap: 6px; align-items: baseline; text-transform: capitalize; color: var(--muted); }
+  #folders div .fn { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #folders div:hover { background: var(--chip); color: var(--ink); }
+  #folders div.on { background: var(--chip); color: var(--ink); font-weight: 600; box-shadow: inset 3px 0 var(--accent); }
+  #folders small { flex: none; color: var(--muted); font-weight: 400; }
+  #right { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  .top { display: flex; gap: 8px; align-items: center; padding: 5px 8px; border-bottom: 1px solid var(--line); }
+  .top input { flex: 0 1 260px; padding: 3px 8px; font-size: 12px; }
+  .top .note { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  :root { --card: 150px; }
+  #grid { flex: 1; overflow: auto; padding: 10px; display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--card), 1fr)); grid-auto-rows: max-content; gap: 10px; align-content: start; }
+  .top label { display: flex; gap: 5px; align-items: center; color: var(--muted); white-space: nowrap; }
+  .k { border: 1px solid var(--line); border-radius: 7px; overflow: hidden; cursor: pointer; background: var(--bg); }
+  .k:hover { border-color: var(--accent); }
+  .k .th { aspect-ratio: 1; background: #26282c center/cover no-repeat; }
+  .k .nm { padding: 4px 7px; line-height: 1.3; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .k .nm small { display: block; color: var(--muted); font-size: 11px; }
+  .k .th.mon { background-color: #2b2e33; background-size: contain; }
+  .k .lvl { float: right; margin-left: 4px; }
+  .msg { grid-column: 1 / -1; color: var(--muted); padding: 10px; }
+  .modes { display: flex; gap: 2px; padding: 2px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line); flex: none; }
+  .modes button { border: 0; background: none; border-radius: 6px; padding: 3px 12px; font-size: 12px; color: var(--muted); }
+  .modes button.on { background: var(--panel); color: var(--ink); font-weight: 600; box-shadow: 0 0 0 1px var(--line); }
+</style>
+</head>
+<body>
+<div id="folders"></div>
+<div id="right">
+  <div class="top"><div class="modes"><button data-mode="things" class="on">Things</button><button data-mode="npcs">NPCs</button><button data-mode="enemies">Enemies</button></div><input id="q" type="search" placeholder="Find: barrel, fence, lamp…"><label title="Picture size">Size <input type="range" id="size" min="90" max="260" step="10" style="width:110px"></label><span class="note" id="note">Click one, then click in the 3D view to put it down.</span></div>
+  <div id="grid"><div class="msg">Start the 3D view to see what's in this zone.</div></div>
+</div>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const nice = n => String(n || "").replace(/[_ ]prefab$/i, "").replace(/_/g, " ");
+let cat = null, folder = null;
+const thumbs = new Map(); let busy = 0; const queue = [];
+async function liveGet(p) { try { return await (await fetch("/api/live" + p)).json(); } catch (e) { return {}; } }
+
+let mode = "things";
+const ROLE = { quest: "Quest givers", shop: "Shops", shopSG: "Gem shops", alchemy: "Alchemists", bank: "Bankers", share: "Shared bank", skillReset: "Skill reset", bagShop: "Bag sellers", battleGrid: "Battle grid", none: "Others" };
+let loadNo = 0;
+async function load() {
+  const my = ++loadNo, forMode = mode;   // a newer load (other mode, new zone) wins over an older, slower one
+  const r = forMode === "npcs" ? await loadNpcs() : forMode === "enemies" ? await loadEnemies() : await liveGet("/world/catalog");
+  if (my !== loadNo || forMode !== mode) return;
+  if (!r.kinds) { $("#grid").innerHTML = `<div class="msg">${esc(r.error || "Start the 3D view to see what's in this zone.")}</div>`; return; }
+  if (forMode === "things") { r.kinds.forEach(k => k.folder = groupOf(k)); r.kinds.sort((a, b) => a.folder.localeCompare(b.folder) || nice(a.name).localeCompare(nice(b.name))); }
+  cat = r; folder = null; drawFolders(); drawGrid();
+  $("#note").textContent = mode === "enemies" ? `${r.kinds.length} monsters can be spawned in this zone. Click one to put it where the camera looks, then tweak it in the inspector.`
+    : mode === "npcs" ? `${r.kinds.length} people in this zone. Click one to place a new NPC that looks like them, where the camera looks.`
+                                           : `${r.kinds.length} kinds of things in this zone. Click one, then click in the 3D view to put it down.`;
+}
+// Folders from where things sit in the zone (props/_town → "town", dungeons/mine_x → "dungeon: x"), a few
+// dozen instead of one per parent object; all the quest and gathering pickups together.
+const TOP = { gathering: "gathering", __quest: "quest things", gateways: "gates and doors", characters: "characters", ____degug: "debug" };
+function groupOf(k) {
+  const p = String(k.path || "").split("/"); if (p.length < 3) return k.folder || "other";
+  const clean = s => String(s || "").replace(/#\d+$/, "").replace(/_prefab$/i, "").replace(/_+/g, " ").trim();
+  const top = p[1], sub = p[2];
+  if (TOP[top]) return TOP[top];
+  if (top === "props") return /prefab/i.test(sub) || p.length < 4 ? "props" : clean(sub) || "props";
+  if (top === "dungeons") return "dungeon: " + clean(sub).replace(/^(mine|cave) /i, "");
+  if (top === "ambient") return /prefab/i.test(sub) || p.length < 4 ? "nature" : "nature: " + clean(sub);
+  return clean(top) || k.folder || "other";
+}
+// NPC looks: everyone standing in this zone (the game's own people), one per name, grouped by job.
+async function loadNpcs() {
+  const r = await liveGet("/npcs");
+  if (!r.npcs) return { error: r.error || "Start the 3D view (NPCLoader needed) to see the people in this zone." };
+  // One per person (people with the same name, like the Towners, can look different).
+  const kinds = r.npcs.filter(n => !n.custom && n.name).map(n => ({ npc: true, cid: n.cid, name: n.name, folder: ROLE[n.role] || n.role || "Others", count: 1, size: 0, path: "npc:" + n.cid }));
+  kinds.sort((a, b) => a.folder.localeCompare(b.folder) || a.name.localeCompare(b.name));
+  return { zone: r.zone, kinds };
+}
+// Monsters EnemyLoader can spawn here, with ContentLoader's pictures and stats, grouped by how tough they are.
+let MONS = null;
+async function loadEnemies() {
+  const r = await liveGet("/enemy/kinds");
+  if (!r.kinds) return { error: r.error || "Start the 3D view (EnemyLoader needed) to see the monsters you can spawn here." };
+  if (!MONS) { try { MONS = mergeMonsters((await (await fetch("/api/enemies/data")).json()).monsters); } catch (e) { MONS = []; } }
+  const kinds = r.kinds.map(k => {
+    const m = MONS.find(x => x.name === k.name && x.zone === r.zone) || MONS.find(x => x.name === k.name);
+    const lv = m ? levelOf(m.stats, MONS) : null;
+    return { enemy: true, name: k.name, mon: m, lv, folder: lv == null ? "not seen yet" : tierOf(lv), count: m ? m.seen || 0 : 0, size: 0, path: "enemy:" + k.name };
+  });
+  kinds.sort((a, b) => (a.lv ?? 99) - (b.lv ?? 99) || a.name.localeCompare(b.name));
+  return { zone: r.zone, kinds };
+}
+document.querySelectorAll("[data-mode]").forEach(b => b.onclick = () => {
+  mode = b.dataset.mode; document.querySelectorAll("[data-mode]").forEach(x => x.classList.toggle("on", x === b));
+  cat = null; folder = null; queue.length = 0; $("#q").value = ""; $("#grid").innerHTML = '<div class="msg">Loading…</div>'; load();
+});
+
+function drawFolders() {
+  const counts = {};
+  for (const k of cat.kinds) counts[k.folder || "other"] = (counts[k.folder || "other"] || 0) + 1;
+  const names = Object.keys(counts).sort();
+  $("#folders").innerHTML = `<div data-f="" class="${folder == null ? "on" : ""}"><span class="fn">Everything</span><small>${cat.kinds.length}</small></div>` +
+    names.map(n => `<div data-f="${esc(n)}" class="${folder === n ? "on" : ""}" title="${esc(n)}"><span class="fn">${esc(n)}</span><small>${counts[n]}</small></div>`).join("");
+  $("#folders").querySelectorAll("div").forEach(el => el.onclick = () => { folder = el.dataset.f || null; drawFolders(); drawGrid(); });
+}
+function drawGrid() {
+  if (!cat) return;
+  queue.length = 0;   // pictures for cards that are about to go
+  const t = $("#q").value.trim().toLowerCase();
+  // Sky and whole-landscape pieces (over 120 m) only show when you search for them.
+  const list = cat.kinds.filter(k => (!folder || (k.folder || "other") === folder) && (t ? (k.name + " " + k.folder).toLowerCase().includes(t) : (k.npc || k.size <= 120))).slice(0, 400);
+  $("#grid").innerHTML = list.length ? list.map(k => `<div class="k" data-k="${cat.kinds.indexOf(k)}" title="${esc(nice(k.name))} · ${k.count} in this zone · ${k.size} m">
+      <div class="th" data-path="${esc(k.path)}"></div><div class="nm">${k.enemy ? levelBadge(k.lv, true) : ""}${esc(k.npc || k.enemy ? k.name : nice(k.name))}<small>${k.enemy ? esc(k.mon ? shortStats(k.mon) : "no stats yet") : k.npc ? "#" + k.cid + (k.count > 1 ? " · " + k.count + " here" : "") : k.count + "× · " + k.size + " m"}</small></div></div>`).join("") : `<div class="msg">Nothing matches.</div>`;
+  $("#grid").querySelectorAll(".k").forEach(el => el.onclick = () => {
+    const k = cat.kinds[+el.dataset.k];
+    if (k.npc) { placeNpc(k); return; }
+    if (k.enemy) { placeEnemy(k); return; }
+    parent.postMessage({ inspect: "world", sendTo: "world", msg: { cmd: "placeKind", kind: k } }, "*");
+    $("#note").textContent = "Move the mouse into the 3D view and click to put down " + nice(k.name) + " (wheel turns it, Esc cancels)";
+  });
+  const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { io.unobserve(e.target); thumb(e.target); } }), { root: $("#grid") });
+  $("#grid").querySelectorAll(".th").forEach(el => io.observe(el));
+}
+// A new NPC with this look, where the camera looks, facing the camera (edit it in the inspector).
+async function placeNpc(k) {
+  const h = await liveGet("/here");
+  if (h.x == null) { $("#note").textContent = h.error || "Couldn't reach the game."; return; }
+  parent.postMessage({ inspect: "npcs", sendTo: "npcs", msg: { cmd: "newNpcAt", zone: h.zone, x: h.x, y: h.y, z: h.z, rotation: h.rotation, template: k.cid, name: k.name, carry: true } }, "*");
+  $("#note").textContent = "New NPC like " + k.name + ": move the mouse into the 3D view and click to put them down. Name them in the inspector.";
+}
+
+// A new enemy spawn where the camera looks (tweak it in the inspector).
+async function placeEnemy(k) {
+  const h = await liveGet("/here");
+  if (h.x == null) { $("#note").textContent = h.error || "Couldn't reach the game."; return; }
+  parent.postMessage({ inspect: "enemies", sendTo: "enemies", msg: { cmd: "newEnemyAt", zone: h.zone, x: h.x, y: h.y, z: h.z, rotation: ((h.rotation || 0) + 180) % 360, monster: k.name } }, "*");
+  $("#note").textContent = k.name + " is spawned where the camera looks. Tweak it, or drag it on the map, in the inspector (Enemy).";
+}
+
+function thumb(el) {
+  if (el.dataset.path.startsWith("enemy:")) {   // ContentLoader's picture of it
+    const k = cat.kinds.find(x => x.path === el.dataset.path);
+    el.classList.add("mon");
+    if (k && k.mon && k.mon.pic) el.style.backgroundImage = `url(/api/monster/${k.mon.pic})`;
+    else el.innerHTML = `<div style="display:flex;height:100%;align-items:center;justify-content:center;font-size:40px;font-weight:700;color:#777">${esc((k ? k.name : "?").charAt(0))}</div>`;
+    return;
+  }
+  const key = cat.zone + "|" + el.dataset.path;
+  if (thumbs.has(key)) { el.style.backgroundImage = `url(${thumbs.get(key)})`; return; }
+  el.dataset.key = key;   // the zone it's for, fixed now (the zone may change before the picture arrives)
+  queue.push(el); pump();
+}
+function pump() {
+  while (busy < 2 && queue.length) {
+    const el = queue.shift();
+    if (!el.isConnected) continue;   // that card is gone (filtered away, other mode)
+    busy++;
+    (async () => {
+      const p = el.dataset.path;
+      const r = await liveGet(p.startsWith("npc:") ? "/world/npcthumb?size=224&cid=" + p.slice(4) : "/world/thumb?size=224&path=" + encodeURIComponent(p));
+      if (r.jpg) { const u = "data:image/jpeg;base64," + r.jpg; thumbs.set(el.dataset.key, u); if (el.isConnected) el.style.backgroundImage = `url(${u})`; }
+      busy--; pump();
+    })();
+  }
+}
+$("#q").oninput = drawGrid;
+let card = 150; try { card = +(localStorage.getItem("nle.assetSize") || 150); } catch (e) {}
+document.documentElement.style.setProperty("--card", card + "px"); $("#size").value = card;
+$("#size").oninput = () => { card = +$("#size").value; document.documentElement.style.setProperty("--card", card + "px"); try { localStorage.setItem("nle.assetSize", card); } catch (e) {} };
+window.addEventListener("message", e => {
+  const m = e.data || {};
+  if (m.cmd === "mode" && m.mode !== mode) { const b = document.querySelector(`[data-mode="${m.mode}"]`); if (b) b.click(); }
+  if (m.cmd === "zoneChanged") { cat = null; queue.length = 0; setTimeout(load, 1500); }
+  if (m.cmd === "worldState" && m.note) $("#note").textContent = m.note;
+});
+parent.postMessage({ ready: true }, "*");
+load();
+setInterval(() => { if (!cat && window.innerWidth > 0) load(); }, 4000);   // (not while this panel is hidden)
+// Esc (the keyboard stays here after you click an asset): stop placing it.
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) { fetch("/api/live/world/carry?cancel=1", { method: "POST", body: "{}" }).catch(() => {}); $("#note").textContent = ""; } });
+</script>
+</body>
+</html>

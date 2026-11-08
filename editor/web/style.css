@@ -32,7 +32,8 @@ aside { border-right: 1px solid var(--line); display: flex; flex-direction: colu
 .tabs button { flex: 1; border: 0; border-radius: 0; background: none; padding: 9px 4px; border-bottom: 2px solid transparent; }
 .tabs button.on { border-bottom-color: var(--accent); font-weight: 600; }
 .filters { display: flex; gap: 6px; padding: 8px; flex-wrap: wrap; }
-.filters input[type=search] { flex: 1; min-width: 140px; }
+.filters input[type=search] { flex: 1 1 100%; min-width: 140px; }
+.filters select { flex: 1; min-width: 0; }
 #search { margin: 8px; }
 .filters #search { margin: 0; }
 #list { overflow: auto; flex: 1; }
@@ -57,7 +58,8 @@ label > input, label > select, label > textarea { display: block; width: 100%; m
 .checks { display: flex; flex-wrap: wrap; gap: 4px 14px; }
 .checks label { display: flex; gap: 5px; align-items: center; color: var(--ink); font-size: 13px; }
 .checks label > input, .row label > input[type=checkbox] { display: inline-block; width: auto; margin: 0; }
-header label { display: flex; gap: 6px; align-items: center; color: var(--ink); font-size: 13px; }
+header label { display: flex; gap: 6px; align-items: center; color: var(--ink); font-size: 13px; white-space: nowrap; }
+header label > input[type=checkbox] { width: auto; margin: 0; }
 header label > select { display: inline-block; width: auto; margin: 0; }
 .row { display: flex; gap: 8px; align-items: center; margin: 6px 0; flex-wrap: wrap; }
 .row input.item-pick, .row input.pick { min-width: 240px; flex: 1; }
@@ -94,3 +96,20 @@ table.kv td.changed input { border-color: var(--accent); }
 .offbar { display: flex; gap: 10px; align-items: center; padding: 7px 16px; background: var(--chip); color: var(--warn); border-bottom: 1px solid var(--line); font-size: 13px; }
 .offbar[hidden] { display: none; }
 .offbar button { padding: 3px 10px; font-size: 12px; }
+
+/* thin scrollbars that match the theme (and stay out of the way) */
+* { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--muted) 45%, transparent) transparent; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--muted) 40%, transparent); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background-color: color-mix(in srgb, var(--muted) 70%, transparent); }
+::-webkit-scrollbar-corner { background: transparent; }
+/* narrow panels (the Build layout): no sideways scrolling */
+body.compact, body.compact main, body.compact #editor { overflow-x: hidden; }
+
+/* suggested fighting level (monsters.js) */
+.lvl { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 10px; vertical-align: 2px; white-space: nowrap; color: #fff; background: #6f6a62; }
+.lvl.sm { font-size: 10px; padding: 0 6px; }
+.lvl.none { background: var(--chip); color: var(--muted); }
+.lvl.t0 { background: #3f8f4a; } .lvl.t1 { background: #6c9a2e; } .lvl.t2 { background: #b8860b; }
+.lvl.t3 { background: #c2571a; } .lvl.t4 { background: #b3261e; } .lvl.t5 { background: #7b1fa2; }

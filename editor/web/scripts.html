@@ -62,8 +62,10 @@ async function api(path, opts) { const r = await fetch(path, opts); const j = aw
 async function liveGet(p) { try { return await (await fetch("/api/live" + p)).json(); } catch (e) { return { connected: false }; } }
 async function livePost(p, body) { try { return await (await fetch("/api/live" + p, { method: "POST", body: typeof body === "string" ? body : JSON.stringify(body || {}) })).json(); } catch (e) { return { connected: false, error: e.message }; } }
 
-async function boot() {
+// Names and lists for the pickers (NPCs, items, quests...): loaded again when other tabs change things.
+async function loadData() {
   D = await api("/api/scripts/data");
+  names.npc = {}; names.item = {}; names.quest = {};
   D.npcs.forEach(n => { if (!names.npc[n.cid]) names.npc[n.cid] = n.name + (n.custom ? " (yours)" : ""); });
   D.items.forEach(i => names.item[i.id] = i.name);
   D.quests.forEach(q => names.quest[q.id] = q.title + (q.pack ? " (yours)" : ""));
@@ -73,25 +75,31 @@ async function boot() {
   $("#monsterList").innerHTML = [...new Set((D.monsters || []).map(m => m.name))].sort().map(n => `<option value="${esc(n)}">`).join("");
   $("#zoneList").innerHTML = [...new Set(D.npcs.map(n => n.zone).filter(Boolean))].sort().map(z => `<option value="${esc(z)}">`).join("");
   $("#keyList").innerHTML = KEYS.map(k => `<option value="${k}">`).join("");
+}
+async function boot() {
+  await loadData();
   const packs = D.packs.length ? D.packs : ["my-scripts"];
   fillPacks(packs);
   await openPack(packs.find(p => !(D.packsOff || []).includes(p)) || (ensurePack("my-scripts"), "my-scripts"));
 }
 function fillPacks(list) {
+  if (packName && !list.includes(packName)) list = [...list, packName];   // (a new pack, not saved yet)
   const off = new Set(D.packsOff || []);
   $("#packSel").innerHTML = list.map(p => `<option value="${esc(p)}">${esc(p)}${off.has(p) ? " (off)" : ""}</option>`).join("");
   if (packName) $("#packSel").value = packName;
 }
 function ensurePack(n) { if (![...$("#packSel").options].some(o => o.value === n)) $("#packSel").insertAdjacentHTML("beforeend", `<option value="${esc(n)}">${esc(n)}</option>`); $("#packSel").value = n; }
 async function openPack(name) {
-  if (dirty && !confirm("Discard unsaved changes?")) { $("#packSel").value = packName; return; }
+  if (dirty && !confirm("Discard unsaved changes?")) { $("#packSel").value = packName; return false; }
   pack = await api("/api/scripts/pack?name=" + encodeURIComponent(name));
   pack.rules = pack.rules || []; pack.scripts = pack.scripts || [];
+  ensurePack(name);   // the picker shows the pack that is open
   packName = name; sel = pack.rules.length ? { k: "rule", i: 0 } : (pack.scripts.length ? { k: "lua", i: 0 } : null);
   dirty = false; parent.postMessage({ dirty: false }, "*");
   status(`Pack "${name}": ${pack.rules.length} rule(s), ${pack.scripts.length} Lua script(s)`);
   renderList(); renderEditor();
   updateOffBar();
+  return true;
 }
 const uid = (list, base) => { for (let i = 1; ; i++) if (!list.some(x => x.id === base + i)) return base + i; };
 
@@ -123,8 +131,8 @@ function renderList() {
 function stepBox(obj, i, list, title, fields, cls, kind) {
   return `<div class="step ${cls || ""}" data-list="${kind}" data-i="${i}"><div class="head">
       ${kind === "when" ? '<span class="kw">When</span>' : ""}<b>${esc(title)}</b><span class="sp"></span>
-      ${kind !== "when" ? `<button data-up="${i}" title="Move up">▲</button><button data-down="${i}" title="Move down">▼</button><button class="danger" data-rm="${i}">✕</button>` : ""}
-      ${(obj.type === "enterArea" || obj.type === "leaveArea" || obj.type === "teleport") ? '<button data-here="1">Use where I\'m standing</button>' : ""}
+      ${kind !== "when" ? `<button data-up="${i}" title="Move up">▲</button><button data-down="${i}" title="Move down">▼</button><button class="danger" data-rm="${i}" title="Remove">✕</button>` : ""}
+      ${(obj.type === "enterArea" || obj.type === "leaveArea" || obj.type === "teleport") ? '<button data-here="1">Use where the camera is</button>' : ""}
     </div>
     ${kind === "if" ? `<label class="checks" style="margin-top:6px"><label><input type="checkbox" data-not ${obj.not ? "checked" : ""}>NOT (the opposite)</label></label>` : ""}
     <div class="grid">${fields.map(f => field(obj, f)).join("")}</div></div>`;
@@ -188,7 +196,7 @@ function renderEditor() {
     if (b("[data-down]")) b("[data-down]").onclick = () => { if (i < list.length - 1) { [list[i + 1], list[i]] = [list[i], list[i + 1]]; changed(); } };
     if (b("[data-here]")) b("[data-here]").onclick = async () => {
       const s = await liveGet("/status");
-      if (!s.connected || !s.inWorld) return alert("Start the game and enter the world first.");
+      if (!s.connected || !s.inWorld) return status("Start the 3D view (▶ Start at the top) first.", "bad");
       obj.x = s.x; obj.y = s.y; obj.z = s.z; if ("zone" in obj || kind === "when") obj.zone = s.zone; changed();
     };
   });
@@ -294,6 +302,7 @@ document.getElementById("offOn").onclick = async () => {
 
 // ---------------------------------------------------------------- live, save, delete
 async function pollGame() {
+  if (window.innerWidth === 0) return;   // hidden (another workspace is showing): don't keep asking the game
   G = await liveGet("/status");
   const b = $("#live");
   if (G.connected && G.inWorld) { b.className = "badge on"; b.textContent = "● In game: " + zoneName(G.zone); }
@@ -321,14 +330,15 @@ async function save() {
 }
 async function deletePack() {
   const exists = ((await api("/api/overview")).packs.scripts || []).some(p => p.name === packName);
-  if (!confirm(exists ? `Delete the pack "${packName}"?\n\nIt goes to the Recycle Bin, so you can get it back from there.` : `"${packName}" was never saved. Throw it away?`)) return;
+  const gone = packName, nDlg = (pack.dialogs || []).length;
+  if (!confirm(exists ? `Delete the pack "${packName}"?${nDlg ? `\n\nIts ${nDlg} dialogue(s) (Dialogue tab) go with it.` : ""}\n\nIt goes to the Recycle Bin (or Mods\\.trash on a drive without one), so you can get it back.` : `"${packName}" was never saved. Throw it away?`)) return;
   if (exists) { try { await api(`/api/packs/delete?kind=scripts&name=${encodeURIComponent(packName)}`, { method: "POST" }); } catch (e) { return status("Couldn't delete: " + e.message, "bad"); } }
   const left = ((await api("/api/overview")).packs.scripts || []).map(p => p.name);
   dirty = false; parent.postMessage({ dirty: false }, "*");
   D.packs = left; packName = null; fillPacks(left.length ? left : ["my-scripts"]);
   await openPack(left[0] || "my-scripts");
   if (G.connected && G.inWorld) await livePost("/scripts/reload");
-  parent.postMessage({ broadcast: { cmd: "packsChanged", kind: "scripts" } }, "*");
+  parent.postMessage({ broadcast: { cmd: "packsChanged", kind: "scripts", deleted: exists ? gone : undefined } }, "*");
 }
 $("#save").onclick = save; $("#delPack").onclick = deletePack; $("#newRule").onclick = newRule; $("#newLua").onclick = newLua;
 $("#packSel").onchange = e => openPack(e.target.value);
@@ -336,11 +346,24 @@ $("#newPack").onclick = () => { const n = prompt("Name for the new pack (letters
 $("#search").oninput = renderList;
 window.addEventListener("message", async e => {
   const m = e.data || {};
-  if (m.cmd === "packsChanged" && m.kind === "scripts" && m.deleted === packName) {
+  if (m.cmd === "packsChanged" && m.kind === "scripts" && m.deleted && m.deleted === packName) {   // deleted on Packs & mods, or in the other scripts tab
     const left = ((await api("/api/overview")).packs.scripts || []).map(p => p.name);
-    dirty = false; D.packs = left; packName = null; fillPacks(left.length ? left : ["my-scripts"]); await openPack(left[0] || "my-scripts"); return;
+    dirty = false; parent.postMessage({ dirty: false }, "*");
+    D.packs = left; packName = null; fillPacks(left.length ? left : ["my-scripts"]); await openPack(left[0] || "my-scripts"); return;
   }
-  if (m.cmd === "openPack") { ensurePack(m.name); await openPack(m.name); if (m.then) window.postMessage(m.then, "*"); }
+  if (m.cmd === "packsChanged" && m.kind === "scripts" && !m.deleted && m.pack && m.pack === packName && pack) {   // the map moved an area: take it in
+    const disk = await api("/api/scripts/pack?name=" + encodeURIComponent(packName)).catch(() => null);
+    if (disk) {
+      const fresh = disk.rules || [];
+      if (!dirty) pack.rules = fresh;
+      else if (m.id != null) { const r = fresh.find(x => x.id === m.id), j = pack.rules.findIndex(x => x.id === m.id); if (r && j >= 0) { pack.rules[j].when = r.when; if (r.do) pack.rules[j].do = r.do; } }
+      renderList(); if (!/INPUT|SELECT|TEXTAREA/.test((document.activeElement || {}).tagName || "")) renderEditor();
+    }
+  }
+  if (m.cmd === "packsChanged" || m.cmd === "npcsChanged") {   // new NPCs, quests, packs: refresh the pickers (not the open pack)
+    try { await loadData(); fillPacks(D.packs.length ? D.packs : [packName]); updateOffBar(); } catch (err) { }
+  }
+  if (m.cmd === "openPack") { if (m.name !== packName) { ensurePack(m.name); if (await openPack(m.name) === false) return; } if (m.then) window.postMessage(m.then, "*"); }
   if (m.cmd === "newRule") {
     newRule();
     if (m.area) { const r = pack.rules[pack.rules.length - 1]; r.when = m.area; r.name = "New area rule"; renderList(); renderEditor(); }
@@ -353,7 +376,7 @@ document.addEventListener("keydown", e => {
 });
 window.addEventListener("beforeunload", e => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
 setInterval(pollGame, 2500);
-boot().then(() => { parent.postMessage({ ready: true }, "*"); pollGame(); }).catch(e => status("Couldn't load: " + e.message, "bad"));
+boot().then(() => { parent.postMessage({ ready: true }, "*"); pollGame(); }).catch(e => { status("Couldn't load: " + e.message, "bad"); parent.postMessage({ ready: true, error: e.message }, "*"); });
 </script>
 </body>
 </html>

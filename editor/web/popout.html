@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nine Lives Editor</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+  html, body { height: 100%; margin: 0; overflow: hidden; }
+  body { display: flex; flex-direction: column; background: var(--bg); }
+  .pbar { display: flex; gap: 6px; align-items: center; padding: 4px 8px; border-bottom: 1px solid var(--line); background: var(--panel); flex: none; }
+  .pbar b { font-size: 13px; margin-right: 6px; }
+  .pbar .grow { flex: 1; }
+  .pbar button { padding: 3px 10px; font-size: 12px; }
+  .pbar .hint { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  iframe { flex: 1; border: 0; width: 100%; background: var(--bg); }
+  body.full .pbar { display: none; }
+</style>
+</head>
+<body>
+<div class="pbar">
+  <b id="nm"></b><span class="hint" id="note">Its own window: move it anywhere</span><span class="grow"></span>
+  <span class="hint">Dock in Build:</span>
+  <button id="dockL" title="Put this page in Build's left panel, as a tab">◧ Left</button>
+  <button id="dockR" title="Put this page in Build's right panel, as a tab">◨ Right</button>
+  <button id="dockB" title="Put this page in Build's bottom panel, as a tab">⬓ Below</button>
+  <button id="fs" title="Full screen (F11, Esc leaves)">⛶ Full screen</button>
+</div>
+<iframe id="pg" title="Page"></iframe>
+<script>
+// One editor page in a window of its own. Messages between the page and the main window go through
+// here: the page posts to its parent (this), and this passes them to window.opener (the main window),
+// marked with the page's address; the main window answers with { toPage: … }.
+const $ = s => document.querySelector(s);
+const q = new URLSearchParams(location.search);
+const url = q.get("url") || "", page = q.get("page") || url, name = q.get("name") || "Page";
+document.title = name + " — Nine Lives Editor";
+$("#nm").textContent = name;
+const frame = $("#pg");
+let dirty = false;
+const main = () => { try { return window.opener && !window.opener.closed ? window.opener : null; } catch (e) { return null; } };
+const toMain = m => { const w = main(); if (w) w.postMessage(m, "*"); };
+if (url.startsWith("/") && page.startsWith("/")) frame.src = page; else document.body.innerHTML = "<p style='padding:20px'>Nothing to show.</p>";
+if (!main()) $("#note").textContent = "The editor's main window is closed: dock and links to other pages won't work";
+
+window.addEventListener("message", e => {
+  if (e.source === frame.contentWindow) {
+    const d = e.data || {};
+    if ("dirty" in d) dirty = !!d.dirty;
+    if (d.key === "ctrl-s") { frame.contentWindow.postMessage({ cmd: "save" }, "*"); return; }
+    toMain({ popout: url, data: d });
+    return;
+  }
+  if (e.source === main() && e.data && "toPage" in e.data) frame.contentWindow.postMessage(e.data.toPage, "*");
+});
+frame.addEventListener("load", () => {
+  frame.contentWindow.postMessage({ cmd: "layout", compact: false }, "*");
+  try { frame.contentDocument.addEventListener("keydown", keys, true); } catch (e) {}
+});
+window.popDirty = () => dirty;   // asked by the window before it closes
+
+// ---------------------------------------------------------------- full screen
+function toggleFull() { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(() => {}); }
+document.addEventListener("fullscreenchange", () => { const on = !!document.fullscreenElement; document.body.classList.toggle("full", on); $("#fs").textContent = on ? "Leave full screen" : "⛶ Full screen"; });
+function keys(e) { if (e.key === "F11") { e.preventDefault(); toggleFull(); } }
+document.addEventListener("keydown", keys, true);
+$("#fs").onclick = toggleFull;
+
+// ---------------------------------------------------------------- back into the editor
+function dock(where) {
+  if (!main()) { alert("The editor's main window is closed."); return; }
+  if (dirty) { alert("Save (or discard) your changes on this page first, then dock it."); return; }
+  toMain({ popout: url, dock: where });   // the main window closes this one and shows the page in Build
+}
+$("#dockL").onclick = () => dock("left");
+$("#dockR").onclick = () => dock("right");
+$("#dockB").onclick = () => dock("bottom");
+
+// Remember where this window was, for next time; tell the main window it's gone.
+window.addEventListener("pagehide", () => {
+  try { localStorage.setItem("nle.pop." + url, JSON.stringify({ x: screenX, y: screenY, w: outerWidth, h: outerHeight })); } catch (e) {}
+  toMain({ popout: url, closed: true });
+});
+</script>
+</body>
+</html>

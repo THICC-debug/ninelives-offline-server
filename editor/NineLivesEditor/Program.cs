@@ -27,11 +27,13 @@ namespace NineLivesEditor
 
         static int Run(string[] args)
         {
+            System.Net.ServicePointManager.DefaultConnectionLimit = 16;   // several pages talk to the game at once (the default is 2)
             Func<string, string> opt = n => { int i = Array.FindIndex(args, a => a.Equals(n, StringComparison.OrdinalIgnoreCase)); return i >= 0 && i + 1 < args.Length ? args[i + 1] : null; };
             Func<string, bool> has = n => args.Any(a => a.Equals(n, StringComparison.OrdinalIgnoreCase));
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
+            if (opt("--web") != null && Directory.Exists(opt("--web"))) Resources.WebDir = Path.GetFullPath(opt("--web"));   // working on the pages
             var game = FindGame(opt("--game"));
             if (game == null)
             {
@@ -57,6 +59,7 @@ namespace NineLivesEditor
                 Console.WriteLine("Nine Lives Editor running at " + server.Url + "  (game: " + game + ")");
                 Thread.Sleep(Timeout.Infinite);
             }
+            Application.ApplicationExit += (o, e) => GameRunner.StopOnExit();   // the 3D view goes with the editor
             if (has("--browser") || !WebViewAvailable())
                 Application.Run(new BrowserForm(server.Url, game, !has("--browser")));
             else

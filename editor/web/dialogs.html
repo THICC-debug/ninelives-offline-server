@@ -69,8 +69,10 @@ async function api(path, opts) { const r = await fetch(path, opts); const j = aw
 async function liveGet(p) { try { return await (await fetch("/api/live" + p)).json(); } catch (e) { return { connected: false }; } }
 async function livePost(p, b) { try { return await (await fetch("/api/live" + p, { method: "POST", body: JSON.stringify(b || {}) })).json(); } catch (e) { return { connected: false, error: e.message }; } }
 
-async function boot() {
+// Names and lists for the pickers (NPCs, items, quests...): loaded again when other tabs change things.
+async function loadData() {
   D = await api("/api/scripts/data");
+  names.npc = {}; names.item = {}; names.quest = {};
   D.npcs.forEach(n => { if (!names.npc[n.cid]) names.npc[n.cid] = n.name + (n.custom ? " (yours)" : ""); });
   D.items.forEach(i => names.item[i.id] = i.name);
   D.quests.forEach(q => names.quest[q.id] = q.title + (q.pack ? " (yours)" : ""));
@@ -80,24 +82,30 @@ async function boot() {
   $("#monsterList").innerHTML = [...new Set((D.monsters || []).map(m => m.name))].sort().map(n => `<option value="${esc(n)}">`).join("");
   $("#zoneList").innerHTML = [...new Set(D.npcs.map(n => n.zone).filter(Boolean))].sort().map(z => `<option value="${esc(z)}">`).join("");
   $("#keyList").innerHTML = KEYS.map(k => `<option value="${k}">`).join("");
+}
+async function boot() {
+  await loadData();
   const packs = D.packs.length ? D.packs : ["my-scripts"];
   fillPacks(packs);
   await openPack(packs.find(p => !(D.packsOff || []).includes(p)) || (ensurePack("my-scripts"), "my-scripts"));
 }
 function fillPacks(list) {
+  if (packName && !list.includes(packName)) list = [...list, packName];   // (a new pack, not saved yet)
   const off = new Set(D.packsOff || []);
   $("#packSel").innerHTML = list.map(p => `<option value="${esc(p)}">${esc(p)}${off.has(p) ? " (off)" : ""}</option>`).join("");
   if (packName) $("#packSel").value = packName;
 }
 function ensurePack(n) { if (![...$("#packSel").options].some(o => o.value === n)) $("#packSel").insertAdjacentHTML("beforeend", `<option value="${esc(n)}">${esc(n)}</option>`); $("#packSel").value = n; }
 async function openPack(name) {
-  if (dirty && !confirm("Discard unsaved changes?")) { $("#packSel").value = packName; return; }
+  if (dirty && !confirm("Discard unsaved changes?")) { $("#packSel").value = packName; return false; }
   pack = await api("/api/scripts/pack?name=" + encodeURIComponent(name));
   pack.dialogs = pack.dialogs || [];
+  ensurePack(name);   // the picker shows the pack that is open
   packName = name; sel = pack.dialogs.length ? 0 : -1; dirty = false; parent.postMessage({ dirty: false }, "*");
   status(`Pack "${name}": ${pack.dialogs.length} dialogue(s)`);
   renderList(); renderEditor();
   updateOffBar();
+  return true;
 }
 const uid = (list, base) => { for (let i = 1; ; i++) if (!list.some(x => x.id === base + i)) return base + i; };
 
@@ -128,8 +136,8 @@ function stepsBox(list, kind, dl, li, ci) {
   return list.map((s, i) => `<div class="step" data-steps="${kind}" data-l="${li}" data-c="${ci}" data-i="${i}"><div class="head">
       <b>${esc(defs[s.type] || s.type)}</b><span class="sp"></span>
       ${kind === "if" ? `<label class="checks"><label><input type="checkbox" data-not ${s.not ? "checked" : ""}>NOT</label></label>` : ""}
-      ${s.type === "teleport" ? '<button data-here="1">Use where I\'m standing</button>' : ""}
-      <button class="danger" data-rm="1">✕</button></div>
+      ${s.type === "teleport" ? '<button data-here="1">Use where the camera is</button>' : ""}
+      <button class="danger" data-rm="1" title="Remove">✕</button></div>
       <div class="grid">${(FIELDS[key(s.type)] || []).map(f => field(s, f)).join("")}</div></div>`).join("")
     + `<select data-add="${kind}" data-l="${li}" data-c="${ci}"><option value="">${kind === "if" ? "+ Only show this choice if…" : "+ Also do…"}</option>${Object.entries(defs).filter(([k]) => k !== "dialog" || kind === "if" || true).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select>`;
 }
@@ -172,7 +180,7 @@ function renderEditor() {
       <label>Starts with<select data-d="start">${d.nodes.map(n => `<option value="${esc(n.id)}" ${n.id === d.start ? "selected" : ""}>${esc(n.id)}: ${esc(short(n.text))}</option>`).join("")}</select></label>
     </div>
     <div class="checks" style="margin-top:8px"><label><input type="checkbox" data-d="enabled" ${d.enabled === false ? "" : "checked"}>on</label></div>
-    <p class="hint">Tip: give an NPC who only talks the job “none” (NPCs tab), so the quest window doesn't open as well. In the text, {name} is the player's name.</p></fieldset>
+    <p class="hint">Tip: give an NPC who only talks the job “none” (in Build, select the NPC), so the quest window doesn't open as well. In the text, {name} is the player's name.</p></fieldset>
     ${d.nodes.map((n, li) => `<div class="line${n.id === d.start ? " start" : ""}" data-line="${li}">
       <div class="top">${n.id === d.start ? '<span class="tag">Starts here</span>' : ""}
         <label style="display:flex;gap:6px;align-items:center">Line id <input data-n="id" value="${esc(n.id)}" style="width:110px"></label>
@@ -188,7 +196,7 @@ function renderEditor() {
         <div class="choice" data-c="${ci}"><span class="n">${ci + 1}.</span>
           <input data-ch="text" value="${esc(c.text || "")}" placeholder="What the player says">
           <select data-ch="goto">${gotoOpts(c.goto)}</select>
-          <span><button data-chmv="-1" title="Up">▲</button><button data-chmv="1" title="Down">▼</button><button class="danger" data-chrm="1">✕</button></span>
+          <span><button data-chmv="-1" title="Up">▲</button><button data-chmv="1" title="Down">▼</button><button class="danger" data-chrm="1" title="Remove this answer">✕</button></span>
         </div>
         <details class="more" ${(c.if || []).length || (c.do || []).length ? "open" : ""}><summary class="hint">Only if… / also do… (${(c.if || []).length + (c.do || []).length})</summary>
           ${stepsBox(c.if || [], "if", li, li, ci)}<div style="height:6px"></div>${stepsBox(c.do || [], "do", li, li, ci)}</details>`).join("")
@@ -263,7 +271,7 @@ function renderEditor() {
     const not = box.querySelector("[data-not]"); if (not) not.onchange = () => { if (not.checked) obj.not = true; else delete obj.not; changed(false); };
     box.querySelector("[data-rm]").onclick = () => { list.splice(i, 1); changed(); };
     const here = box.querySelector("[data-here]");
-    if (here) here.onclick = async () => { const s = await liveGet("/status"); if (!s.connected || !s.inWorld) return alert("Start the game and enter the world first."); obj.x = s.x; obj.y = s.y; obj.z = s.z; changed(); };
+    if (here) here.onclick = async () => { const s = await liveGet("/status"); if (!s.connected || !s.inWorld) return status("Start the 3D view (▶ Start at the top) first.", "bad"); obj.x = s.x; obj.y = s.y; obj.z = s.z; changed(); };
   });
   $("#addLine").onclick = () => { d.nodes.push({ id: uid(d.nodes, "line-"), text: "", choices: [] }); changed(); };
   $("#preview").onclick = () => preview(d);
@@ -329,6 +337,7 @@ document.getElementById("offOn").onclick = async () => {
 
 // ---------------------------------------------------------------- live, save
 async function pollGame() {
+  if (window.innerWidth === 0) return;   // hidden (another workspace is showing): don't keep asking the game
   G = await liveGet("/status");
   const b = $("#live");
   if (G.connected && G.inWorld) { b.className = "badge on"; b.textContent = "● In game: " + zoneName(G.zone); }
@@ -354,11 +363,19 @@ async function save() {
 }
 $("#save").onclick = save; $("#newDlg").onclick = () => newDialog();
 $("#packSel").onchange = e => openPack(e.target.value);
-$("#newPack").onclick = () => { const n = prompt("Name for the new pack (letters, numbers, spaces, - and _):", "my-scripts"); if (n) { ensurePack(n); openPack(n); } };
+$("#newPack").onclick = () => { const n = prompt("Name for the new pack (letters, numbers, spaces, - and _). Dialogue is saved in script packs:", "my-dialogue"); if (n) { ensurePack(n); openPack(n); } };
 $("#search").oninput = renderList;
 window.addEventListener("message", async e => {
   const m = e.data || {};
-  if (m.cmd === "openPack") { if (m.name !== packName) { ensurePack(m.name); await openPack(m.name); } if (m.then) window.postMessage(m.then, "*"); }
+  if (m.cmd === "packsChanged" && m.kind === "scripts" && m.deleted && m.deleted === packName) {   // deleted on Packs & mods, or in the other scripts tab
+    const left = ((await api("/api/overview")).packs.scripts || []).map(p => p.name);
+    dirty = false; parent.postMessage({ dirty: false }, "*");
+    D.packs = left; packName = null; fillPacks(left.length ? left : ["my-scripts"]); await openPack(left[0] || "my-scripts"); return;
+  }
+  if (m.cmd === "packsChanged" || m.cmd === "npcsChanged") {   // new NPCs, quests, packs: refresh the pickers (not the open pack)
+    try { await loadData(); fillPacks(D.packs.length ? D.packs : [packName]); updateOffBar(); } catch (err) { }
+  }
+  if (m.cmd === "openPack") { if (m.name !== packName) { ensurePack(m.name); if (await openPack(m.name) === false) return; } if (m.then) window.postMessage(m.then, "*"); }
   if (m.cmd === "newDialog") newDialog(m.npc);
   if (m.cmd === "select") { const i = pack.dialogs.findIndex(x => x.id === m.id); if (i >= 0) { sel = i; renderList(); renderEditor(); } }
 });
@@ -369,7 +386,7 @@ document.addEventListener("keydown", e => {
 });
 window.addEventListener("beforeunload", e => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
 setInterval(pollGame, 2500);
-boot().then(() => { parent.postMessage({ ready: true }, "*"); pollGame(); }).catch(e => status("Couldn't load: " + e.message, "bad"));
+boot().then(() => { parent.postMessage({ ready: true }, "*"); pollGame(); }).catch(e => { status("Couldn't load: " + e.message, "bad"); parent.postMessage({ ready: true, error: e.message }, "*"); });
 </script>
 </body>
 </html>

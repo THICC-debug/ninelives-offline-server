@@ -20,8 +20,19 @@ namespace NineLivesEditor
             }
         }
 
+        /// <summary>For working on the pages: serve them from this folder instead of the exe (--web DIR).</summary>
+        public static string WebDir;
+
         /// <summary>A page or stylesheet from editor/web.</summary>
-        public static byte[] Web(string file) { return Read("web/" + file); }
+        public static byte[] Web(string file)
+        {
+            if (WebDir != null)
+            {
+                var f = Path.Combine(WebDir, file.Replace('/', Path.DirectorySeparatorChar));
+                if (File.Exists(f)) return File.ReadAllBytes(f);
+            }
+            return Read("web/" + file);
+        }
 
         /// <summary>Load WebView2's managed DLLs from inside the exe when .NET asks for them.</summary>
         public static void HookAssemblies()

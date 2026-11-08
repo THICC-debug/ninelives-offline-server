@@ -13,6 +13,7 @@
   .line { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line); }
   .line:last-child { border-bottom: 0; }
   .line .name { flex: 1; min-width: 0; }
+  .line .name b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }   /* pack names on one line */
   .line .name small { display: block; color: var(--muted); }
   .note { background: var(--chip); border-radius: 8px; padding: 10px 14px; margin: 0 0 16px; }
   .note.warn { color: var(--warn); }
@@ -44,7 +45,8 @@ const KIND = {
   quests: { title: "Quest packs", tab: "quests", mod: "QuestLoader", unit: "quest", folder: "Mods\\Quests" },
   content: { title: "Content packs", tab: "items", mod: "ContentLoader", unit: "change", folder: "Mods\\Content" },
   npcs: { title: "NPC packs", tab: "npcs", mod: "NPCLoader", unit: "NPC", folder: "Mods\\NPCs" },
-  scripts: { title: "Script packs", tab: "scripts", mod: "ScriptLoader", unit: "rule", folder: "Mods\\Scripts" },
+  enemies: { title: "Enemy packs", tab: "enemies", mod: "EnemyLoader", unit: "spawn", folder: "Mods\\Enemies" },
+  scripts: { title: "Script &amp; dialogue packs", tab: "scripts", mod: "ScriptLoader", unit: "rule", folder: "Mods\\Scripts" },
   world: { title: "World packs", tab: "world", mod: "WorldLoader", unit: "thing", folder: "Mods\\World" },
 };
 const MOD_INFO = {
@@ -52,6 +54,7 @@ const MOD_INFO = {
   QuestLoader: "quests from quest packs",
   ContentLoader: "item prices and stats, loot and shops from content packs",
   NPCLoader: "your own NPCs from NPC packs",
+  EnemyLoader: "monsters you place, with tweaked health, damage and speed, from enemy packs",
   WorldLoader: "copies of houses, trees and props, or hidden things, from world packs",
   ScriptLoader: "event rules and Lua scripts from script packs",
   DevTools: "F7 command box (cheats and testing)",
@@ -79,7 +82,7 @@ async function load() {
       ${mod.installed ? "" : `<p class="hint">${K.mod} isn't installed, so these do nothing in game.</p>`}
       ${list.map(p => `<div class="line">
           <label class="switch" title="${p.enabled ? "On: the game loads it" : "Off: the game ignores it"}"><input type="checkbox" data-kind="${k}" data-name="${esc(p.name)}" ${p.enabled ? "checked" : ""}></label>
-          <div class="name"><b>${esc(p.name)}</b>${p.enabled ? "" : ' <span class="badge off">off</span>'}<small>${p.size} ${K.unit}${p.size === 1 ? "" : "s"}</small></div>
+          <div class="name"><b title="${esc(p.name)}">${esc(p.name)}</b>${p.enabled ? "" : ' <span class="badge off">off</span>'}<small>${p.size} ${K.unit}${p.size === 1 ? "" : "s"}${p.dialogs ? ` · ${p.dialogs} dialogue${p.dialogs === 1 ? "" : "s"}` : ""}</small></div>
           <button data-open="${k}|${esc(p.name)}">Edit</button><button class="danger" data-del="${k}|${esc(p.name)}" title="Delete (to the Recycle Bin)">Delete</button></div>`).join("") || '<p class="hint">No packs yet.</p>'}
       <div class="actions" style="margin:10px 0 0"><button data-new="${k}">New pack</button><span class="hint">${esc(K.folder)}</span></div>
     </fieldset>`;
@@ -106,7 +109,8 @@ async function load() {
   });
   document.querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
     const [k, name] = b.dataset.del.split("|");
-    if (!confirm(`Delete the pack "${name}"?\n\nIt goes to the Recycle Bin, so you can get it back from there.`)) return;
+    const pk = ((D && D.packs && D.packs[k]) || []).find(p => p.name === name) || {};
+    if (!confirm(`Delete the pack "${name}"?${pk.dialogs ? `\n\nIts ${pk.dialogs} dialogue(s) are deleted too.` : ""}\n\nIt goes to the Recycle Bin (or Mods\\.trash on a drive without one), so you can get it back.`)) return;
     try {
       await api(`/api/packs/delete?kind=${k}&name=${encodeURIComponent(name)}`, { method: "POST" });
       parent.postMessage({ broadcast: { cmd: "packsChanged", kind: k, deleted: name } }, "*");

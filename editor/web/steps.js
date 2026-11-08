@@ -4,7 +4,7 @@
 // ---------------------------------------------------------------- what rules can do
 const WHEN = {
   zone: ["Entering a zone", "Every time you arrive in the zone (or any zone)."],
-  enterArea: ["Walking into an area", "A circle around a spot. Stand there in game and use “Use where I'm standing”."],
+  enterArea: ["Walking into an area", "A circle around a spot. Fly the 3D view's camera there and use “Use where the camera is”."],
   leaveArea: ["Walking out of an area", ""],
   talk: ["Talking to an NPC", "Clicking the NPC when close enough to talk."],
   questAccepted: ["Accepting a quest", ""],
@@ -51,8 +51,8 @@ const FIELDS = {
   startQuest: [["quest", "Quest", "quest"]],
   teleport: [["x", "X", "num"], ["y", "Y", "num"], ["z", "Z", "num"]],
   showNpc: [["npc", "NPC (one of yours)", "npc"], ["show", "Show (untick: hide)", "bool"]],
-  showThing: [["thing", "Placed thing (World tab)", "thing"], ["show", "Show (untick: hide)", "bool"]],
-  hidePath: [["path", "Path (from the World tab's Pick)", "text"], ["hide", "Hide (untick: show again)", "bool"]],
+  showThing: [["thing", "Placed thing (Build)", "thing"], ["show", "Show (untick: hide)", "bool"]],
+  hidePath: [["path", "Path (double-click scenery in Build)", "text"], ["hide", "Hide (untick: show again)", "bool"]],
   dialog: [["dialog", "Dialogue (Dialogue tab)", "dialog"]],
   lua: [["code", "Lua (event = what happened)", "code"]],
 };

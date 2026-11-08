@@ -19,7 +19,7 @@ namespace NineLivesEditor
     {
         const string Off = ".disabled";
         static readonly Regex PackName = new Regex(@"^[A-Za-z0-9 _\-]{1,60}$");
-        static readonly string[] Mods = { "TravelMod", "QuestLoader", "ContentLoader", "NPCLoader", "WorldLoader", "ScriptLoader", "DevTools" };
+        static readonly string[] Mods = { "TravelMod", "QuestLoader", "ContentLoader", "NPCLoader", "EnemyLoader", "WorldLoader", "ScriptLoader", "DevTools" };
 
         // kind -> (folder under Mods, list key in a pack, or null)
         static readonly Dictionary<string, string[]> Kinds = new Dictionary<string, string[]>
@@ -27,6 +27,7 @@ namespace NineLivesEditor
             { "quests", new[] { "Quests", "quests" } },
             { "content", new[] { "Content", null } },
             { "npcs", new[] { "NPCs", "npcs" } },
+            { "enemies", new[] { "Enemies", "enemies" } },
             { "world", new[] { "World", "objects" } },
             { "scripts", new[] { "Scripts", "rules" } },
         };
@@ -34,7 +35,7 @@ namespace NineLivesEditor
         static readonly Dictionary<string, string> Pages = new Dictionary<string, string>
         {
             { "/", "index.html" }, { "/index.html", "index.html" }, { "/home", "home.html" }, { "/overview", "overview.html" },
-            { "/quests", "quests.html" }, { "/content", "content.html" }, { "/npcs", "npcs.html" }, { "/world", "world.html" }, { "/scripts", "scripts.html" }, { "/map", "map.html" }, { "/dialogs", "dialogs.html" }, { "/steps.js", "steps.js" }, { "/style.css", "style.css" },
+            { "/quests", "quests.html" }, { "/content", "content.html" }, { "/npcs", "npcs.html" }, { "/enemies", "enemies.html" }, { "/monsters.js", "monsters.js" }, { "/world", "world.html" }, { "/scripts", "scripts.html" }, { "/map", "map.html" }, { "/dialogs", "dialogs.html" }, { "/steps.js", "steps.js" }, { "/gameview.js", "gameview.js" }, { "/outliner", "outliner.html" }, { "/assets", "assets.html" }, { "/popout", "popout.html" }, { "/style.css", "style.css" },
         };
 
         readonly string game;
@@ -57,7 +58,9 @@ namespace NineLivesEditor
             while (true)
             {
                 TcpClient c;
-                try { c = listener.AcceptTcpClient(); } catch { return; }
+                try { c = listener.AcceptTcpClient(); }
+                catch (ObjectDisposedException) { return; }   // stopped
+                catch (Exception) { Thread.Sleep(50); continue; }   // a one-off socket error mustn't end the server
                 ThreadPool.QueueUserWorkItem(_ => Serve(c));
             }
         }
@@ -73,23 +76,43 @@ namespace NineLivesEditor
                     client.ReceiveTimeout = 15000;
                     string method, target; Dictionary<string, string> headers; byte[] body;
                     if (!ReadRequest(s, out method, out target, out headers, out body)) return;
+                    // Only the editor's own pages: a web page elsewhere (in your browser) could otherwise send
+                    // requests here and change packs. Pages from here have this Host and this Origin.
+                    string host, origin;
+                    bool hostOk = headers.TryGetValue("Host", out host) && (host == "127.0.0.1:" + Port || host == "localhost:" + Port);
+                    bool originOk = !headers.TryGetValue("Origin", out origin) || origin == "http://127.0.0.1:" + Port || origin == "http://localhost:" + Port;
+                    string site;   // browsers say where a request comes from: only this editor's pages (or opening it) count
+                    if (headers.TryGetValue("Sec-Fetch-Site", out site) && site != "same-origin" && site != "none") originOk = false;
+                    if (!hostOk || !originOk)
+                    {
+                        var no = Encoding.ASCII.GetBytes("HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+                        s.Write(no, 0, no.Length); return;
+                    }
                     int q = target.IndexOf('?');
                     var path = q < 0 ? target : target.Substring(0, q);
                     var query = ParseQuery(q < 0 ? "" : target.Substring(q + 1));
                     Response r;
                     try { r = path.StartsWith("/api/live/") ? Live(method, target.Substring("/api/live".Length), body)
-                                                            : method == "POST" ? Post(path, query, body) : Get(path, query); }
+                                                            : method == "POST" ? (path.StartsWith("/api/play/") ? Post(path, query, body) : PostLocked(path, query, body))
+                                                            : path.Contains("/pack") ? GetLocked(path, query) : Get(path, query); }
                     catch (Exception e) { r = Error(500, e.Message); }
                     var head = "HTTP/1.1 " + r.Code + " " + (r.Code == 200 ? "OK" : "Error") + "\r\n" +
                                "Content-Type: " + r.Type + "\r\nContent-Length: " + r.Body.Length + "\r\n" +
-                               "Cache-Control: no-store\r\nConnection: close\r\n\r\n";
+                               "Cache-Control: " + (r.Cache ? "max-age=3600" : "no-store") + "\r\nConnection: close\r\n\r\n";
                     var hb = Encoding.ASCII.GetBytes(head);
                     s.Write(hb, 0, hb.Length);
                     s.Write(r.Body, 0, r.Body.Length);
                 }
                 catch (IOException) { }
+                catch (Exception) { }   // never let one bad request take the editor down (this runs on a pool thread)
             }
         }
+
+        // Saves, toggles and deletes one at a time: two at once could lose one, or leave a pack both on and off.
+        readonly object writeGate = new object();
+        Response PostLocked(string path, Dictionary<string, string> q, byte[] body) { lock (writeGate) return Post(path, q, body); }
+        // Reading a pack waits for a save or toggle in progress (mid-toggle the file is neither on nor off).
+        Response GetLocked(string path, Dictionary<string, string> q) { lock (writeGate) return Get(path, q); }
 
         static bool ReadRequest(Stream s, out string method, out string target, out Dictionary<string, string> headers, out byte[] body)
         {
@@ -116,11 +139,12 @@ namespace NineLivesEditor
             string cl;
             if (headers.TryGetValue("Content-Length", out cl))
             {
-                int n = int.Parse(cl);
-                if (n > 64 * 1024 * 1024) return false;
+                int n;
+                if (!int.TryParse(cl, out n) || n < 0 || n > 64 * 1024 * 1024) return false;
                 body = new byte[n];
                 int got = 0;
                 while (got < n) { int r = s.Read(body, got, n - got); if (r <= 0) break; got += r; }
+                if (got < n) return false;   // cut short: don't act on half a request
             }
             return true;
         }
@@ -139,7 +163,7 @@ namespace NineLivesEditor
             return d;
         }
 
-        class Response { public int Code = 200; public string Type = "application/json; charset=utf-8"; public byte[] Body; }
+        class Response { public int Code = 200; public string Type = "application/json; charset=utf-8"; public byte[] Body; public bool Cache; }
         static Response JsonText(string json, int code = 200) { return new Response { Code = code, Body = Encoding.UTF8.GetBytes(json) }; }
         static Response JsonObj(object o, int code = 200) { return JsonText(Json.Write(o), code); }
         static Response Error(int code, string msg) { return JsonObj(new Dictionary<string, object> { { "error", msg } }, code); }
@@ -169,8 +193,15 @@ namespace NineLivesEditor
                 {
                     var text = r.ReadToEnd();
                     // Mark it as coming from the game, so the page knows it's connected.
-                    return JsonText(text.StartsWith("{") ? "{\"connected\":true," + text.Substring(1).TrimStart() : text);
+                    text = text.Trim();
+                    if (!text.StartsWith("{")) return JsonText(text);
+                    var rest = text.Substring(1).TrimStart();
+                    return JsonText("{\"connected\":true" + (rest.StartsWith("}") ? "" : ",") + rest);
                 }
+            }
+            catch (WebException e) when (e.Status == WebExceptionStatus.Timeout)
+            {
+                return JsonObj(new Dictionary<string, object> { { "connected", true }, { "busy", true }, { "error", "The game is busy (loading?). Try again in a moment." } });
             }
             catch (WebException e)
             {
@@ -184,7 +215,15 @@ namespace NineLivesEditor
         // ------------------------------------------------------------ files
         string ModsDir(params string[] parts) { return Path.Combine(new[] { game, "Mods" }.Concat(parts).ToArray()); }
         string ExportPath(string mod, string file) { return ModsDir(mod, "export", file); }
-        string ExportRaw(string mod, string file, string fallback) { return Json.ReadText(ExportPath(mod, file)) ?? fallback; }
+        string ExportRaw(string mod, string file, string fallback)
+        {
+            var t = Json.ReadText(ExportPath(mod, file));
+            if (string.IsNullOrWhiteSpace(t)) return fallback;
+            t = t.Trim();
+            if (!(t.StartsWith("{") && t.EndsWith("}")) && !(t.StartsWith("[") && t.EndsWith("]"))) return fallback;   // being written by the game
+            try { Json.Parse(t); } catch { return fallback; }
+            return t;
+        }
 
         string Folder(string kind)
         {
@@ -199,11 +238,11 @@ namespace NineLivesEditor
             var found = new SortedDictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
             foreach (var f in Directory.GetFiles(Folder(kind)).Select(Path.GetFileName))
             {
-                if (f.EndsWith(".json", StringComparison.OrdinalIgnoreCase)) found[f.Substring(0, f.Length - 5)] = true;
+                if (f.EndsWith(".json", StringComparison.OrdinalIgnoreCase)) { var n = f.Substring(0, f.Length - 5); if (PackName.IsMatch(n)) found[n] = true; }
                 else if (f.EndsWith(".json" + Off, StringComparison.OrdinalIgnoreCase))
                 {
                     var n = f.Substring(0, f.Length - 5 - Off.Length);
-                    if (!found.ContainsKey(n)) found[n] = false;
+                    if (PackName.IsMatch(n) && !found.ContainsKey(n)) found[n] = false;
                 }
             }
             return found.ToList();
@@ -238,7 +277,7 @@ namespace NineLivesEditor
                 foreach (var n in PackItems("npcs", p.Key))
                     out_.Add(new Dictionary<string, object> {
                         { "cid", Json.Get(n, "id") }, { "name", Json.Str(n, "name") ?? "?" }, { "zone", Json.Str(n, "zone") ?? "" },
-                        { "x", Json.Get(n, "x") ?? 0 }, { "y", Json.Get(n, "y") ?? 0 }, { "z", Json.Get(n, "z") ?? 0 },
+                        { "x", Json.Get(n, "x") ?? 0 }, { "y", Json.Get(n, "y") ?? 0 }, { "z", Json.Get(n, "z") ?? 0 }, { "rotation", Json.Get(n, "rotation") ?? 0 },
                         { "custom", true }, { "pack", p.Key }, { "enabled", p.Value && !false.Equals(Json.Get(n, "enabled")) } });
             return out_;
         }
@@ -285,6 +324,14 @@ namespace NineLivesEditor
             var parts = path.Trim('/').Split('/');
             if (parts.Length < 2 || parts[0] != "api") return Error(404, "not found");
 
+            if (parts[1] == "play" && parts.Length > 2 && parts[2] == "status") return JsonObj(GameRunner.Status(game));
+            if (parts[1] == "zones")   // every zone and dungeon (from WorldLoader's scene index), for the 3D view's zone list
+            {
+                var dir = ModsDir(Path.Combine("WorldLoader", "batches"));
+                var zoneNames = Directory.Exists(dir) ? Directory.GetFiles(dir, "*.json").Select(f => Path.GetFileNameWithoutExtension(f))
+                    .Where(n => n.StartsWith("Zone_") || n.StartsWith("Dungeon_")).OrderBy(n => n.StartsWith("Dungeon_")).ThenBy(n => n).ToList() : new List<string>();
+                return JsonObj(zoneNames);
+            }
             if (parts[1] == "overview")
             {
                 var cfg = ModCfg();
@@ -293,13 +340,35 @@ namespace NineLivesEditor
                     { "mods", Mods.Select(m => new Dictionary<string, object> {
                         { "id", m }, { "installed", File.Exists(ModsDir(m + ".dll")) }, { "enabled", !cfg.ContainsKey(m) || cfg[m] } }).ToList() },
                     { "packs", Kinds.Keys.ToDictionary(k => k, k => (object)Packs(k).Select(p => new Dictionary<string, object> {
-                        { "name", p.Key }, { "enabled", p.Value }, { "size", PackSize(k, p.Key) } }).ToList()) },
+                        { "name", p.Key }, { "enabled", p.Value }, { "size", PackSize(k, p.Key) },
+                        { "dialogs", k == "scripts" ? (object)((Json.List(Json.Get(Json.Load(PackFile(k, p.Key)), "dialogs")) ?? new object[0]).Count) : null } }).ToList()) },
                     { "exported", new Dictionary<string, object> {
                         { "quests", File.Exists(ExportPath("QuestLoader", "quests.json")) },
                         { "content", File.Exists(ExportPath("ContentLoader", "loot.json")) } } },
                 });
             }
             if (parts[1] == "index") return JsonObj(SearchIndex());
+            if (parts[1] == "prefs")   // the editor's own settings (layout, panel sizes…), kept in a file
+            {
+                var f = PrefsFile;
+                return JsonText(File.Exists(f) ? File.ReadAllText(f, Encoding.UTF8) : "{}");
+            }
+            if (parts[1] == "icon" && parts.Length == 3)   // an item's icon, exported by ContentLoader: /api/icon/icon_90_3
+            {
+                var name = parts[2];
+                if (!System.Text.RegularExpressions.Regex.IsMatch(name, "^icon_[0-9]{1,6}_[0-9]{1,6}$")) return Error(400, "bad icon name");
+                var png = Path.Combine(ExportPath("ContentLoader", "icons"), name + ".png");
+                if (!File.Exists(png)) return Error(404, "no such icon");
+                return new Response { Body = File.ReadAllBytes(png), Type = "image/png", Cache = true };
+            }
+            if (parts[1] == "monster" && parts.Length == 3)   // a monster's picture, taken by ContentLoader: /api/monster/m_1a2b3c4d
+            {
+                var name = parts[2];
+                if (!System.Text.RegularExpressions.Regex.IsMatch(name, "^m_[0-9a-f]{8}$")) return Error(400, "bad picture name");
+                var png = Path.Combine(ExportPath("ContentLoader", "monsters"), name + ".png");
+                if (!File.Exists(png)) return Error(404, "no such picture");
+                return new Response { Body = File.ReadAllBytes(png), Type = "image/png" };
+            }
             if (parts[1] == "map") return Map(parts.Length > 2 ? parts[2] : "", q);
 
             var kind = parts[1];
@@ -317,8 +386,16 @@ namespace NineLivesEditor
                 if (kind == "quests")
                 {
                     raw("originals", ExportRaw("QuestLoader", "quests.json", "[]"));
+                    raw("monsters", ExportRaw("ContentLoader", "monsters.json", "[]"));
+                    raw("maps", Json.Write(MapBounds()));
                     raw("items", ExportRaw("QuestLoader", "items.json", "[]"));
                     raw("npcs", Json.Write(GameNpcs().Concat(CustomNpcs().Select(n => { var c = new Dictionary<string, object>(n); c["name"] = n["name"] + " (custom)"; return c; })).ToList()));
+                }
+                else if (kind == "enemies")
+                {
+                    raw("monsters", ExportRaw("ContentLoader", "monsters.json", "[]"));
+                    raw("maps", Json.Write(MapBounds()));
+                    raw("loot", ExportRaw("ContentLoader", "loot.json", "{}"));
                 }
                 else if (kind == "content")
                 {
@@ -370,6 +447,26 @@ namespace NineLivesEditor
                     raw("packQuests", Json.Write(PackQuests()));
                     var shops = Json.Obj(Json.Get(Json.Load(ExportPath("ContentLoader", "shops.json")), "drops"));
                     raw("shops", Json.Write(shops == null ? new List<string>() : shops.Keys.OrderBy(k => { long n; return long.TryParse(k, out n) ? n : 0; }).ToList()));
+                    // For vendors: every item's usual price, and what each of the game's vendors always stocks (to start from).
+                    raw("items", ExportRaw("ContentLoader", "items.json", "{}"));
+                    raw("itemNames", ExportRaw("QuestLoader", "items.json", "[]"));
+                    raw("icons", ExportRaw("ContentLoader", "icons.json", "{}"));
+                    var stock = new Dictionary<string, object>();
+                    if (shops != null)
+                        foreach (var kv in shops)
+                        {
+                            var counts = new Dictionary<string, int>(); var order = new List<string>();
+                            foreach (var s in Json.List(Json.Get(kv.Value, "always")) ?? new List<object>())
+                            {
+                                long n;
+                                var id = Convert.ToString(Json.Get(s, "id"), System.Globalization.CultureInfo.InvariantCulture);
+                                if (!long.TryParse(id, out n)) continue;
+                                if (!counts.ContainsKey(id)) { counts[id] = 0; order.Add(id); }
+                                counts[id]++;
+                            }
+                            if (order.Count > 0) stock[kv.Key] = order.Select(id => (object)new object[] { long.Parse(id), counts[id] }).ToList();
+                        }
+                    raw("vendorStock", Json.Write(stock));
                 }
                 return JsonText(sb.Append('}').ToString());
             }
@@ -378,8 +475,14 @@ namespace NineLivesEditor
                 var name = Q(q, "name");
                 var file = PackFile(kind, name);
                 if (file == null) return Error(400, "bad pack name");
-                var text = Json.ReadText(file);
-                if (text != null) return JsonText(text);
+                if (File.Exists(file))
+                {
+                    for (int i = 0; ; i++)
+                    {
+                        try { return JsonText(File.ReadAllText(file, Encoding.UTF8).TrimStart('\uFEFF')); }
+                        catch (IOException e) { if (i >= 4) return Error(503, "The pack file is in use (" + e.Message + "). Try again in a moment."); System.Threading.Thread.Sleep(150); }
+                    }
+                }
                 var empty = new Dictionary<string, object> { { "name", name } };
                 if (Kinds[kind][1] != null) empty[Kinds[kind][1]] = new object[0];
                 return JsonObj(empty);
@@ -408,7 +511,11 @@ namespace NineLivesEditor
                     add("quest", Json.Get(o, "id"), Json.Str(o, "title"), "Game quest" + (who(g) != null ? " · from " + who(g) : ""));
                 }
             foreach (var p in PackQuests())
+            {
+                int before = idx.Count;
                 add("myquest", p["id"], (string)p["title"], "Your quest · pack " + p["pack"] + (who(Json.Num(p, "giver")) != null ? " · from " + who(Json.Num(p, "giver")) : ""));
+                if (idx.Count > before) idx[idx.Count - 1]["pack"] = p["pack"];
+            }
 
             var items = Json.Obj(Json.Load(ExportPath("ContentLoader", "items.json")));
             if (items != null)
@@ -438,18 +545,27 @@ namespace NineLivesEditor
             foreach (var p in Packs("scripts"))
             {
                 foreach (var o in PackItems("scripts", p.Key))
+                {
+                    int before = idx.Count;
                     add("rule", Json.Str(o, "id"), Json.Str(o, "name") ?? Json.Str(o, "id"), "Script rule · pack " + p.Key);
+                    if (idx.Count > before) idx[idx.Count - 1]["pack"] = p.Key;
+                }
                 var dl = Json.List(Json.Get(Json.Load(PackFile("scripts", p.Key)), "dialogs"));
                 if (dl != null)
                     foreach (var d in dl)
                     {
-                        add("dlg", Json.Str(d, "id"), Json.Str(d, "name") ?? Json.Str(d, "id"), "Dialogue · pack " + p.Key + (Json.Num(d, "npc") > 0 ? " · " + (who(Json.Num(d, "npc")) ?? "") : ""));
-                        idx[idx.Count - 1]["pack"] = p.Key;
+                        int before = idx.Count;
+                        var dn = Json.Str(d, "name"); if (string.IsNullOrEmpty(dn)) dn = Json.Str(d, "id");
+                        add("dlg", Json.Str(d, "id"), dn, "Dialogue · pack " + p.Key + (Json.Num(d, "npc") > 0 ? " · " + (who(Json.Num(d, "npc")) ?? "") : ""));
+                        if (idx.Count > before) idx[idx.Count - 1]["pack"] = p.Key;
                     }
             }
             foreach (var p in Packs("world"))
                 foreach (var o in PackItems("world", p.Key))
+                {
                     add("obj", Json.Str(o, "id"), Json.Str(o, "name") ?? Json.Str(o, "id"), (true.Equals(Json.Get(o, "hide")) ? "Hidden thing" : "Placed thing") + " · pack " + p.Key + " · " + (Json.Str(o, "zone") ?? "").Replace("Zone_", ""));
+                    if (idx.Count > 0 && (string)idx[idx.Count - 1]["k"] == "obj" && !idx[idx.Count - 1].ContainsKey("pack")) idx[idx.Count - 1]["pack"] = p.Key;
+                }
             foreach (var n in GameNpcs())
             {
                 long c = Json.Num(n, "cid");
@@ -459,6 +575,20 @@ namespace NineLivesEditor
         }
 
         // ------------------------------------------------------------ map
+        /// <summary>Each zone's map picture area (Mods\maps\&lt;zone&gt;.json), for drawing small maps.</summary>
+        Dictionary<string, object> MapBounds()
+        {
+            var d = new Dictionary<string, object>();
+            var dir = ModsDir("maps");
+            if (Directory.Exists(dir))
+                foreach (var f in Directory.GetFiles(dir, "*.json"))
+                {
+                    var z = Path.GetFileNameWithoutExtension(f);
+                    if (File.Exists(Path.Combine(dir, z + ".png"))) d[z] = Json.Load(f);
+                }
+            return d;
+        }
+
         Response Map(string what, Dictionary<string, string> q)
         {
             var dir = ModsDir("maps");
@@ -508,10 +638,15 @@ namespace NineLivesEditor
                                 { "x", Json.Get(w, "x") ?? 0 }, { "z", Json.Get(w, "z") ?? 0 }, { "y", Json.Get(w, "y") ?? 0 }, { "radius", Json.Get(w, "radius") ?? 5 }, { "leave", type == "leaveArea" } });
                         var steps = Json.List(Json.Get(r, "then"));
                         if (steps != null)
-                            foreach (var a in steps)
-                                if (Json.Str(a, "type") == "teleport")
-                                    areas.Add(new Dictionary<string, object> { { "kind", "teleport" }, { "rule", Json.Str(r, "id") }, { "name", Json.Str(r, "name") ?? Json.Str(r, "id") }, { "pack", p.Key },
+                            for (int si = 0; si < steps.Count; si++)
+                            {
+                                var a = steps[si];
+                                // a teleport target belongs on the map of the zone it sends you to (its own zone, or the rule's)
+                                var to = Json.Str(a, "zone"); if (string.IsNullOrEmpty(to)) to = Json.Str(w, "zone");
+                                if (Json.Str(a, "type") == "teleport" && to == zone)
+                                    areas.Add(new Dictionary<string, object> { { "kind", "teleport" }, { "rule", Json.Str(r, "id") }, { "step", si }, { "name", Json.Str(r, "name") ?? Json.Str(r, "id") }, { "pack", p.Key },
                                         { "x", Json.Get(a, "x") ?? 0 }, { "z", Json.Get(a, "z") ?? 0 }, { "y", Json.Get(a, "y") ?? 0 } });
+                            }
                     }
                 return JsonObj(new Dictionary<string, object> {
                     { "zone", zone }, { "bounds", Json.Load(Path.Combine(dir, zone + ".json")) },
@@ -526,11 +661,29 @@ namespace NineLivesEditor
         }
 
         // ------------------------------------------------------------ POST
+        static string PrefsFile { get { return Path.Combine(Resources.AppData, "prefs.json"); } }
+
         Response Post(string path, Dictionary<string, string> q, byte[] body)
         {
             var parts = path.Trim('/').Split('/');
             if (parts.Length < 3 || parts[0] != "api") return Error(404, "not found");
 
+            if (parts[1] == "prefs" && parts[2] == "save")
+            {
+                // The pages' settings live in the browser's storage, which goes with the address, and this
+                // server's port changes every run: so they're also kept here and put back at the start.
+                var text = Encoding.UTF8.GetString(body ?? new byte[0]);
+                if (text.Length > 512 * 1024 || !(Json.Parse(text) is Dictionary<string, object>)) return Error(400, "not a settings object");
+                Directory.CreateDirectory(Path.GetDirectoryName(PrefsFile));
+                File.WriteAllText(PrefsFile, text, Encoding.UTF8);
+                return JsonObj(new Dictionary<string, object> { { "ok", true } });
+            }
+            if (parts[1] == "play")   // the 3D view: the game in the background
+            {
+                if (parts[2] == "start") return JsonObj(GameRunner.Start(game));
+                if (parts[2] == "stop") return JsonObj(GameRunner.Stop(game));
+                if (parts[2] == "show") return JsonObj(GameRunner.Show(game, Q(q, "on") == "1"));
+            }
             if (parts[1] == "packs" && parts[2] == "toggle")
             {
                 string kind = Q(q, "kind"), name = Q(q, "name"); bool on = Q(q, "on") == "1";
@@ -551,11 +704,27 @@ namespace NineLivesEditor
                 string kind = Q(q, "kind"), name = Q(q, "name");
                 var file = PackFile(kind, name);
                 if (file == null || !File.Exists(file)) return Error(404, "no such pack");
+                bool recycle = false;
+                try { recycle = new DriveInfo(Path.GetPathRoot(Path.GetFullPath(file))).DriveType == DriveType.Fixed; } catch { }
+                string trash = null;
                 foreach (var f in new[] { file, file + ".bak" })
-                    if (File.Exists(f))
-                        Microsoft.VisualBasic.FileIO.FileSystem.DeleteFile(f, Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs,
-                                                                         Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin);
-                return JsonObj(new Dictionary<string, object> { { "ok", true } });
+                {
+                    if (!File.Exists(f)) continue;
+                    if (recycle)
+                    {
+                        try
+                        {
+                            Microsoft.VisualBasic.FileIO.FileSystem.DeleteFile(f, Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs,
+                                Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin, Microsoft.VisualBasic.FileIO.UICancelOption.DoNothing);
+                            if (!File.Exists(f)) continue;
+                        }
+                        catch { }
+                    }
+                    // No Recycle Bin there (network or USB drive): keep it in Mods\.trash instead of deleting it for good.
+                    trash = ModsDir(".trash"); Directory.CreateDirectory(trash);
+                    File.Move(f, Path.Combine(trash, DateTime.Now.ToString("yyyyMMdd-HHmmss") + " " + kind + " " + Path.GetFileName(f)));
+                }
+                return JsonObj(new Dictionary<string, object> { { "ok", true }, { "trash", trash } });
             }
 
             if (parts[1] == "mods" && parts[2] == "toggle")
@@ -569,7 +738,9 @@ namespace NineLivesEditor
                 for (int i = 0; i < lines.Count; i++)
                     if (Regex.IsMatch(lines[i], @"^\s*" + Regex.Escape(key) + @"\s*=", RegexOptions.IgnoreCase)) { lines[i] = key + " = " + (on ? "true" : "false"); found = true; }
                 if (!found) lines.Add(key + " = " + (on ? "true" : "false"));
-                File.WriteAllLines(cfgPath, lines);
+                var tmp = cfgPath + ".tmp";
+                File.WriteAllLines(tmp, lines);
+                if (File.Exists(cfgPath)) File.Replace(tmp, cfgPath, null); else File.Move(tmp, cfgPath);
                 return JsonObj(new Dictionary<string, object> { { "ok", true } });
             }
 
@@ -588,9 +759,13 @@ namespace NineLivesEditor
                 }
                 catch (Exception e) { return Error(400, "Couldn't read the pack: " + e.Message); }
                 if (File.Exists(file)) File.Copy(file, file + ".bak", true);       // one step of undo
-                var tmp = file + ".tmp";
-                File.WriteAllText(tmp, Json.Pretty(pack), new UTF8Encoding(false));
-                if (File.Exists(file)) File.Replace(tmp, file, null); else File.Move(tmp, file);
+                var tmp = file + "." + Guid.NewGuid().ToString("N").Substring(0, 8) + ".tmp";
+                try
+                {
+                    File.WriteAllText(tmp, Json.Pretty(pack), new UTF8Encoding(false));
+                    if (File.Exists(file)) File.Replace(tmp, file, null); else File.Move(tmp, file);
+                }
+                finally { try { if (File.Exists(tmp)) File.Delete(tmp); } catch { } }
                 var lk = Kinds[k2][1];
                 return JsonObj(new Dictionary<string, object> {
                     { "saved", file }, { "enabled", !file.EndsWith(Off) },

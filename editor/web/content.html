@@ -22,7 +22,7 @@
     <div class="filters">
       <input type="search" id="search" placeholder="Search name or id…  ( / )">
       <select id="cat" title="Item category"></select>
-      <label style="display:flex;gap:4px;align-items:center;color:var(--ink);font-size:12px"><input type="checkbox" id="onlyChanged">only changed</label>
+      <label style="display:flex;gap:5px;align-items:center;color:var(--ink);font-size:12px;white-space:nowrap;flex:none"><input type="checkbox" id="onlyChanged" style="width:auto;margin:0">only changed</label>
     </div>
     <div id="list"></div>
   </aside>
@@ -115,6 +115,7 @@ async function boot() {
 }
 
 function fillPacks(names) {
+  if (packName && !names.includes(packName)) names = [...names, packName];   // (a new pack, not saved yet)
   const off = new Set(D.packsOff || []);
   $("#packSel").innerHTML = names.map(p => `<option value="${esc(p)}">${esc(p)}${off.has(p) ? " (off)" : ""}</option>`).join("");
   if (packName) $("#packSel").value = packName;
@@ -132,7 +133,7 @@ window.addEventListener("message", async e => {
     return;
   }
   if (m.contentTab && m.contentTab !== tab) { tab = m.contentTab; if (sel && sel.tab !== "info") sel = { tab: "info", key: "info" }; renderList(); renderEditor(); }
-  if (m.cmd === "openPack") { ensurePack(m.name); await openPack(m.name); }
+  if (m.cmd === "openPack") { if (m.name !== packName) { ensurePack(m.name); if (await openPack(m.name) === false) return; } if (m.then) window.postMessage(m.then, "*"); }
   if (m.cmd === "openShop") { tab = "shops"; go("shops", "d:" + m.id); }
   if (m.cmd === "select") { $("#search").value = ""; if (tab === "items") $("#cat").value = "all"; $("#onlyChanged").checked = false; go(m.tab || tab, m.key); const el = $(`#list [data-key="${m.key}"]`); if (el) el.scrollIntoView({ block: "center" }); }
   if (m.cmd === "packsChanged" || m.cmd === "npcsChanged") {
@@ -144,11 +145,13 @@ window.addEventListener("message", async e => {
 });
 
 async function openPack(name) {
-  if (dirty && !confirm("Discard unsaved changes?")) { $("#packSel").value = packName; return; }
+  if (dirty && !confirm("Discard unsaved changes?")) { $("#packSel").value = packName; return false; }
   pack = await api("/api/content/pack?name=" + encodeURIComponent(name));
-  packName = name; sel = { tab: "info", key: "info" }; dirty = false;
+  ensurePack(name);   // the picker shows the pack that is open
+  packName = name; sel = { tab: "info", key: "info" }; dirty = false; parent.postMessage({ dirty: false }, "*");
   status(`Pack "${name}" loaded`);
   renderList(); renderEditor();
+  return true;
 }
 
 const P = {
@@ -264,7 +267,7 @@ function itemEditor(ed, id) {
   const price = (o && o.price) ?? it.price, amp = (o && o.buyPriceAmp) ?? it.buyPriceAmp;
   ed.innerHTML = `<p class="title">${esc((o && o.stats && o.stats.dispName) || it.name || id)}</p>
     <p class="hint">Item ${id} · ${CATS.find(c => c[0] !== "all" && c[2](catOf(id)))?.[1] || ""}${variantsOf[id] ? ` · ${variantsOf[id].length} variants (Fine, Rugged… share these stats)` : ""}</p>
-    <div class="actions">${o ? '<button class="danger" id="revert">Remove my changes</button>' : '<button class="primary" id="start">Change this item</button><span class="hint">Showing the original.</span>'}</div>
+    <div class="actions">${o ? '<button class="danger" id="revert">Back to the original</button>' : '<button class="primary" id="start">Change this item</button><span class="hint">Showing the original.</span>'}</div>
     <fieldset><legend>Price</legend><div class="grid">
       <label>Base price (original ${it.price ?? "?"})<input type="number" id="price" value="${o && o.price != null ? o.price : ""}" placeholder="${it.price ?? ""}" ${o ? "" : "disabled"}></label>
       <label>Shop markup (original ${it.buyPriceAmp ?? "?"})<input type="number" step="0.1" id="amp" value="${o && o.buyPriceAmp != null ? o.buyPriceAmp : ""}" placeholder="${it.buyPriceAmp ?? ""}" ${o ? "" : "disabled"}></label>
@@ -283,7 +286,7 @@ function itemEditor(ed, id) {
       : '<p class="hint">Not in any loot table or shop (it may come from quests, crafting or the world).</p>'}</fieldset>`;
   ed.querySelectorAll("[data-go]").forEach(b => b.onclick = () => { const [t, k] = b.dataset.go.split("|"); go(t, k); });
   if (!o) { $("#start").onclick = () => { P.items()[id] = { name: it.name }; setDirty(); renderList(); renderEditor(); }; return; }
-  $("#revert").onclick = () => { delete pack.items[id]; setDirty(); renderList(); renderEditor(); };
+  $("#revert").onclick = () => { if (!confirm("Throw away your changes to this item and go back to the game's original?")) return; delete pack.items[id]; setDirty(); renderList(); renderEditor(); };
   const num = (el, k) => { const v = el.value.trim(); if (v === "") delete o[k]; else o[k] = +v; setDirty(); renderList(); renderEditor(); };
   $("#price").onchange = e => num(e.target, "price");
   $("#amp").onchange = e => num(e.target, "buyPriceAmp");
@@ -353,7 +356,7 @@ function dropEditor(ed, t, id) {
   };
   ed.querySelectorAll("[data-gogroup]").forEach(b => b.onclick = () => go(t, "g:" + b.dataset.gogroup));
   if (ro) { $("#start").onclick = () => { P.drops(t)[id] = clone(orig || { min: 1, max: 1, random: [] }); setDirty(); renderList(); renderEditor(); }; return; }
-  $("#revert").onclick = () => { delete pack[t].drops[id]; setDirty(); renderList(); renderEditor(); };
+  $("#revert").onclick = () => { if (!confirm("Throw away your changes to this table and go back to the game's original?")) return; delete pack[t].drops[id]; setDirty(); renderList(); renderEditor(); };
   ed.querySelectorAll("[data-f]").forEach(el => el.onchange = () => {
     let v = el.value.trim();
     if (v === "") delete d[el.dataset.f]; else { v = +v; if (el.dataset.f === "dropRate") v = Math.min(1, Math.max(0, v)); else v = Math.max(0, Math.round(v)); d[el.dataset.f] = v; }
@@ -388,7 +391,7 @@ function groupEditor(ed, t, id) {
   ed.querySelectorAll("[data-go]").forEach(b => b.onclick = () => { const [tt, k] = b.dataset.go.split("|"); go(tt, k); });
   const f = $("#gfilter"); if (f) f.oninput = () => { const q = f.value.toLowerCase(); ed.querySelectorAll("#gitems .row").forEach(r => r.style.display = r.querySelector("[data-sf=id]").value.toLowerCase().includes(q) ? "" : "none"); };
   if (ro) { $("#start").onclick = () => { P.groups(t)[id] = clone(orig); setDirty(); renderList(); renderEditor(); }; return; }
-  $("#revert").onclick = () => { delete pack[t].groups[id]; setDirty(); renderList(); renderEditor(); };
+  $("#revert").onclick = () => { if (!confirm("Throw away your changes to this group and go back to the game's original?")) return; delete pack[t].groups[id]; setDirty(); renderList(); renderEditor(); };
   $("#addIt").onclick = () => { g.push({ id: 0, count: 1 }); setDirty(); renderEditor(); };
   wireItemRows(ed, () => g);
 }
@@ -437,7 +440,7 @@ async function save() {
   pack.name = pack.name || packName; tidy();
   try {
     const r = await api("/api/content/pack?name=" + encodeURIComponent(packName), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(pack) });
-    setDirty(false); status(`Saved. In game: reloadcontent (F7).`, "ok");
+    setDirty(false); status(`Saved. The game loads it next time it starts.`, "ok");
     parent.postMessage({ broadcast: { cmd: "packsChanged", kind: "content" } }, "*"); renderList(); if (sel && sel.tab === "info") renderEditor();
   } catch (e) { status("Save failed: " + e.message, "bad"); }
 }
@@ -446,12 +449,13 @@ async function save() {
 // Delete the open pack (it goes to the Recycle Bin), then open another one.
 async function deletePack() {
   const exists = ((await api("/api/overview")).packs.content || []).some(p => p.name === packName);
-  if (!confirm(exists ? `Delete the pack "${packName}"?\n\nIt goes to the Recycle Bin, so you can get it back from there.`
+  if (!confirm(exists ? `Delete the pack "${packName}"?\n\nIt goes to the Recycle Bin (or Mods\\.trash on a drive without one), so you can get it back.`
                       : `"${packName}" was never saved. Throw it away?`)) return;
   if (exists) {
     try { await api(`/api/packs/delete?kind=content&name=${encodeURIComponent(packName)}`, { method: "POST" }); }
     catch (e) { status("Couldn't delete: " + e.message, "bad"); return; }
   }
+  const gone = packName;
   const left = ((await api("/api/overview")).packs.content || []).map(p => p.name);
   dirty = false; parent.postMessage({ dirty: false }, "*");
   D.packs = left; D.packsOff = D.packsOff ? D.packsOff.filter(n => left.includes(n)) : [];
@@ -459,7 +463,7 @@ async function deletePack() {
   packName = null; fillPacks(left.length ? left : [next]);
   await openPack(next);
   status(exists ? "Deleted (it's in the Recycle Bin)" : "Thrown away", "ok");
-  parent.postMessage({ broadcast: { cmd: "packsChanged", kind: "content" } }, "*");
+  parent.postMessage({ broadcast: { cmd: "packsChanged", kind: "content", deleted: exists ? gone : undefined } }, "*");
 }
 $("#delPack").onclick = deletePack;
 $("#save").onclick = save;
@@ -480,7 +484,7 @@ document.addEventListener("keydown", e => {
 // Ctrl+K goes to the search box in the main window.
 document.addEventListener("keydown", e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); parent.postMessage({ key: "ctrl-k" }, "*"); } });
 window.addEventListener("beforeunload", e => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
-boot().then(() => parent.postMessage({ ready: true }, "*")).catch(e => status("Couldn't load: " + e.message, "bad"));
+boot().then(() => parent.postMessage({ ready: true }, "*")).catch(e => { status("Couldn't load: " + e.message, "bad"); parent.postMessage({ ready: true, error: e.message }, "*"); });
 </script>
 </body>
 </html>
