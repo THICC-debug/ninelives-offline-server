@@ -1,0 +1,277 @@
+{
+  "name": "revived-quests",
+  "description": "Revived Quests: quests that are in Nine Lives but were switched off (most never got English text), switched back on with English translated from the original Japanese, plus one small new quest where Chaia LeFay hands over Phiremone's Slate (it had no source).",
+  "quests": [
+    {
+      "id": 100000147,
+      "title": "The Blessed Road",
+      "types": [
+        "Errand",
+        "Main"
+      ],
+      "enabled": true,
+      "autoAccept": false,
+      "autoReopen": false,
+      "repeatable": false,
+      "priority": 0,
+      "giver": 13,
+      "ender": 1,
+      "description": "Leftovers of the sky's tail. A gardener, a grave keeper and an errand runner.\nThe third one, an errand runner. Called to many places, did her job.\nGot in a dilemma, everything went wrong. When one is fixed, the other gets broken. The more she worked, the more she had to do.\nThe errand runner got exhausted, and went to see the old gardener.\nThrough the deep dark woods of west, along the blessed road, to the mountain top looking down on the clouds.\n<color=#ffda77ff>[TO BE CONTINUED]</color>",
+      "descriptionForEnder": "You... what's this? An odd one, aren't you.\nYou say you've come all this way looking for Chaia LeFay?\nHmm. Not long ago another rude fellow came here saying the very same thing...",
+      "translations": {
+        "jp": {
+          "description": "お空のしっぽの、食べこぼし。庭師と、墓守、雑用がかり。\nこぼれたみっつ目、雑用がかり、あちこち呼ばれて、お役目果たす。\nあちらに行けば、こちらが立たず。こちらを正せば、あちらが壊れ。やればやるほど、お役目増える。\n雑用がかり、疲れ果て、年寄り庭師を 訪ねます。\n暗い暗い 西の森、祝福の道 進みゆき、雲を見下ろす 山の上。\n<color=#ffda77ff>[つづく]</color>",
+          "descriptionForEnder": "おぬしは…なんだ、妙なやつだな。\nChaia LeFayを探して、ここまで辿り着いたというのか？\nはて。少し前にも、そう言ってここにきた無礼者がおったが…。"
+        },
+        "es": {
+          "description": "Restos de la cola del cielo. Un jardinero, un sepulturero y una recadera.\nLa tercera, un recadera. Llamada a muchos lugares, hizo su trabajo.\nSe enfrentó a un dilema, todo fue mal. Cuando una cosa se arregla, otra se estropea. Cuanto más trabajaba, más quedaba por hacer.\n La recadera, agotada, fue a ver al viejo jardinero. A través de los profundos bosques oscuros del oeste, a lo largo del camino bendecido, hasta la cima de la montaña por encima de las nubes.\n<color=#ffda77ff>[CONTINUARÁ]</color>"
+        }
+      },
+      "rewards": [
+        {
+          "kind": "exp",
+          "amount": 500,
+          "item": 0
+        }
+      ],
+      "clearFlag": 7106,
+      "clearWorkFlag": 0
+    },
+    {
+      "id": 100000292,
+      "title": "The Blessed Road",
+      "types": [
+        "Normal",
+        "Collect"
+      ],
+      "enabled": true,
+      "autoAccept": true,
+      "autoReopen": false,
+      "repeatable": false,
+      "priority": 0,
+      "giver": 1,
+      "ender": 1,
+      "description": "Hmm. Even if Kyrill has been guiding you, I find it hard to believe you have seen the slate I sent to Chaia LeFay.\nOnly Chaia LeFay and her Guardians can enter the Spirit Maker's Lodge.\nIf what you say is true, bring me my slate from the Spirit Maker's Lodge.",
+      "translations": {
+        "jp": {
+          "description": "はて。たとえおぬしにKyrillの導きがあったとしても、Chaia LeFayにあてたわしの石板を見たというのは信じられんな。\nSpirit Maker's Lodgeに入ることができるのは、Chaia LeFayと彼女のGuardiansだけだ。\nもし、おぬしの言葉が真実だと言うのであれば、Spirit Maker's Lodgeにある、わしの石板をここまで持ってくるがよい。"
+        }
+      },
+      "targets": [
+        {
+          "kind": "item",
+          "item": 650000082,
+          "monsterId": 0,
+          "count": 1,
+          "includeBank": true
+        }
+      ],
+      "rewards": [
+        {
+          "kind": "exp",
+          "amount": 200,
+          "item": 0
+        }
+      ],
+      "clearFlag": 6110,
+      "clearWorkFlag": 0,
+      "descriptionForEnder": "So it is true... This is my slate. Kyrill chose well. Forgive an old gardener his doubts.",
+      "requires": {
+        "flagsAll": [
+          {
+            "flag": 7106,
+            "on": true
+          }
+        ]
+      }
+    },
+    {
+      "id": 900000201,
+      "title": "Phiremone's Slate",
+      "types": [
+        "Errand",
+        "ItemReceive"
+      ],
+      "enabled": true,
+      "autoAccept": false,
+      "autoReopen": false,
+      "repeatable": false,
+      "priority": 0,
+      "giver": 13,
+      "ender": 13,
+      "description": "The first Magus doubts you? That is just like him.\nHe recorded everything onto his slates, and sent me this one long ago. Take it back to him, along the blessed road, and he will believe you.",
+      "descriptionForEnder": "Go on, then. Phiremone does not like to be kept waiting, for all the centuries he has had.",
+      "receives": [
+        {
+          "item": 650000082,
+          "count": 1
+        }
+      ],
+      "rewards": [
+        {
+          "kind": "exp",
+          "amount": 100,
+          "item": 0
+        }
+      ],
+      "clearFlag": 9210,
+      "requires": {
+        "flagsAll": [
+          {
+            "flag": 7106,
+            "on": true
+          }
+        ]
+      }
+    },
+    {
+      "id": 100000294,
+      "title": "Cult Posters",
+      "types": [
+        "Normal",
+        "Collect"
+      ],
+      "enabled": true,
+      "autoAccept": true,
+      "autoReopen": false,
+      "repeatable": false,
+      "priority": 0,
+      "giver": 600,
+      "ender": 600,
+      "description": "Where did you get this flyer?\nIt belongs to a cult that worships the court jester who vanished along with Princess Sigmior. They believe the lie that when the world ends, the jester will be their saviour. They're armed, and dangerous.\nHand the flyers over. They have to go to the Sigmior guards.",
+      "translations": {
+        "jp": {
+          "description": "このビラをどこで手に入れた？\nこれは、Sigmior王女とともに失踪した宮廷道化師を神と仰ぐカルト教団のビラだ。\n世界が滅ぶとき、道化師が救世主となるというデマを信じこんでいる。武装もしており、危険な存在だ。\nビラをよこしてくれ。Sigmiorの警備兵に届けなくてはならない。"
+        }
+      },
+      "targets": [
+        {
+          "kind": "item",
+          "item": 650000010,
+          "monsterId": 0,
+          "count": 10,
+          "includeBank": true
+        }
+      ],
+      "rewards": [
+        {
+          "kind": "exp",
+          "amount": 200,
+          "item": 0
+        }
+      ],
+      "clearFlag": 8128,
+      "clearWorkFlag": 0,
+      "requires": {
+        "itemsAll": [
+          {
+            "item": 650000010,
+            "count": 10,
+            "atLeast": true,
+            "includeBank": true
+          }
+        ]
+      }
+    },
+    {
+      "id": 100000295,
+      "title": "Cult Posters",
+      "types": [
+        "Normal",
+        "Errand",
+        "ItemReceive"
+      ],
+      "enabled": true,
+      "autoAccept": false,
+      "autoReopen": false,
+      "repeatable": false,
+      "priority": 0,
+      "giver": 600,
+      "ender": 601,
+      "description": "There's a Cult Hunter called Kedassi in this town's tavern who has been on the cult's trail for a long time. Take this stack of flyers to him.",
+      "descriptionForEnder": "So you're bringing me the jester's flyers. I'll take them.\nYou've heard that Princess Sigmior vanished together with Sigmior's court jester?",
+      "translations": {
+        "jp": {
+          "description": "この街の酒場に、カルト教団を追い続けているKedassiというCult Hunterがいる。このビラの束を持って彼と接触するのだ。",
+          "descriptionForEnder": "その道化師のビラの束を受け取ろうか。\nSigmior王女が、Sigmiorの宮廷道化師とともに、失踪した話は聞いているな？\n"
+        }
+      },
+      "receives": [
+        {
+          "item": 650000014,
+          "count": 1
+        }
+      ],
+      "targets": [
+        {
+          "kind": "item",
+          "item": 650000014,
+          "monsterId": 0,
+          "count": 1,
+          "includeBank": true
+        }
+      ],
+      "rewards": [
+        {
+          "kind": "exp",
+          "amount": 100,
+          "item": 0
+        }
+      ],
+      "clearFlag": 8129,
+      "clearWorkFlag": 0,
+      "requires": {
+        "flagsAll": [
+          {
+            "flag": 8128,
+            "on": true
+          }
+        ]
+      }
+    },
+    {
+      "id": 100000297,
+      "title": "Maggie's Day",
+      "types": [
+        "Normal",
+        "Collect"
+      ],
+      "enabled": true,
+      "autoAccept": false,
+      "autoReopen": false,
+      "repeatable": false,
+      "priority": 0,
+      "giver": 690,
+      "ender": 690,
+      "description": "I've forgotten how many decades I've been at this lighthouse. I'm waiting for Margaret. She left with my ship that day and she has never come back.\nIn Sigmior they call Margaret a thief, but I know better than anyone that it can't be true. Please, find Margaret. Clear her name.",
+      "translations": {
+        "jp": {
+          "description": "もうこの灯台に来て何十年経つのか忘れてしまった。Margaretを待っているんだ。彼女は、あの日わたしの船と共に去ったまま未だ戻ってこない。\nSigmiorではMargaretは盗賊扱いだが、それがありえないことはわたしがよく知っている。頼む、Margaretを見つけてくれ。彼女の汚名をすすいでほしい。"
+        }
+      },
+      "targets": [
+        {
+          "kind": "item",
+          "item": 650000030,
+          "monsterId": 0,
+          "count": 1,
+          "includeBank": true
+        }
+      ],
+      "rewards": [
+        {
+          "kind": "gold",
+          "amount": 120,
+          "item": 0
+        },
+        {
+          "kind": "exp",
+          "amount": 1145,
+          "item": 0
+        }
+      ],
+      "clearFlag": 0,
+      "clearWorkFlag": 0
+    }
+  ]
+}

@@ -1,0 +1,85 @@
+{
+  "name": "revived-quests-loot",
+  "description": "Revived Quests: undead (Bone Soldiers, Archers and Mages) also drop Cult Posters, for the revived Cult Posters quest. Everything they dropped before still drops.",
+  "loot": {
+    "drops": {
+      "1012": {
+        "random": [
+          {
+            "rate": 800,
+            "group": 11
+          },
+          {
+            "rate": 500,
+            "group": 12
+          },
+          {
+            "rate": 600,
+            "group": 13
+          },
+          {
+            "rate": 300,
+            "group": 14
+          },
+          {
+            "rate": 80,
+            "group": 15
+          },
+          {
+            "rate": 650,
+            "group": 21
+          },
+          {
+            "rate": 250,
+            "group": 22
+          },
+          {
+            "rate": 80,
+            "group": 23
+          },
+          {
+            "rate": 50,
+            "group": 24
+          },
+          {
+            "rate": 20,
+            "group": 901
+          },
+          {
+            "rate": 250,
+            "group": 0,
+            "items": [
+              {
+                "id": 610000012,
+                "count": 1,
+                "name": "Bone Shard"
+              }
+            ]
+          },
+          {
+            "rate": 150,
+            "group": 0,
+            "items": [
+              {
+                "id": 610000020,
+                "count": 1,
+                "name": "Scrap Metal"
+              }
+            ]
+          },
+          {
+            "rate": 1500,
+            "group": 0,
+            "items": [
+              {
+                "id": 650000010,
+                "count": 2,
+                "name": "Cult Poster"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}
