@@ -50,7 +50,8 @@
 
   <fieldset><legend>Save backups</legend>
     <p class="hint" style="margin-top:0">Back up your save before testing, and put it back afterwards: characters, bags, gold and quest progress all go back to how they were.
-      Putting one back needs the game closed.</p>
+      Putting one back needs the game closed. The offline server also backs up by itself, when you start playing and every half hour
+      (marked "automatic": the newest 10, and one a day for two weeks before those).</p>
     <div class="row"><button id="bkGo" class="primary">Back up my save now</button><span class="hint" id="bkWhere"></span></div>
     <div id="bkList"></div>
     <div class="msg" id="bkMsg"></div>
@@ -173,7 +174,7 @@ async function backups() {
   let b; try { b = await api("/api/test/backups"); } catch (e) { say("#bkMsg", e.message, "bad"); return; }
   $("#bkWhere").textContent = b.exists ? "Save: " + b.save : "No save yet: play once first.";
   $("#bkGo").disabled = !b.exists;
-  $("#bkList").innerHTML = b.backups.length ? b.backups.map(x => `<div class="bk"><div class="grow"><b>${esc(x.time)}</b> <span class="hint">${esc(x.name.includes("before-restore") ? "(your save before a restore)" : "")} ${(x.size / 1024).toFixed(0)} KB</span></div>
+  $("#bkList").innerHTML = b.backups.length ? b.backups.map(x => `<div class="bk"><div class="grow"><b>${esc(x.time)}</b> <span class="hint">${esc(x.name.includes("before-restore") ? "(your save before a restore)" : x.name.endsWith("-auto.json") ? "(automatic)" : "")} ${(x.size / 1024).toFixed(0)} KB</span></div>
       <button data-restore="${esc(x.name)}" ${b.busy ? "disabled title=\"Close the game first\"" : ""}>Put it back</button><button class="danger" data-del="${esc(x.name)}" title="Delete this backup">✕</button></div>`).join("")
     : `<p class="hint">No backups yet.</p>`;
   if (b.busy && b.backups.length) $("#bkList").insertAdjacentHTML("beforeend", `<p class="hint">Close the game (Stop at the top) to put a backup back.</p>`);

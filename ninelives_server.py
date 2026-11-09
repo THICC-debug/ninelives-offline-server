@@ -12,6 +12,7 @@ import base64
 import hashlib
 import json
 import os
+import re
 import secrets
 import socket
 import sys
@@ -134,6 +135,52 @@ def load_db():
 
 
 _last_backup = [0.0]
+_last_auto = [0.0]
+AUTO_BACKUP_EVERY = 30 * 60    # seconds of play between automatic backups (and one first thing each session)
+AUTO_KEEP_RECENT = 10          # the newest automatic backups, all kept
+AUTO_KEEP_DAYS = 14            # and before those, the last one of each day, for this many days
+
+
+def backup_dir():
+    return os.path.join(os.path.dirname(SAVE_PATH), "backups")
+
+
+def auto_backup(now=None):
+    """Copy the save as it is now into backups/save-YYYYMMDD-HHMMSS-auto.json (the editor's Test page lists
+    these with its own backups and can put one back), then tidy the automatic ones. Never touches the
+    backups you made yourself. Returns the new file's name, or None."""
+    if not os.path.exists(SAVE_PATH):
+        return None
+    now = now or time.time()
+    d = backup_dir()
+    os.makedirs(d, exist_ok=True)
+    name = "save-" + time.strftime("%Y%m%d-%H%M%S", time.localtime(now)) + "-auto.json"
+    import shutil
+    shutil.copy2(SAVE_PATH, os.path.join(d, name))
+    prune_auto_backups()
+    return name
+
+
+def prune_auto_backups():
+    """Keep the newest AUTO_KEEP_RECENT automatic backups, and before those the last one of each of the
+    AUTO_KEEP_DAYS most recent days; delete the other automatic ones."""
+    d = backup_dir()
+    try:
+        autos = sorted((f for f in os.listdir(d) if re.match(r"^save-\d{8}-\d{6}-auto\.json$", f)), reverse=True)
+    except OSError:
+        return
+    keep, days = set(autos[:AUTO_KEEP_RECENT]), []
+    for f in autos[AUTO_KEEP_RECENT:]:
+        day = f[5:13]
+        if day not in days and len(days) < AUTO_KEEP_DAYS:
+            days.append(day)
+            keep.add(f)
+    for f in autos:
+        if f not in keep:
+            try:
+                os.remove(os.path.join(d, f))
+            except OSError:
+                pass
 
 
 def save_db():
@@ -143,6 +190,13 @@ def save_db():
             import shutil
             shutil.copy2(SAVE_PATH, SAVE_PATH + ".bak")
             _last_backup[0] = time.time()
+        except OSError:
+            pass
+    # And a dated backup first thing each session and every half hour of play (backups\, kept for two weeks).
+    if time.time() - _last_auto[0] > AUTO_BACKUP_EVERY and os.path.exists(SAVE_PATH):
+        try:
+            auto_backup()
+            _last_auto[0] = time.time()
         except OSError:
             pass
     tmp = SAVE_PATH + ".tmp"

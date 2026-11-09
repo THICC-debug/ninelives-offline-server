@@ -10,7 +10,7 @@
     <TargetFramework>net48</TargetFramework>
     <AssemblyName>Setup</AssemblyName>
     <RootNamespace>NineLivesSetup</RootNamespace>
-    <Version>1.1.0</Version>
+    <Version>1.2.0</Version>
     <Product>Nine Lives Offline</Product>
     <Description>Nine Lives Offline setup</Description>
     <LangVersion>latest</LangVersion>

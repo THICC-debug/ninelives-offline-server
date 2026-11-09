@@ -61,6 +61,8 @@ This project brings it back for single-player, offline play:
 The server starts minimized next to the game and stops by itself when you close the game.
 Your save is `Ninelives\OfflineServer\save.json`. A copy of the previous save is kept as `save.json.bak`;
 if `save.json` is ever damaged (a power cut), the server starts from the copy and keeps the damaged file.
+It also makes dated backups by itself in `OfflineServerackups` (when you start playing and every half hour:
+the newest 10, plus one a day for two weeks). The Nine Lives Editor's Test tools list them and put one back.
 If the game folder can't be written to (a game in Program Files), saves go to
 `%LOCALAPPDATA%\NineLivesOffline` instead (the server log says where).
 
@@ -162,6 +164,7 @@ Each mod is self-contained and released on its own:
 | [ContentLoader](mods/ContentLoader) | Change item prices and stats, loot tables and shop stock with JSON content packs |
 | [WorldLoader](mods/WorldLoader) | Copy and place buildings, fences, trees and props, or hide things, with world packs |
 | [ScriptLoader](mods/ScriptLoader) | Dialogues with answers, event rules (when this happens, do that) and Lua scripts |
+| [Revived Quests](mods/RevivedQuests) | Packs, not code: four quests the game had switched off, back in English (needs QuestLoader and ContentLoader) |
 
 ### 🛠️ Nine Lives Editor
 
